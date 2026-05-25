@@ -1,6 +1,7 @@
 TEMPLATE = subdirs
 
 SUBDIRS = \
+    writing_assistant \
     audioplay_information \
     audioplay_parameters \
     audioplay_text \
