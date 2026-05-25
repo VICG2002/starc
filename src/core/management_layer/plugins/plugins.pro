@@ -3,6 +3,7 @@ TEMPLATE = subdirs
 SUBDIRS = \
     writing_assistant \
     screenplay_breakdown_native \
+    production_schedule \
     audioplay_information \
     audioplay_parameters \
     audioplay_text \

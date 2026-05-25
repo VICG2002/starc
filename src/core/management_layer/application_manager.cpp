@@ -198,6 +198,11 @@ public:
     void showBreakdown();
 
     /**
+     * @brief Mostrar la página del plan de rodaje (plugin Aula 122 / Bloque 7)
+     */
+    void showProductionSchedule();
+
+    /**
      * @brief Показать страницу статистика работы с программой
      */
     void showSessionStatistics();
@@ -1060,6 +1065,34 @@ void ApplicationManager::Implementation::showBreakdown()
     auto* view = plugin->view(scriptModel);
     if (view == nullptr) {
         Log::warning("Breakdown native view is null");
+        return;
+    }
+
+    static auto* emptyToolbar = new QWidget;
+    static auto* emptyNavigator = new QWidget;
+
+    applicationView->showContent(emptyToolbar, emptyNavigator, view->asQWidget());
+}
+
+void ApplicationManager::Implementation::showProductionSchedule()
+{
+    Log::info("Show production schedule screen");
+    menuView->checkProduction();
+
+    const QString productionMime = "app/x-diez50/production-schedule";
+    if (!pluginsBuilder.initPlugin(productionMime)) {
+        Log::warning("Failed to init production schedule plugin");
+        return;
+    }
+    auto* plugin = pluginsBuilder.plugin(productionMime);
+    if (plugin == nullptr) {
+        Log::warning("Production schedule plugin not found after init");
+        return;
+    }
+    auto* scriptModel = projectManager->firstScriptModel();
+    auto* view = plugin->view(scriptModel);
+    if (view == nullptr) {
+        Log::warning("Production schedule view is null");
         return;
     }
 
@@ -2878,6 +2911,8 @@ void ApplicationManager::initConnections()
     connect(d->menuView, &Ui::MenuView::settingsPressed, this, [this] { d->showSettings(); });
     connect(d->menuView, &Ui::MenuView::assistantPressed, this, [this] { d->showAssistant(); });
     connect(d->menuView, &Ui::MenuView::breakdownPressed, this, [this] { d->showBreakdown(); });
+    connect(d->menuView, &Ui::MenuView::productionPressed, this,
+            [this] { d->showProductionSchedule(); });
     //
     connect(d->menuView, &Ui::MenuView::writingStatisticsPressed, this, [this] {
 #ifdef CLOUD_SERVICE_MANAGER

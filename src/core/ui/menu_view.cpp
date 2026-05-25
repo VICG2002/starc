@@ -58,6 +58,7 @@ public:
     QAction* settings = nullptr;
     QAction* assistant = nullptr;
     QAction* breakdown = nullptr;
+    QAction* production = nullptr;
     QAction* aboutApplicationAction = nullptr;
 
     QAction* writingStatistics = nullptr;
@@ -102,6 +103,7 @@ MenuView::Implementation::Implementation(MenuView* _parent)
     , settings(new QAction)
     , assistant(new QAction)
     , breakdown(new QAction)
+    , production(new QAction)
     , aboutApplicationAction(new QAction)
     , writingStatistics(new QAction)
     , writingSprint(new QAction)
@@ -137,6 +139,7 @@ MenuView::Implementation::Implementation(MenuView* _parent)
         drawer->addAction(settings);
         drawer->addAction(assistant);
         drawer->addAction(breakdown);
+        drawer->addAction(production);
 
         drawer->setAccountActions({
             writingStatistics,
@@ -204,6 +207,12 @@ MenuView::Implementation::Implementation(MenuView* _parent)
         breakdown->setIconText(u8"\U000F0B2A"); // format-list-checks (MDI)
         breakdown->setCheckable(true);
         breakdown->setVisible(true);
+        //
+        // Aula 122 / Bloque 7: plan de rodaje (strip board + crew + call sheets)
+        //
+        production->setIconText(u8"\U000F00ED"); // calendar-clock (MDI)
+        production->setCheckable(true);
+        production->setVisible(true);
 
         QActionGroup* actions = new QActionGroup(_parent);
         actions->addAction(projects);
@@ -211,6 +220,7 @@ MenuView::Implementation::Implementation(MenuView* _parent)
         actions->addAction(settings);
         actions->addAction(assistant);
         actions->addAction(breakdown);
+        actions->addAction(production);
 
         writingStatistics->setIconText(u8"\U000F085D");
         //
@@ -302,6 +312,7 @@ MenuView::MenuView(QWidget* _parent)
     connect(d->settings, &QAction::triggered, this, &MenuView::settingsPressed);
     connect(d->assistant, &QAction::triggered, this, &MenuView::assistantPressed);
     connect(d->breakdown, &QAction::triggered, this, &MenuView::breakdownPressed);
+    connect(d->production, &QAction::triggered, this, &MenuView::productionPressed);
     //
     connect(d->writingStatistics, &QAction::triggered, this, &MenuView::writingStatisticsPressed);
     connect(d->writingSprint, &QAction::triggered, this, &MenuView::writingSprintPressed);
@@ -331,6 +342,7 @@ MenuView::MenuView(QWidget* _parent)
     connect(this, &MenuView::settingsPressed, this, &MenuView::closeMenu);
     connect(this, &MenuView::assistantPressed, this, &MenuView::closeMenu);
     connect(this, &MenuView::breakdownPressed, this, &MenuView::closeMenu);
+    connect(this, &MenuView::productionPressed, this, &MenuView::closeMenu);
     connect(this, &MenuView::helpPressed, this, &MenuView::closeMenu);
     //
     connect(this, &MenuView::writingStatisticsPressed, this, &MenuView::closeMenu);
@@ -444,6 +456,12 @@ void MenuView::checkBreakdown()
 {
     QSignalBlocker signalBlocker(this);
     d->breakdown->setChecked(true);
+}
+
+void MenuView::checkProduction()
+{
+    QSignalBlocker signalBlocker(this);
+    d->production->setChecked(true);
 }
 
 void MenuView::markChangesSaved(bool _saved)
@@ -597,6 +615,7 @@ void MenuView::updateTranslations()
     d->settings->setText(tr("Application settings"));
     d->assistant->setText(tr("Writing assistant"));
     d->breakdown->setText(tr("Desglose del guion"));
+    d->production->setText(tr("Plan de rodaje"));
 
     d->writingStatistics->setToolTip(tr("Show writing statistics"));
     d->writingSprint->setToolTip(tr("Show writing sprint timer"));

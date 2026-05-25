@@ -73,6 +73,11 @@ public:
     void checkBreakdown();
 
     /**
+     * @brief Marcar el botón del plan de rodaje como seleccionado (Aula 122 / Bloque 7)
+     */
+    void checkProduction();
+
+    /**
      * @brief Установить состояние сохранённости изменений проекта
      */
     void markChangesSaved(bool _saved);
@@ -198,6 +203,11 @@ signals:
      * @brief Click en el botón "Desglose" del menú lateral (Aula 122 / Bloque 5)
      */
     void breakdownPressed();
+
+    /**
+     * @brief Click en el botón "Plan de rodaje" del menú lateral (Aula 122 / Bloque 7)
+     */
+    void productionPressed();
 
     /**
      * @brief Нажат пункт меню "Справка"

@@ -251,6 +251,10 @@ const QHash<QString, QString> kMimeToPlugin
         //
         { "app/x-diez50/breakdown-native", "*screenplaybreakdownnativeplugin*" },
         //
+        // Aula 122 — plan de rodaje (strip board + crew + call sheets, Bloque 7)
+        //
+        { "app/x-diez50/production-schedule", "*productionscheduleplugin*" },
+        //
         { kSimpleTextFolderEditorMime, "*simpletextplugin*" },
         { kSimpleTextEditorMime, "*simpletextplugin*" },
         { kSimpleTextNavigatorMime, "*simpletextstructureplugin*" },
