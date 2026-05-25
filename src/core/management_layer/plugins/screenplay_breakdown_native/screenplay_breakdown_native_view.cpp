@@ -127,6 +127,84 @@ void collectScenes(BusinessLayer::TextModelItem* _item,
     }
 }
 
+/**
+ * @brief Paleta color-coded estilo StudioBinder. Mapeo nombre de categoría
+ *        (case-insensitive, español o inglés) → QColor. Si no hay match,
+ *        retorna un color del fallback rotativo.
+ */
+QColor colorForCategory(const QString& _categoryName, int _fallbackIndex = 0)
+{
+    static const QHash<QString, QColor> kCategoryColors = {
+        // Cast / personajes
+        { "cast", QColor("#FF6B6B") },
+        { "personajes", QColor("#FF6B6B") },
+        // Extras
+        { "extras", QColor("#FFD93D") },
+        // Stunts / dobles
+        { "stunts", QColor("#FF8C42") },
+        { "dobles", QColor("#FF8C42") },
+        // Vehicles
+        { "vehicles", QColor("#95D86E") },
+        { "vehículos", QColor("#95D86E") },
+        { "vehiculos", QColor("#95D86E") },
+        // Props
+        { "props", QColor("#B5A4E3") },
+        { "atrezo", QColor("#B5A4E3") },
+        // Sound effects
+        { "sfx", QColor("#4ECDC4") },
+        { "sound effects", QColor("#4ECDC4") },
+        // Special FX (efectos prácticos)
+        { "maquillaje/sfx", QColor("#E67373") },
+        { "special effects", QColor("#E67373") },
+        // VFX
+        { "vfx", QColor("#3D5A80") },
+        // Wardrobe
+        { "wardrobe", QColor("#A0E7E5") },
+        { "vestuario", QColor("#A0E7E5") },
+        // Makeup / Hair
+        { "makeup", QColor("#C9B1FF") },
+        { "maquillaje", QColor("#C9B1FF") },
+        { "hair", QColor("#C9B1FF") },
+        // Animals
+        { "animals", QColor("#7FE3D4") },
+        { "animales", QColor("#7FE3D4") },
+        // Music
+        { "music", QColor("#D6B3FF") },
+        { "música", QColor("#D6B3FF") },
+        { "musica", QColor("#D6B3FF") },
+        // Special equipment
+        { "equipment", QColor("#B0B0B0") },
+        { "equipo", QColor("#B0B0B0") },
+        // Set dressing
+        { "set dressing", QColor("#808080") },
+        { "ambientación", QColor("#808080") },
+        // Greenery
+        { "greenery", QColor("#5A8C3F") },
+        { "follaje", QColor("#5A8C3F") },
+        // Security
+        { "security", QColor("#404040") },
+        { "seguridad", QColor("#404040") },
+        // Armas (común en cine de acción / drama)
+        { "armas", QColor("#8B4513") },
+        { "weapons", QColor("#8B4513") },
+    };
+
+    const auto it = kCategoryColors.constFind(_categoryName.toLower().trimmed());
+    if (it != kCategoryColors.constEnd()) {
+        return it.value();
+    }
+
+    //
+    // Fallback rotativo (10 colores distinguibles si la categoría no es estándar)
+    //
+    static const QVector<QColor> kFallback = {
+        QColor("#E91E63"), QColor("#9C27B0"), QColor("#3F51B5"), QColor("#009688"),
+        QColor("#FF5722"), QColor("#795548"), QColor("#607D8B"), QColor("#FFC107"),
+        QColor("#673AB7"), QColor("#00BCD4"),
+    };
+    return kFallback[std::abs(_fallbackIndex) % kFallback.size()];
+}
+
 } // anonymous namespace
 
 
@@ -273,12 +351,17 @@ void ScreenplayBreakdownNativeView::refreshResourcesList()
     const auto sceneResources = scene->resources();
     for (const auto& sr : sceneResources) {
         QString categoryName;
+        QColor categoryColor;
         QString resourceName;
         if (dictionaries != nullptr) {
             const auto resource = dictionaries->resource(sr.uuid);
             resourceName = resource.name;
             if (!resource.categoryUuid.isNull()) {
-                categoryName = dictionaries->resourceCategory(resource.categoryUuid).name;
+                const auto category = dictionaries->resourceCategory(resource.categoryUuid);
+                categoryName = category.name;
+                categoryColor = category.color.isValid()
+                    ? category.color
+                    : colorForCategory(category.name);
             }
         }
         if (resourceName.isEmpty()) {
@@ -298,6 +381,15 @@ void ScreenplayBreakdownNativeView::refreshResourcesList()
         }
         auto* item = new QListWidgetItem(label);
         item->setData(Qt::UserRole, sr.uuid);
+        //
+        // Aula 122 / Bloque 5.C: tag visual con color de categoría (alpha
+        // bajo para que el texto siga siendo legible sobre el fondo).
+        //
+        if (categoryColor.isValid()) {
+            QColor bg = categoryColor;
+            bg.setAlpha(60);
+            item->setBackground(QBrush(bg));
+        }
         d->resourcesList->addItem(item);
     }
 }
@@ -419,11 +511,14 @@ void ScreenplayBreakdownNativeView::onAddResourceClicked()
     }
     if (categoryUuid.isNull()) {
         //
-        // Crear nueva categoría con icono y color genéricos
+        // Crear nueva categoría con color estilo StudioBinder (mapa de colores
+        // industry-standard); fallback rotativo si la categoría es custom.
         //
+        const QColor catColor = colorForCategory(input.categoryName,
+                                                 dictionaries->resourceCategories().size());
         dictionaries->addResourceCategory(input.categoryName,
                                           QString::fromUtf8(u8"\U000F0766"), // tag icon
-                                          QColor(), false);
+                                          catColor, false);
         for (const auto& cat : dictionaries->resourceCategories()) {
             if (cat.name == input.categoryName) {
                 categoryUuid = cat.uuid;
