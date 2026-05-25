@@ -7,14 +7,14 @@
 namespace Ui {
 
 /**
- * @brief Vista del asistente de escritura — panel con input + respuestas
- *        de Claude.
+ * @brief Vista del asistente de escritura — panel de chat con Claude.
  *
- * Iteración 1 (mínima): muestra un texto estático para validar que el
- * plugin carga y aparece en la UI de Diez50.
- *
- * Iteración 2 (futuro): añadir QLineEdit + QPushButton + QTextEdit con
- * conexión a la API de Anthropic vía QNetworkAccessManager.
+ * Layout vertical:
+ *   - Título "Asistente de escritura"
+ *   - Área de respuestas (QTextEdit read-only, scrollable)
+ *   - Input del usuario (QLineEdit)
+ *   - Botón "Enviar"
+ *   - Status label al pie
  */
 class WritingAssistantView : public Widget, public IDocumentView
 {
@@ -32,15 +32,39 @@ public:
     void setEditingMode(ManagementLayer::DocumentEditingMode _mode) override;
     /** @} */
 
-protected:
     /**
-     * @brief Actualizar traducciones (texto del UI)
+     * @brief Añadir un mensaje del usuario al área de respuestas (prefijo "Tú:")
      */
-    void updateTranslations() override;
+    void appendUserMessage(const QString& _text);
 
     /**
-     * @brief Reaccionar a cambios del design system de STARC
+     * @brief Añadir una respuesta de Claude al área de respuestas (prefijo "Claude:")
      */
+    void appendAssistantMessage(const QString& _text);
+
+    /**
+     * @brief Mostrar mensaje de error en el área de respuestas
+     */
+    void appendError(const QString& _error);
+
+    /**
+     * @brief Cambiar texto del status label al pie
+     */
+    void setStatus(const QString& _status);
+
+    /**
+     * @brief Habilitar/deshabilitar input + botón (mientras se espera respuesta)
+     */
+    void setInputEnabled(bool _enabled);
+
+signals:
+    /**
+     * @brief El usuario envió un mensaje (click en botón o Enter en input)
+     */
+    void messageSubmitted(const QString& _text);
+
+protected:
+    void updateTranslations() override;
     void designSystemChangeEvent(DesignSystemChangeEvent* _event) override;
 
 private:

@@ -1,5 +1,6 @@
 #include "writing_assistant_manager.h"
 
+#include "claude_client.h"
 #include "writing_assistant_view.h"
 
 #include <QPointer>
@@ -10,28 +11,86 @@ namespace ManagementLayer {
 class WritingAssistantManager::Implementation
 {
 public:
+    Implementation();
+
     /**
-     * @brief Crear vista (la del asistente)
+     * @brief Crear vista y conectarla al cliente de Claude
      */
     Ui::WritingAssistantView* createView();
 
 
     /**
-     * @brief Vista principal y secundaria del asistente
+     * @brief Cliente HTTP a la API de Anthropic (compartido entre vistas)
+     */
+    ClaudeClient* claudeClient = nullptr;
+
+    /**
+     * @brief Vistas activas (primary / secondary / multi-instance)
      */
     Ui::WritingAssistantView* view = nullptr;
     Ui::WritingAssistantView* secondaryView = nullptr;
-
-    /**
-     * @brief Todas las vistas creadas (para multi-instancia)
-     */
     QVector<QPointer<Ui::WritingAssistantView>> allViews;
 };
 
+WritingAssistantManager::Implementation::Implementation()
+    : claudeClient(new ClaudeClient)
+{
+}
+
 Ui::WritingAssistantView* WritingAssistantManager::Implementation::createView()
 {
-    auto newView = new Ui::WritingAssistantView;
+    auto* newView = new Ui::WritingAssistantView;
     allViews.append(newView);
+
+    //
+    // Wire: usuario envía → ClaudeClient envía a la API
+    //
+    QObject::connect(newView, &Ui::WritingAssistantView::messageSubmitted,
+                     claudeClient, [this, viewPtr = QPointer<Ui::WritingAssistantView>(newView)](
+                                       const QString& _text) {
+                         if (viewPtr.isNull()) {
+                             return;
+                         }
+                         viewPtr->appendUserMessage(_text);
+                         viewPtr->setInputEnabled(false);
+                         viewPtr->setStatus(QObject::tr("Esperando respuesta de Claude..."));
+                         claudeClient->sendMessage(_text);
+                     });
+
+    //
+    // Wire: Claude responde → mostrar en TODAS las vistas activas (no sabemos cuál envió)
+    // Para una sola vista esto funciona. Para multi-vista podría refinar después.
+    //
+    QObject::connect(claudeClient, &ClaudeClient::responseReceived,
+                     newView, [this](const QString& _response) {
+                         for (auto& v : allViews) {
+                             if (!v.isNull()) {
+                                 v->appendAssistantMessage(_response);
+                                 v->setInputEnabled(true);
+                                 v->setStatus(QString());
+                             }
+                         }
+                     });
+
+    QObject::connect(claudeClient, &ClaudeClient::errorOccurred,
+                     newView, [this](const QString& _error) {
+                         for (auto& v : allViews) {
+                             if (!v.isNull()) {
+                                 v->appendError(_error);
+                                 v->setInputEnabled(true);
+                                 v->setStatus(QObject::tr("Error — corregir y reintentar"));
+                             }
+                         }
+                     });
+
+    //
+    // Status inicial según presencia de API key
+    //
+    if (!claudeClient->hasApiKey()) {
+        newView->setStatus(
+            QObject::tr("⚠ API key no configurada — ver doc del fork para setup"));
+    }
+
     return newView;
 }
 
@@ -55,14 +114,9 @@ Ui::IDocumentView* WritingAssistantManager::view()
 Ui::IDocumentView* WritingAssistantManager::view(BusinessLayer::AbstractModel* _model)
 {
     Q_UNUSED(_model)
-    //
-    // Iteración 1: el asistente no consume el modelo del guion todavía.
-    // En iteración 2 castearemos a ScreenplayTextModel* y conectaremos signals.
-    //
     if (d->view == nullptr) {
         d->view = d->createView();
     }
-
     return d->view;
 }
 
@@ -77,7 +131,6 @@ Ui::IDocumentView* WritingAssistantManager::secondaryView(BusinessLayer::Abstrac
     if (d->secondaryView == nullptr) {
         d->secondaryView = d->createView();
     }
-
     return d->secondaryView;
 }
 
@@ -89,9 +142,7 @@ Ui::IDocumentView* WritingAssistantManager::createView(BusinessLayer::AbstractMo
 
 void WritingAssistantManager::resetModels()
 {
-    //
-    // Iteración 1: no hay modelos asociados. Nada que resetear.
-    //
+    // Sin modelos asociados en iteración 2c
 }
 
 void WritingAssistantManager::setEditingMode(DocumentEditingMode _mode)

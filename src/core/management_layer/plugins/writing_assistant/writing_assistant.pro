@@ -25,10 +25,12 @@ INCLUDEPATH += $$PWD/../../../../corelib
 DEPENDPATH += $$PWD/../../../../corelib
 
 HEADERS += \
+    claude_client.h \
     writing_assistant_manager.h \
     writing_assistant_view.h
 
 SOURCES += \
+    claude_client.cpp \
     writing_assistant_manager.cpp \
     writing_assistant_view.cpp
 
