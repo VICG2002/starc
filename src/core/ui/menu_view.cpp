@@ -210,6 +210,9 @@ MenuView::Implementation::Implementation(MenuView* _parent)
         chat->setVisible(false);
         //
         notifications->setIconText(u8"\U000F009A");
+        // Aula 122: feed de notificaciones de Story Architect Cloud (releases,
+        // expiración de suscripción, créditos) no aplica a nuestro fork local.
+        notifications->setVisible(false);
 
         appName->setText("Aula 122");
         appName->setLink(QUrl("https://starc.app"));
