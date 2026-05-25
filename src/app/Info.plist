@@ -3,7 +3,7 @@
 <plist version="1.0">
 <dict>
 	<key>CFBundleDisplyName</key>
-    <string>Diez50</string>
+    <string>Aula 122</string>
 	<key>CFBundleDocumentTypes</key>
 	<array>
 		<dict>
@@ -14,7 +14,7 @@
 			<key>CFBundleTypeIconFile</key>
 			<string>icon.icns</string>
 			<key>CFBundleTypeName</key>
-			<string>Diez50 project</string>
+			<string>Aula 122 project</string>
 			<key>CFBundleTypeRole</key>
 			<string>Editor</string>
 			<key>LSIsAppleDefaultForType</key>
@@ -22,13 +22,13 @@
 		</dict>
 	</array>
 	<key>CFBundleExecutable</key>
-    <string>Diez50</string>
+    <string>aula122</string>
     <key>CFBundleIconFile</key>
     <string>icon.icns</string>
 	<key>CFBundleIdentifier</key>
-    <string>app.diez50</string>
+    <string>app.diez50.aula122</string>
     <key>CFBundleName</key>
-    <string>Diez50</string>
+    <string>Aula 122</string>
 	<key>CFBundlePackageType</key>
 	<string>APPL</string>
 	<key>CFBundleShortVersionString</key>

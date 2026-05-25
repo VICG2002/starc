@@ -1,11 +1,16 @@
-# CLAUDE.md — Fork propio de STARC (rebautizado Diez50)
+# CLAUDE.md — Fork propio de STARC (rebautizado Aula 122 / aula122)
 
 Bienvenido. Este es el fork de [Story Architect](https://github.com/dimkanovikov/starc)
 propiedad del usuario, clonado a `~/Developer/starc-fork/` y trabajado en
 la rama `assistant`. Su propósito es **embeber un asistente de escritura
 de guion nativo dentro del software** (panel/dock + comunicación con
-Claude). El bundle compilado se llama **Diez50.app** (identidad propia,
-bundle ID `app.diez50`).
+Claude).
+
+**Identidad final** (post-segundo-rebrand, 2026-05-24):
+- **Marca paraguas (organización):** Diez50
+- **Producto / software:** Aula 122 (display) / `aula122` (técnico)
+- **Bundle compilado:** `aula122.app` con bundle ID `app.diez50.aula122`
+- **Logo:** assets en `/Volumes/T9_DIEZ50/Pagina Web/Aula 122 logo/`
 
 Esta es la versión corta para sesiones rápidas. **Para el plan completo
 y el contexto narrativo lee primero `~/.claude/plans/` (el plan vigente)
@@ -15,26 +20,30 @@ y `~/memoria-asistente-escritura/metodologia/pasos-a-seguir.md`.**
 
 - **Stack:** C++ + **Qt 6.11.1** (vía Homebrew) + **qmake** (no CMake).
 - **Build:** `cd src && qmake && make -j$(sysctl -n hw.ncpu)`.
-- **Binario generado:** `~/Developer/starc-fork/src/_build/Diez50.app` (~370 MB con 76 plugins).
-- **Lanzar:** `open ~/Developer/starc-fork/src/_build/Diez50.app`.
+- **Binario generado:** `~/Developer/starc-fork/src/_build/aula122.app` (~370 MB con 76 plugins).
+- **Lanzar:** `open ~/Developer/starc-fork/src/_build/aula122.app`.
 - **Rama de trabajo:** `assistant` (NUNCA tocar `master` salvo branding).
 - **Remotes:**
   - `origin` → `github.com/VICG2002/starc` (fork del usuario).
   - `upstream` → `github.com/dimkanovikov/starc` (repo original).
 
-## Identidad del fork (post-rebrand 2026-05-24)
+## Identidad del fork (post-segundo-rebrand 2026-05-24)
 
-| Campo                | Valor                            |
-|----------------------|----------------------------------|
-| Nombre de la app     | **Diez50**                       |
-| Bundle ID            | **`app.diez50`**                 |
-| Ejecutable interno   | `Diez50` (era `starcapp`)        |
-| `.app` generado      | `Diez50.app` (era `starcapp.app`) |
+| Campo                | Valor                                                  |
+|----------------------|--------------------------------------------------------|
+| Display name         | **Aula 122** (con espacio, mayúsculas, para humanos)    |
+| Nombre técnico       | **`aula122`** (lowercase, sin espacio)                  |
+| Bundle ID            | **`app.diez50.aula122`** (era `app.diez50`)             |
+| Organization (macOS) | **Diez50** (marca paraguas)                             |
+| Organization domain  | `diez50.local`                                          |
+| Ejecutable interno   | `aula122` (era `Diez50`, antes `starcapp`)              |
+| `.app` generado      | `aula122.app` (era `Diez50.app`, antes `starcapp.app`)  |
+| Icon                 | logo Aula 122 en `src/app/icon.icns`                    |
 
 **Coexistencia con la app oficial:** la `/Applications/Story Architect.app`
-del usuario (bundle ID `dev.storyapps.starc-beta`) y nuestro `Diez50.app`
-son apps separadas para macOS — pueden estar abiertas a la vez sin
-conflicto. El formato `.starc` es compartido.
+del usuario (bundle ID `dev.storyapps.starc-beta`) y nuestro `aula122.app`
+(`app.diez50.aula122`) son apps separadas para macOS — pueden estar
+abiertas a la vez sin conflicto. El formato `.starc` es compartido.
 
 ## Política de ramas (no negociable)
 
@@ -88,7 +97,7 @@ el plugin del asistente. Ver `~/memoria-asistente-escritura/metodologia/anatomia
 - **Estructura de archivos del upstream** — añadir lo nuestro, no
   reorganizar lo existente. Eso garantiza merges limpios.
 - **`/Applications/Story Architect.app`** — esa es la app oficial del
-  usuario, sigue intacta para uso normal. Diez50.app convive sin pisarla.
+  usuario, sigue intacta para uso normal. aula122.app convive sin pisarla.
 
 ## Dónde vivirá el código del asistente (cuando exista)
 
@@ -143,4 +152,4 @@ Antes de tocar el código, conocer estas:
    en `assistant`.
 5. Si vas a compilar: verificar que los 3 submódulos `3rd_party` están
    inicializados.
-6. Para abrir el binario: `open ~/Developer/starc-fork/src/_build/Diez50.app`.
+6. Para abrir el binario: `open ~/Developer/starc-fork/src/_build/aula122.app`.

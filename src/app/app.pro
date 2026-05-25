@@ -1,5 +1,5 @@
 TEMPLATE = app
-TARGET = Diez50
+TARGET = aula122
 
 CONFIG += c++1z
 CONFIG += force_debug_info
