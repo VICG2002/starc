@@ -116,6 +116,25 @@ QString ScreenplaySceneHeadingParser::sceneTime(const QString& _text)
     return TextHelper::smartToUpper(timeName).simplified();
 }
 
+QStringList ScreenplaySceneHeadingParser::markers(const QString& _text)
+{
+    //
+    // Aula 122: extraer cada contenido entre paréntesis del heading.
+    // Caso típico: "INT. CASA DE VERO - DÍA (FLASHBACK) (MINI DV)".
+    // Normaliza a MAYÚSCULAS y trim para que el conteo agrupe variantes.
+    //
+    QStringList result;
+    const QRegularExpression rxMarker(QStringLiteral("\\(([^)]+)\\)"));
+    auto it = rxMarker.globalMatch(_text);
+    while (it.hasNext()) {
+        const QString marker = TextHelper::smartToUpper(it.next().captured(1)).simplified();
+        if (!marker.isEmpty()) {
+            result.append(marker);
+        }
+    }
+    return result;
+}
+
 // ****
 
 QStringList ScreenplaySceneCharactersParser::characters(const QString& _text)

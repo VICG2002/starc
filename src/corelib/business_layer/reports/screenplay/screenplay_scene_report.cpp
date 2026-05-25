@@ -102,6 +102,8 @@ void ScreenplaySceneReport::build(QAbstractItemModel* _model)
         QString number;
         std::chrono::milliseconds duration;
         QVector<CharacterData> characters;
+        // Aula 122: marcadores entre paréntesis del heading (FLASHBACK, MINI DV, etc.)
+        QStringList markers;
 
         CharacterData& character(const QString& _name)
         {
@@ -206,6 +208,11 @@ void ScreenplaySceneReport::build(QAbstractItemModel* _model)
                     lastScene.number = sceneItem->number()->text;
                     lastScene.duration = sceneItem->duration();
                     lastScene.page = textItemPage(textItem);
+                    //
+                    // Aula 122: extraer marcadores entre paréntesis del heading
+                    //
+                    lastScene.markers
+                        = ScreenplaySceneHeadingParser::markers(textItem->text());
                     break;
                 }
 
@@ -364,7 +371,8 @@ void ScreenplaySceneReport::build(QAbstractItemModel* _model)
                                            Qt::DecorationPropertyRole);
                 }
                 sceneItem->appendRow({ characterItem, createModelItem({}), createModelItem({}),
-                                       createModelItem({}), createModelItem({}) });
+                                       createModelItem({}), createModelItem({}),
+                                       createModelItem({}) });
             }
         }
 
@@ -374,6 +382,7 @@ void ScreenplaySceneReport::build(QAbstractItemModel* _model)
             createModelItem(QString::number(scene.page), titleBackgroundColor),
             createModelItem(QString::number(scene.characters.size()), titleBackgroundColor),
             createModelItem(TimeHelper::toString(scene.duration), titleBackgroundColor),
+            createModelItem(scene.markers.join(QStringLiteral(", ")), titleBackgroundColor),
         });
     }
     //
@@ -396,6 +405,10 @@ void ScreenplaySceneReport::build(QAbstractItemModel* _model)
     d->sceneModel->setHeaderData(
         4, Qt::Horizontal,
         QCoreApplication::translate("BusinessLayer::ScreenplaySceneReport", "Duration"),
+        Qt::DisplayRole);
+    d->sceneModel->setHeaderData(
+        5, Qt::Horizontal,
+        QCoreApplication::translate("BusinessLayer::ScreenplaySceneReport", "Markers"),
         Qt::DisplayRole);
 }
 

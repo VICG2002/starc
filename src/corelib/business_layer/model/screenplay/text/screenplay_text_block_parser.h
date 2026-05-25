@@ -86,6 +86,13 @@ public:
      * @brief Получить название времени
      */
     static QString sceneTime(const QString& _text);
+
+    /**
+     * @brief Aula 122: extraer todos los marcadores entre paréntesis del heading.
+     *        Por ejemplo "INT. CASA - DÍA (FLASHBACK) (MINI DV)" → ["FLASHBACK", "MINI DV"].
+     *        Útil para reportes de tags (flashbacks, formato de grabación, etc.).
+     */
+    static QStringList markers(const QString& _text);
 };
 
 /**
