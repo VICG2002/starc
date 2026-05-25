@@ -1,27 +1,50 @@
-# CLAUDE.md — Fork propio de STARC (rebautizado Aula 122 / aula122)
+# CLAUDE.md — Fork propio de STARC (rebautizado Aula 122 / Aula_122)
 
 Bienvenido. Este es el fork de [Story Architect](https://github.com/dimkanovikov/starc)
 propiedad del usuario, clonado a `~/Developer/starc-fork/` y trabajado en
-la rama `assistant`. Su propósito es **embeber un asistente de escritura
-de guion nativo dentro del software** (panel/dock + comunicación con
-Claude).
+la rama `assistant`.
+
+**Visión actual (decisión 2026-05-25):** Aula 122 evoluciona de
+"editor de guion con asistente Claude" a **software unificado de
+pre-producción cinematográfica indie**. Cubre las 18 etapas del workflow
+indie (idea → call sheet del primer día), asistido por IA, sin
+suscripciones, soberano de datos. Estrategia de 3 capas:
+
+1. **Core nativo Qt/C++** — guion + breakdown + schedule + crew + call
+   sheets + shot list + mood board + budget (todo en `corelib` + plugins
+   propios)
+2. **AI** — Claude vía CLI ya integrado + OpenMontage opcional (Bloque 11)
+3. **Bridges externos** — Storyboarder, xSTUDIO/Clapshot, FFmpeg (opcional
+   por bloque 12)
 
 **Identidad final** (post-segundo-rebrand, 2026-05-24):
 - **Marca paraguas (organización):** Diez50
-- **Producto / software:** Aula 122 (display) / `aula122` (técnico)
-- **Bundle compilado:** `aula122.app` con bundle ID `app.diez50.aula122`
+- **Producto / software:** Aula 122 (display) / `Aula_122` (técnico, con underscore — el espacio rompe `install_name_tool`)
+- **Bundle compilado:** `Aula_122.app` con bundle ID `app.diez50.aula122`
 - **Logo:** assets en `/Volumes/T9_DIEZ50/Pagina Web/Aula 122 logo/`
 
-Esta es la versión corta para sesiones rápidas. **Para el plan completo
-y el contexto narrativo lee primero `~/.claude/plans/` (el plan vigente)
-y `~/memoria-asistente-escritura/metodologia/pasos-a-seguir.md`.**
+Esta es la versión corta para sesiones rápidas. **Para sesiones largas o
+nuevas, leer en orden:**
+
+1. `~/.claude/plans/durante-el-desarrollo-del-jazzy-squirrel.md` — plan
+   completo de 12 bloques (156-170h), prioridad actual
+2. `~/.claude/projects/-Users-vicgm3/memory/architecture_aula122_ecosystem.md`
+   — visión completa del ecosistema (3 capas)
+3. `~/.claude/projects/-Users-vicgm3/memory/project_aula122_diez50.md` —
+   estado actual del proyecto + commits clave
+4. `~/memoria-asistente-escritura/referencias/_workflow-preproduccion-indie.md`
+   — las 18 etapas del workflow
+5. `~/memoria-asistente-escritura/referencias/_herramientas-ecosistema.md`
+   — tools open source evaluadas + decisiones
+6. `~/memoria-asistente-escritura/metodologia/pasos-a-seguir.md` —
+   playbook general del asistente de escritura
 
 ## Lo esencial
 
 - **Stack:** C++ + **Qt 6.11.1** (vía Homebrew) + **qmake** (no CMake).
 - **Build:** `cd src && qmake && make -j$(sysctl -n hw.ncpu)`.
-- **Binario generado:** `~/Developer/starc-fork/src/_build/aula122.app` (~370 MB con 76 plugins).
-- **Lanzar:** `open ~/Developer/starc-fork/src/_build/aula122.app`.
+- **Binario generado:** `~/Developer/starc-fork/src/_build/Aula_122.app` (~370 MB con 76 plugins).
+- **Lanzar:** `open ~/Developer/starc-fork/src/_build/Aula_122.app`.
 - **Rama de trabajo:** `assistant` (NUNCA tocar `master` salvo branding).
 - **Remotes:**
   - `origin` → `github.com/VICG2002/starc` (fork del usuario).
@@ -32,16 +55,16 @@ y `~/memoria-asistente-escritura/metodologia/pasos-a-seguir.md`.**
 | Campo                | Valor                                                  |
 |----------------------|--------------------------------------------------------|
 | Display name         | **Aula 122** (con espacio, mayúsculas, para humanos)    |
-| Nombre técnico       | **`aula122`** (lowercase, sin espacio)                  |
-| Bundle ID            | **`app.diez50.aula122`** (era `app.diez50`)             |
+| Nombre técnico       | **`Aula_122`** (underscore — el espacio rompe builds)   |
+| Bundle ID            | **`app.diez50.aula122`** (lowercase intencional)        |
 | Organization (macOS) | **Diez50** (marca paraguas)                             |
 | Organization domain  | `diez50.local`                                          |
-| Ejecutable interno   | `aula122` (era `Diez50`, antes `starcapp`)              |
-| `.app` generado      | `aula122.app` (era `Diez50.app`, antes `starcapp.app`)  |
+| Ejecutable interno   | `Aula_122` (era `aula122`, `Diez50`, antes `starcapp`)  |
+| `.app` generado      | `Aula_122.app` (era `Diez50.app`, antes `starcapp.app`)  |
 | Icon                 | logo Aula 122 en `src/app/icon.icns`                    |
 
 **Coexistencia con la app oficial:** la `/Applications/Story Architect.app`
-del usuario (bundle ID `dev.storyapps.starc-beta`) y nuestro `aula122.app`
+del usuario (bundle ID `dev.storyapps.starc-beta`) y nuestro `Aula_122.app`
 (`app.diez50.aula122`) son apps separadas para macOS — pueden estar
 abiertas a la vez sin conflicto. El formato `.starc` es compartido.
 
@@ -97,20 +120,22 @@ el plugin del asistente. Ver `~/memoria-asistente-escritura/metodologia/anatomia
 - **Estructura de archivos del upstream** — añadir lo nuestro, no
   reorganizar lo existente. Eso garantiza merges limpios.
 - **`/Applications/Story Architect.app`** — esa es la app oficial del
-  usuario, sigue intacta para uso normal. aula122.app convive sin pisarla.
+  usuario, sigue intacta para uso normal. Aula_122.app convive sin pisarla.
 
-## Dónde vivirá el código del asistente (cuando exista)
+## Dónde vive el código del asistente
 
-Aún no creado. Plan tentativo:
+Decisión cerrada en Fase 1 (2026-05-24): **opción C — plugin nativo en
+el plugin system de STARC.**
 
-- `src/core/management_layer/plugins/assistant/` — el plugin del
-  asistente, como uno más de los 29 existentes (vía plugin system nativo).
-- O alternativamente `src/assistant/` si decidimos no usar el plugin
-  system y embedir directo en el core.
+- `src/core/management_layer/plugins/writing_assistant/` — el plugin del
+  asistente, como uno más de los plugins existentes.
+- `writing_assistant_manager.cpp` — `IDocumentManager` (carga + ciclo de vida).
+- `writing_assistant_view.cpp/.h` — UI del chat (`QTextEdit` + `QLineEdit` + botón).
+- `claude_client.cpp/.h` — cliente que invoca el CLI `claude` por `QProcess`.
 
-**La decisión se toma al cerrar Fase 1** del plan (ver `~/.claude/plans/`
-y `~/memoria-asistente-escritura/metodologia/decision-comunicacion.md`
-cuando exista).
+Compilado a `Aula_122.app/Contents/PlugIns/libwritingassistantplugin.dylib`.
+Activado desde el menú lateral con el botón "Writing assistant" (icono
+lápiz, U+F0CB6). MIME interno `app/x-diez50/writing-assistant`.
 
 ## Trampas conocidas (lecciones de Fase 0)
 
@@ -129,6 +154,19 @@ Antes de tocar el código, conocer estas:
    crea el Makefile raíz; los de subdirs se crean al `cd <subdir> &&
    qmake -o Makefile <subdir>.pro` automáticamente. Para forzar regeneración,
    borrar los Makefiles y volver a hacer `make`.
+
+4. **El plugin del asistente NO usa la API de Anthropic** (que cuesta dinero).
+   `claude_client.cpp` invoca el CLI `claude` por subproceso
+   (`claude --print --output-format json`), reutilizando la suscripción
+   Claude Code del usuario. Tres trampas heredadas:
+   - **NO pasar `--bare`** → ese flag bloquea OAuth/keychain, dice "Not logged in".
+   - **Redirigir stdin a `/dev/null`** (`setStandardInputFile(QProcess::nullDevice())`)
+     → sin esto, el CLI espera 3 s con warning "no stdin data received".
+   - **Parsear el JSON antes del exit code** — `is_error: true` viene con
+     JSON válido, hay que extraer `.result` para mensaje legible.
+
+   Setup del usuario (una vez): `claude auth login --claudeai`. Detalle en
+   `~/memoria-asistente-escritura/lecciones/patrones-exitosos.md`.
 
 ## Contexto del proyecto
 
@@ -152,4 +190,4 @@ Antes de tocar el código, conocer estas:
    en `assistant`.
 5. Si vas a compilar: verificar que los 3 submódulos `3rd_party` están
    inicializados.
-6. Para abrir el binario: `open ~/Developer/starc-fork/src/_build/aula122.app`.
+6. Para abrir el binario: `open ~/Developer/starc-fork/src/_build/Aula_122.app`.
