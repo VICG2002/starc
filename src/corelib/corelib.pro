@@ -13,7 +13,7 @@ DEFINES += CORE_LIBRARY
 DEFINES += QT_DEPRECATED_WARNINGS
 
 mac {
-    DESTDIR = ../_build/starcapp.app/Contents/Frameworks
+    DESTDIR = ../_build/Diez50.app/Contents/Frameworks
 } else {
     DESTDIR = ../_build
 }

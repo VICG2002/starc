@@ -200,7 +200,7 @@ MenuView::Implementation::Implementation(MenuView* _parent)
         //
         notifications->setIconText(u8"\U000F009A");
 
-        appName->setText("Story Architect");
+        appName->setText("Diez50");
         appName->setLink(QUrl("https://starc.app"));
         appVersion->setLink(QUrl("https://starc.app/blog/"));
         aboutAppSpacer->setText(" - ");

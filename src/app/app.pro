@@ -1,5 +1,5 @@
 TEMPLATE = app
-TARGET = starcapp
+TARGET = Diez50
 
 CONFIG += c++1z
 CONFIG += force_debug_info

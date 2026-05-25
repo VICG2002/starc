@@ -11,8 +11,8 @@ DEFINES += MANAGER_PLUGIN
 DEFINES += QT_DEPRECATED_WARNINGS
 
 mac {
-    DESTDIR = ../../../../_build/starcapp.app/Contents/PlugIns
-    CORELIBDIR = ../../../../_build/starcapp.app/Contents/Frameworks
+    DESTDIR = ../../../../_build/Diez50.app/Contents/PlugIns
+    CORELIBDIR = ../../../../_build/Diez50.app/Contents/Frameworks
 } else {
     DESTDIR = ../../../../_build/plugins
     CORELIBDIR = ../../../../_build
