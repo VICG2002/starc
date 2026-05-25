@@ -2,67 +2,71 @@
 
 #include <QDir>
 #include <QFile>
-#include <QJsonArray>
+#include <QFileInfo>
 #include <QJsonDocument>
 #include <QJsonObject>
-#include <QNetworkAccessManager>
-#include <QNetworkReply>
-#include <QNetworkRequest>
-#include <QStandardPaths>
-#include <QTextStream>
-#include <QUrl>
+#include <QProcess>
+#include <QProcessEnvironment>
+#include <QTimer>
 
 
 namespace ManagementLayer {
 
 namespace {
-const QString kApiEndpoint = QStringLiteral("https://api.anthropic.com/v1/messages");
-const QString kAnthropicVersion = QStringLiteral("2023-06-01");
-const QString kModel = QStringLiteral("claude-opus-4-7");
-const int kMaxTokens = 1024;
-const QString kEnvVarName = QStringLiteral("ANTHROPIC_API_KEY");
+const int kTimeoutMs = 120000; // 2 minutos por respuesta
+
+QStringList candidatePaths()
+{
+    //
+    // Ubicaciones típicas del CLI de Claude Code en macOS
+    //
+    return {
+        QDir::homePath() + QStringLiteral("/.local/bin/claude"),
+        QStringLiteral("/opt/homebrew/bin/claude"),
+        QStringLiteral("/usr/local/bin/claude"),
+    };
+}
 }
 
 
 ClaudeClient::ClaudeClient(QObject* _parent)
     : QObject(_parent)
-    , m_network(new QNetworkAccessManager(this))
 {
-    m_apiKey = loadApiKey();
+    m_cliPath = findClaudeCli();
 }
 
 ClaudeClient::~ClaudeClient() = default;
 
-bool ClaudeClient::hasApiKey() const
+bool ClaudeClient::isAvailable() const
 {
-    return !m_apiKey.isEmpty();
+    return !m_cliPath.isEmpty();
 }
 
-QString ClaudeClient::apiKeyFilePath()
+QString ClaudeClient::cliPath() const
 {
-    return QDir::homePath() + QStringLiteral("/.config/Aula_122/api_key.txt");
+    return m_cliPath;
 }
 
-QString ClaudeClient::loadApiKey() const
+QString ClaudeClient::findClaudeCli() const
 {
     //
-    // Prioridad 1: variable de entorno ANTHROPIC_API_KEY
+    // Prioridad 1: rutas conocidas (más rápido que lanzar `which`)
     //
-    const QByteArray envKey = qgetenv(kEnvVarName.toUtf8().constData());
-    if (!envKey.isEmpty()) {
-        return QString::fromUtf8(envKey).trimmed();
+    for (const QString& path : candidatePaths()) {
+        if (QFileInfo(path).isExecutable()) {
+            return path;
+        }
     }
 
     //
-    // Prioridad 2: archivo ~/.config/Aula_122/api_key.txt (primera línea)
+    // Prioridad 2: PATH del entorno via `which claude`
     //
-    QFile keyFile(apiKeyFilePath());
-    if (keyFile.exists() && keyFile.open(QIODevice::ReadOnly | QIODevice::Text)) {
-        QTextStream stream(&keyFile);
-        const QString fileKey = stream.readLine().trimmed();
-        keyFile.close();
-        if (!fileKey.isEmpty()) {
-            return fileKey;
+    QProcess which;
+    which.start(QStringLiteral("/usr/bin/which"), { QStringLiteral("claude") });
+    if (which.waitForFinished(2000) && which.exitCode() == 0) {
+        const QString out = QString::fromUtf8(which.readAllStandardOutput()).trimmed();
+        if (!out.isEmpty() && QFileInfo(out).isExecutable()) {
+            return out;
         }
     }
 
@@ -72,123 +76,145 @@ QString ClaudeClient::loadApiKey() const
 void ClaudeClient::sendMessage(const QString& _prompt)
 {
     //
-    // Verificar API key antes de enviar
+    // CLI no disponible
     //
-    if (m_apiKey.isEmpty()) {
+    if (m_cliPath.isEmpty()) {
         emit errorOccurred(
-            tr("API key de Anthropic no configurada. Define la variable de entorno %1 "
-               "o crea el archivo %2 con tu key.")
-                .arg(kEnvVarName, apiKeyFilePath()));
+            tr("No se encontró el CLI de Claude Code. "
+               "Instálalo desde https://docs.claude.com/claude-code "
+               "o verifica que esté en ~/.local/bin/claude."));
         return;
     }
 
     //
-    // Construir el JSON request
+    // Petición concurrente: una a la vez (la nueva se descarta)
     //
-    QJsonObject messageObj;
-    messageObj["role"] = "user";
-    messageObj["content"] = _prompt;
-
-    QJsonArray messagesArr;
-    messagesArr.append(messageObj);
-
-    QJsonObject bodyObj;
-    bodyObj["model"] = kModel;
-    bodyObj["max_tokens"] = kMaxTokens;
-    bodyObj["messages"] = messagesArr;
-
-    const QByteArray body = QJsonDocument(bodyObj).toJson(QJsonDocument::Compact);
+    if (m_process != nullptr && m_process->state() != QProcess::NotRunning) {
+        emit errorOccurred(tr("Ya hay una petición en curso. Espera la respuesta anterior."));
+        return;
+    }
 
     //
-    // Configurar request con headers
-    // (brace init para evitar most vexing parse)
+    // Limpiar proceso anterior si quedó referenciado
     //
-    const QUrl endpoint(kApiEndpoint);
-    QNetworkRequest request(endpoint);
-    request.setHeader(QNetworkRequest::ContentTypeHeader, "application/json");
-    request.setRawHeader("x-api-key", m_apiKey.toUtf8());
-    request.setRawHeader("anthropic-version", kAnthropicVersion.toUtf8());
+    if (m_process != nullptr) {
+        m_process->deleteLater();
+        m_process = nullptr;
+    }
+
+    m_process = new QProcess(this);
+    m_process->setProgram(m_cliPath);
 
     //
-    // POST async
+    // Argumentos: --print + --output-format json da JSON parseable con
+    // {"result": "..."} cuando termina exitoso. Sin --bare porque ese flag
+    // bloquea la lectura del keychain donde vive la auth OAuth de Claude Code.
     //
-    QNetworkReply* reply = m_network->post(request, body);
-    connect(reply, &QNetworkReply::finished, this, &ClaudeClient::onReplyFinished);
+    const QStringList args = {
+        QStringLiteral("--print"),
+        QStringLiteral("--output-format"),
+        QStringLiteral("json"),
+        _prompt,
+    };
+    m_process->setArguments(args);
+
+    //
+    // Aislar del entorno: trabajar en HOME, sin proyecto específico (todavía).
+    // En iteraciones futuras esto será el directorio del .starc abierto.
+    //
+    m_process->setWorkingDirectory(QDir::homePath());
+
+    //
+    // Mantener PATH del padre para que el CLI encuentre node, etc.
+    //
+    QProcessEnvironment env = QProcessEnvironment::systemEnvironment();
+    m_process->setProcessEnvironment(env);
+
+    //
+    // Redirigir stdin a /dev/null. Sin esto, el CLI detecta el pipe vacío
+    // y espera 3s emitiendo "no stdin data received" como warning antes
+    // de continuar. Equivalente a `claude ... < /dev/null` en shell.
+    //
+    m_process->setStandardInputFile(QProcess::nullDevice());
+
+    connect(m_process, QOverload<int, QProcess::ExitStatus>::of(&QProcess::finished),
+            this, [this](int, QProcess::ExitStatus) { handleProcessFinished(); });
+
+    connect(m_process, &QProcess::errorOccurred, this,
+            [this](QProcess::ProcessError _error) {
+                const QString msg = m_process != nullptr ? m_process->errorString()
+                                                          : tr("Error desconocido");
+                emit errorOccurred(tr("Error de proceso (%1): %2")
+                                       .arg(static_cast<int>(_error))
+                                       .arg(msg));
+            });
+
+    m_process->start();
+
+    //
+    // Timeout duro: si tarda más de kTimeoutMs, matamos el proceso.
+    // (handleProcessFinished disparará el error.)
+    //
+    QTimer::singleShot(kTimeoutMs, m_process, [this]() {
+        if (m_process != nullptr && m_process->state() != QProcess::NotRunning) {
+            m_process->kill();
+        }
+    });
 }
 
-void ClaudeClient::onReplyFinished()
+void ClaudeClient::handleProcessFinished()
 {
-    auto* reply = qobject_cast<QNetworkReply*>(sender());
-    if (reply == nullptr) {
-        emit errorOccurred(tr("Reply nulo (interno)"));
-        return;
-    }
-    reply->deleteLater();
-
-    //
-    // Error de red
-    //
-    if (reply->error() != QNetworkReply::NoError) {
-        const QByteArray errorBody = reply->readAll();
-        emit errorOccurred(tr("Error de red: %1\n%2")
-                               .arg(reply->errorString(), QString::fromUtf8(errorBody)));
+    if (m_process == nullptr) {
+        emit errorOccurred(tr("Proceso nulo (interno)"));
         return;
     }
 
+    const int exitCode = m_process->exitCode();
+    const QByteArray stdoutBytes = m_process->readAllStandardOutput();
+    const QByteArray stderrBytes = m_process->readAllStandardError();
+
     //
-    // Parsear JSON
+    // Intentar primero parsear stdout como JSON — el CLI emite JSON estructurado
+    // incluso cuando termina con error (is_error=true), y ese JSON tiene el
+    // mensaje legible en .result. Preferible al exit code / stderr crudos.
     //
-    const QByteArray data = reply->readAll();
     QJsonParseError parseError;
-    const QJsonDocument doc = QJsonDocument::fromJson(data, &parseError);
-    if (parseError.error != QJsonParseError::NoError) {
-        emit errorOccurred(tr("JSON inválido: %1").arg(parseError.errorString()));
-        return;
-    }
-    if (!doc.isObject()) {
-        emit errorOccurred(tr("Respuesta no es objeto JSON"));
-        return;
-    }
+    const QJsonDocument doc = QJsonDocument::fromJson(stdoutBytes, &parseError);
+    const bool jsonOk = parseError.error == QJsonParseError::NoError && doc.isObject();
 
-    const QJsonObject root = doc.object();
+    if (jsonOk) {
+        const QJsonObject root = doc.object();
+        const QString resultText = root.value("result").toString();
+        const bool isError = root.value("is_error").toBool()
+            || root.value("subtype").toString() != QStringLiteral("success");
 
-    //
-    // Error de API (la API devuelve {"type":"error","error":{...}})
-    //
-    if (root.contains("error")) {
-        const QJsonObject errObj = root["error"].toObject();
-        emit errorOccurred(tr("Error API: %1 — %2")
-                               .arg(errObj["type"].toString(), errObj["message"].toString()));
-        return;
-    }
-
-    //
-    // Extraer texto del primer content block
-    // Formato: {"content":[{"type":"text","text":"..."}], ...}
-    //
-    const QJsonArray contentArr = root["content"].toArray();
-    if (contentArr.isEmpty()) {
-        emit errorOccurred(tr("Respuesta sin contenido"));
-        return;
-    }
-
-    QString fullText;
-    for (const auto& block : contentArr) {
-        const QJsonObject blockObj = block.toObject();
-        if (blockObj["type"].toString() == "text") {
-            if (!fullText.isEmpty()) {
-                fullText += "\n";
-            }
-            fullText += blockObj["text"].toString();
+        if (isError) {
+            emit errorOccurred(resultText.isEmpty()
+                                   ? tr("Claude reportó error sin detalle")
+                                   : resultText);
+            return;
         }
-    }
 
-    if (fullText.isEmpty()) {
-        emit errorOccurred(tr("Respuesta sin texto extraíble"));
+        if (resultText.isEmpty()) {
+            emit errorOccurred(tr("Respuesta vacía"));
+            return;
+        }
+
+        emit responseReceived(resultText);
         return;
     }
 
-    emit responseReceived(fullText);
+    //
+    // No hubo JSON parseable — fallback a stderr / exit code
+    //
+    QString errMsg = QString::fromUtf8(stderrBytes).trimmed();
+    if (errMsg.isEmpty()) {
+        errMsg = QString::fromUtf8(stdoutBytes).trimmed();
+    }
+    if (errMsg.isEmpty()) {
+        errMsg = tr("Claude CLI terminó con código %1 sin mensaje").arg(exitCode);
+    }
+    emit errorOccurred(tr("Error del CLI: %1").arg(errMsg));
 }
 
 } // namespace ManagementLayer

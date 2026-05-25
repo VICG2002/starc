@@ -84,11 +84,11 @@ Ui::WritingAssistantView* WritingAssistantManager::Implementation::createView()
                      });
 
     //
-    // Status inicial según presencia de API key
+    // Status inicial según disponibilidad del CLI de Claude Code
     //
-    if (!claudeClient->hasApiKey()) {
+    if (!claudeClient->isAvailable()) {
         newView->setStatus(
-            QObject::tr("⚠ API key no configurada — ver doc del fork para setup"));
+            QObject::tr("⚠ Claude Code CLI no encontrado — instálalo y reinicia"));
     }
 
     return newView;
