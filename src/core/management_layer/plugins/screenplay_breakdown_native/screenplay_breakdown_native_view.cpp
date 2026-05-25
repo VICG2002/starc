@@ -12,18 +12,28 @@
 #include <QComboBox>
 #include <QDialog>
 #include <QDialogButtonBox>
+#include <QFileDialog>
+#include <QFileInfo>
 #include <QFormLayout>
 #include <QHBoxLayout>
 #include <QHeaderView>
 #include <QLabel>
 #include <QLineEdit>
 #include <QListWidget>
+#include <QMessageBox>
+#include <QPdfWriter>
 #include <QPointer>
 #include <QPushButton>
 #include <QSpinBox>
 #include <QSplitter>
 #include <QStandardItemModel>
+#include <QStandardPaths>
 #include <QTableView>
+#include <QTextCursor>
+#include <QTextDocument>
+#include <QTextStream>
+#include <QTextTable>
+#include <QTextTableFormat>
 #include <QUuid>
 #include <QVBoxLayout>
 
@@ -53,6 +63,9 @@ public:
     QPushButton* addResourceButton = nullptr;
     QPushButton* removeResourceButton = nullptr;
 
+    // Toolbar superior (al lado del título)
+    QPushButton* exportButton = nullptr;
+
     QLabel* statusLabel = nullptr;
 };
 
@@ -66,6 +79,7 @@ ScreenplayBreakdownNativeView::Implementation::Implementation(ScreenplayBreakdow
     , resourcesList(new QListWidget(_q))
     , addResourceButton(new QPushButton(_q))
     , removeResourceButton(new QPushButton(_q))
+    , exportButton(new QPushButton(_q))
     , statusLabel(new QLabel(_q))
 {
     titleLabel->setText(QStringLiteral("Desglose del guion"));
@@ -92,6 +106,9 @@ ScreenplayBreakdownNativeView::Implementation::Implementation(ScreenplayBreakdow
     removeResourceButton->setText(QStringLiteral("Quitar"));
     removeResourceButton->setEnabled(false);
     addResourceButton->setEnabled(false);
+
+    exportButton->setText(QStringLiteral("Exportar..."));
+    exportButton->setToolTip(QStringLiteral("Exportar breakdown a PDF o CSV"));
 
     statusLabel->setText(QString());
     statusLabel->setAlignment(Qt::AlignCenter);
@@ -242,10 +259,16 @@ ScreenplayBreakdownNativeView::ScreenplayBreakdownNativeView(QWidget* _parent)
     d->splitter->setStretchFactor(0, 2);
     d->splitter->setStretchFactor(1, 1);
 
+    auto headerRow = new QHBoxLayout;
+    headerRow->setContentsMargins({});
+    headerRow->setSpacing(8);
+    headerRow->addWidget(d->titleLabel, 1);
+    headerRow->addWidget(d->exportButton);
+
     auto layout = new QVBoxLayout;
     layout->setContentsMargins(16, 16, 16, 16);
     layout->setSpacing(12);
-    layout->addWidget(d->titleLabel);
+    layout->addLayout(headerRow);
     layout->addWidget(d->splitter, 1);
     layout->addWidget(d->statusLabel);
     setLayout(layout);
@@ -264,6 +287,8 @@ ScreenplayBreakdownNativeView::ScreenplayBreakdownNativeView(QWidget* _parent)
     connect(d->resourcesList, &QListWidget::itemSelectionChanged, this, [this] {
         d->removeResourceButton->setEnabled(d->resourcesList->currentItem() != nullptr);
     });
+    connect(d->exportButton, &QPushButton::clicked, this,
+            &ScreenplayBreakdownNativeView::onExportClicked);
 }
 
 ScreenplayBreakdownNativeView::~ScreenplayBreakdownNativeView() = default;
@@ -590,6 +615,167 @@ void ScreenplayBreakdownNativeView::onRemoveResourceClicked()
     if (auto* item = d->sceneTableModel->item(d->selectedRow, 2)) {
         item->setText(QString::number(scene->resources().size()));
     }
+}
+
+void ScreenplayBreakdownNativeView::onExportClicked()
+{
+    if (d->screenplayModel.isNull() || d->sceneCache.isEmpty()) {
+        QMessageBox::information(this, tr("Exportar breakdown"),
+                                 tr("No hay escenas para exportar. Abre un proyecto con guion."));
+        return;
+    }
+
+    const QString defaultDir
+        = QStandardPaths::writableLocation(QStandardPaths::DocumentsLocation);
+    const QString suggested
+        = QStringLiteral("%1/breakdown.pdf").arg(defaultDir);
+
+    QString selectedFilter;
+    const QString chosen = QFileDialog::getSaveFileName(
+        this, tr("Exportar breakdown"), suggested,
+        tr("PDF (*.pdf);;CSV (*.csv)"), &selectedFilter);
+    if (chosen.isEmpty()) {
+        return;
+    }
+
+    QString path = chosen;
+    const QString lower = path.toLower();
+    const bool isCsv = selectedFilter.contains(QStringLiteral("csv"), Qt::CaseInsensitive)
+        || lower.endsWith(QStringLiteral(".csv"));
+    if (isCsv) {
+        if (!lower.endsWith(QStringLiteral(".csv"))) {
+            path += QStringLiteral(".csv");
+        }
+        exportToCsv(path);
+    } else {
+        if (!lower.endsWith(QStringLiteral(".pdf"))) {
+            path += QStringLiteral(".pdf");
+        }
+        exportToPdf(path);
+    }
+}
+
+void ScreenplayBreakdownNativeView::exportToCsv(const QString& _filePath) const
+{
+    QFile file(_filePath);
+    if (!file.open(QIODevice::WriteOnly | QIODevice::Text | QIODevice::Truncate)) {
+        QMessageBox::warning(const_cast<ScreenplayBreakdownNativeView*>(this),
+                             tr("Error exportando"),
+                             tr("No se pudo escribir el archivo: %1").arg(_filePath));
+        return;
+    }
+    QTextStream out(&file);
+    //
+    // CSV con BOM UTF-8 para que Excel/Numbers en macOS reconozca acentos
+    //
+    out.setEncoding(QStringConverter::Utf8);
+    out.setGenerateByteOrderMark(true);
+    out << "# escena,heading,categoría,recurso,cantidad,detalle\n";
+
+    auto* dictionaries = d->screenplayModel->dictionariesModel();
+    auto escape = [](const QString& _s) {
+        QString s = _s;
+        s.replace(QLatin1Char('"'), QStringLiteral("\"\""));
+        return QStringLiteral("\"%1\"").arg(s);
+    };
+
+    int idx = 1;
+    for (auto* scene : d->sceneCache) {
+        if (scene == nullptr) {
+            ++idx;
+            continue;
+        }
+        const QString heading = scene->heading();
+        const auto resources = scene->resources();
+        if (resources.isEmpty()) {
+            out << idx << ',' << escape(heading) << ",,,,\n";
+        } else {
+            for (const auto& sr : resources) {
+                QString categoryName;
+                QString resourceName;
+                if (dictionaries != nullptr) {
+                    const auto resource = dictionaries->resource(sr.uuid);
+                    resourceName = resource.name;
+                    if (!resource.categoryUuid.isNull()) {
+                        categoryName
+                            = dictionaries->resourceCategory(resource.categoryUuid).name;
+                    }
+                }
+                out << idx << ',' << escape(heading) << ',' << escape(categoryName) << ','
+                    << escape(resourceName) << ',' << sr.qty << ',' << escape(sr.description)
+                    << '\n';
+            }
+        }
+        ++idx;
+    }
+    file.close();
+
+    d->statusLabel->setText(tr("Exportado a %1").arg(QFileInfo(_filePath).fileName()));
+}
+
+void ScreenplayBreakdownNativeView::exportToPdf(const QString& _filePath) const
+{
+    QPdfWriter writer(_filePath);
+    writer.setPageSize(QPageSize(QPageSize::A4));
+    writer.setPageMargins(QMarginsF(15, 15, 15, 15), QPageLayout::Millimeter);
+    writer.setResolution(96);
+
+    QTextDocument doc;
+    doc.setDefaultStyleSheet(
+        "h1 { font-size: 18pt; margin-bottom: 8pt; }"
+        "h2 { font-size: 12pt; color: #444; margin-top: 12pt; margin-bottom: 4pt; }"
+        "table { border-collapse: collapse; width: 100%; }"
+        "th { background: #EEE; padding: 6px; text-align: left; border: 1px solid #888; }"
+        "td { padding: 4px 6px; border: 1px solid #CCC; vertical-align: top; }"
+        ".cat { font-weight: bold; }");
+
+    QString html;
+    html += QStringLiteral("<h1>Desglose del guion</h1>");
+    html += QStringLiteral("<p>Generado por Aula 122 — %1 escenas</p>")
+                .arg(d->sceneCache.size());
+
+    auto* dictionaries = d->screenplayModel->dictionariesModel();
+    int idx = 1;
+    for (auto* scene : d->sceneCache) {
+        if (scene == nullptr) {
+            ++idx;
+            continue;
+        }
+        const auto resources = scene->resources();
+        html += QStringLiteral("<h2>%1. %2</h2>").arg(idx).arg(scene->heading().toHtmlEscaped());
+        if (resources.isEmpty()) {
+            html += QStringLiteral("<p><i>Sin recursos asignados.</i></p>");
+        } else {
+            html += QStringLiteral(
+                "<table><thead><tr><th>Categoría</th><th>Recurso</th>"
+                "<th>Cantidad</th><th>Detalle</th></tr></thead><tbody>");
+            for (const auto& sr : resources) {
+                QString categoryName;
+                QString resourceName;
+                if (dictionaries != nullptr) {
+                    const auto resource = dictionaries->resource(sr.uuid);
+                    resourceName = resource.name;
+                    if (!resource.categoryUuid.isNull()) {
+                        categoryName
+                            = dictionaries->resourceCategory(resource.categoryUuid).name;
+                    }
+                }
+                html += QStringLiteral(
+                    "<tr><td class='cat'>%1</td><td>%2</td><td>%3</td><td>%4</td></tr>")
+                            .arg(categoryName.toHtmlEscaped(),
+                                 resourceName.toHtmlEscaped(),
+                                 QString::number(sr.qty),
+                                 sr.description.toHtmlEscaped());
+            }
+            html += QStringLiteral("</tbody></table>");
+        }
+        ++idx;
+    }
+
+    doc.setHtml(html);
+    doc.print(&writer);
+
+    d->statusLabel->setText(tr("Exportado a %1").arg(QFileInfo(_filePath).fileName()));
 }
 
 void ScreenplayBreakdownNativeView::updateTranslations()
