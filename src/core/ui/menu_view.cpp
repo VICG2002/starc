@@ -57,6 +57,7 @@ public:
     QAction* fullScreen = nullptr;
     QAction* settings = nullptr;
     QAction* assistant = nullptr;
+    QAction* breakdown = nullptr;
     QAction* aboutApplicationAction = nullptr;
 
     QAction* writingStatistics = nullptr;
@@ -100,6 +101,7 @@ MenuView::Implementation::Implementation(MenuView* _parent)
     , fullScreen(new QAction)
     , settings(new QAction)
     , assistant(new QAction)
+    , breakdown(new QAction)
     , aboutApplicationAction(new QAction)
     , writingStatistics(new QAction)
     , writingSprint(new QAction)
@@ -134,6 +136,7 @@ MenuView::Implementation::Implementation(MenuView* _parent)
         drawer->addAction(fullScreen);
         drawer->addAction(settings);
         drawer->addAction(assistant);
+        drawer->addAction(breakdown);
 
         drawer->setAccountActions({
             writingStatistics,
@@ -195,12 +198,19 @@ MenuView::Implementation::Implementation(MenuView* _parent)
         assistant->setCheckable(true);
         assistant->setVisible(true);
         assistant->setSeparator(true);
+        //
+        // Aula 122 / Bloque 5: desglose nativo del guion
+        //
+        breakdown->setIconText(u8"\U000F0B2A"); // format-list-checks (MDI)
+        breakdown->setCheckable(true);
+        breakdown->setVisible(true);
 
         QActionGroup* actions = new QActionGroup(_parent);
         actions->addAction(projects);
         actions->addAction(project);
         actions->addAction(settings);
         actions->addAction(assistant);
+        actions->addAction(breakdown);
 
         writingStatistics->setIconText(u8"\U000F085D");
         //
@@ -291,6 +301,7 @@ MenuView::MenuView(QWidget* _parent)
     connect(d->fullScreen, &QAction::triggered, this, &MenuView::fullscreenPressed);
     connect(d->settings, &QAction::triggered, this, &MenuView::settingsPressed);
     connect(d->assistant, &QAction::triggered, this, &MenuView::assistantPressed);
+    connect(d->breakdown, &QAction::triggered, this, &MenuView::breakdownPressed);
     //
     connect(d->writingStatistics, &QAction::triggered, this, &MenuView::writingStatisticsPressed);
     connect(d->writingSprint, &QAction::triggered, this, &MenuView::writingSprintPressed);
@@ -319,6 +330,7 @@ MenuView::MenuView(QWidget* _parent)
     connect(this, &MenuView::fullscreenPressed, this, &MenuView::closeMenu);
     connect(this, &MenuView::settingsPressed, this, &MenuView::closeMenu);
     connect(this, &MenuView::assistantPressed, this, &MenuView::closeMenu);
+    connect(this, &MenuView::breakdownPressed, this, &MenuView::closeMenu);
     connect(this, &MenuView::helpPressed, this, &MenuView::closeMenu);
     //
     connect(this, &MenuView::writingStatisticsPressed, this, &MenuView::closeMenu);
@@ -426,6 +438,12 @@ void MenuView::checkAssistant()
 {
     QSignalBlocker signalBlocker(this);
     d->assistant->setChecked(true);
+}
+
+void MenuView::checkBreakdown()
+{
+    QSignalBlocker signalBlocker(this);
+    d->breakdown->setChecked(true);
 }
 
 void MenuView::markChangesSaved(bool _saved)
@@ -578,6 +596,7 @@ void MenuView::updateTranslations()
         QKeySequence(QKeySequence::FullScreen).toString(QKeySequence::NativeText));
     d->settings->setText(tr("Application settings"));
     d->assistant->setText(tr("Writing assistant"));
+    d->breakdown->setText(tr("Desglose del guion"));
 
     d->writingStatistics->setToolTip(tr("Show writing statistics"));
     d->writingSprint->setToolTip(tr("Show writing sprint timer"));

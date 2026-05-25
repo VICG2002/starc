@@ -193,6 +193,11 @@ public:
     void showAssistant();
 
     /**
+     * @brief Mostrar la página del desglose nativo del guion (plugin Aula 122 / Bloque 5)
+     */
+    void showBreakdown();
+
+    /**
      * @brief Показать страницу статистика работы с программой
      */
     void showSessionStatistics();
@@ -1026,6 +1031,38 @@ void ApplicationManager::Implementation::showAssistant()
     // plugin solo expone view via IDocumentManager. Iteraciones futuras
     // podrían añadirlos si el dock crece.
     //
+    static auto* emptyToolbar = new QWidget;
+    static auto* emptyNavigator = new QWidget;
+
+    applicationView->showContent(emptyToolbar, emptyNavigator, view->asQWidget());
+}
+
+void ApplicationManager::Implementation::showBreakdown()
+{
+    Log::info("Show breakdown native screen");
+    menuView->checkBreakdown();
+
+    const QString breakdownMime = "app/x-diez50/breakdown-native";
+    if (!pluginsBuilder.initPlugin(breakdownMime)) {
+        Log::warning("Failed to init breakdown native plugin");
+        return;
+    }
+    auto* plugin = pluginsBuilder.plugin(breakdownMime);
+    if (plugin == nullptr) {
+        Log::warning("Breakdown native plugin not found after init");
+        return;
+    }
+    //
+    // Aula 122 / Bloque 5: pasar el primer script model al plugin nativo
+    // de breakdown para que liste escenas y recursos.
+    //
+    auto* scriptModel = projectManager->firstScriptModel();
+    auto* view = plugin->view(scriptModel);
+    if (view == nullptr) {
+        Log::warning("Breakdown native view is null");
+        return;
+    }
+
     static auto* emptyToolbar = new QWidget;
     static auto* emptyNavigator = new QWidget;
 
@@ -2840,6 +2877,7 @@ void ApplicationManager::initConnections()
     connect(d->menuView, &Ui::MenuView::fullscreenPressed, this, [this] { d->toggleFullScreen(); });
     connect(d->menuView, &Ui::MenuView::settingsPressed, this, [this] { d->showSettings(); });
     connect(d->menuView, &Ui::MenuView::assistantPressed, this, [this] { d->showAssistant(); });
+    connect(d->menuView, &Ui::MenuView::breakdownPressed, this, [this] { d->showBreakdown(); });
     //
     connect(d->menuView, &Ui::MenuView::writingStatisticsPressed, this, [this] {
 #ifdef CLOUD_SERVICE_MANAGER

@@ -246,6 +246,11 @@ const QHash<QString, QString> kMimeToPlugin
         //
         { "app/x-diez50/writing-assistant", "*writingassistantplugin*" },
         //
+        // Aula 122 — desglose de guion nativo (reemplazo open source del
+        // plugin closed source screenplay_breakdown del Story Architect oficial)
+        //
+        { "app/x-diez50/breakdown-native", "*screenplaybreakdownnativeplugin*" },
+        //
         { kSimpleTextFolderEditorMime, "*simpletextplugin*" },
         { kSimpleTextEditorMime, "*simpletextplugin*" },
         { kSimpleTextNavigatorMime, "*simpletextstructureplugin*" },
