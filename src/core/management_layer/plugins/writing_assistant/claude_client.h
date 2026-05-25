@@ -57,6 +57,23 @@ public:
      */
     bool hasActiveSession() const;
 
+    /**
+     * @brief Inyectar contexto del guion como system prompt adicional.
+     *        Se envía con --append-system-prompt en cada sendMessage subsecuente.
+     *        Pasar QString() para limpiar el contexto (chat genérico).
+     *
+     * Típicamente lo llama WritingAssistantManager cuando recibe el
+     * ScreenplayTextModel del proyecto activo: arma un resumen con número
+     * de escenas, personajes, locaciones, y se lo pasa aquí. Así Claude
+     * "sabe" del guion sin que el usuario tenga que pegar el texto.
+     */
+    void setScreenplayContext(const QString& _context);
+
+    /**
+     * @brief Contexto actualmente cargado (vacío si no hay).
+     */
+    QString screenplayContext() const;
+
 signals:
     void responseReceived(const QString& _response);
     void errorOccurred(const QString& _error);
@@ -68,6 +85,7 @@ private:
     QString m_cliPath;
     QProcess* m_process = nullptr;
     QString m_sessionId; // vacío hasta primera respuesta exitosa
+    QString m_screenplayContext; // contexto del guion para system prompt
 };
 
 } // namespace ManagementLayer

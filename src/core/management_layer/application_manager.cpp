@@ -1008,7 +1008,14 @@ void ApplicationManager::Implementation::showAssistant()
         Log::warning("Writing assistant plugin not found after init");
         return;
     }
-    auto* view = plugin->view(nullptr);
+    //
+    // Aula 122 / Bloque 3: pasar el primer script model del proyecto activo
+    // (si hay uno abierto) al plugin del asistente, para que Claude conozca
+    // el contexto del guion (personajes, locaciones, escenas). Si no hay
+    // proyecto, view(nullptr) deja el chat genérico sin contexto.
+    //
+    auto* scriptModel = projectManager->firstScriptModel();
+    auto* view = plugin->view(scriptModel);
     if (view == nullptr) {
         Log::warning("Writing assistant view is null");
         return;

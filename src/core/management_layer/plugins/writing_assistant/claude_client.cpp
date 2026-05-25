@@ -114,9 +114,16 @@ void ClaudeClient::sendMessage(const QString& _prompt)
     // Claude vea toda la conversación anterior (multi-turn). Si no, primera
     // invocación crea una sesión nueva.
     //
+    // Si hay contexto del guion (m_screenplayContext), se anexa al system
+    // prompt para que Claude conozca número de escenas, personajes, etc.
+    // sin que el usuario tenga que pegar el guion.
+    //
     QStringList args;
     if (!m_sessionId.isEmpty()) {
         args << QStringLiteral("--resume") << m_sessionId;
+    }
+    if (!m_screenplayContext.isEmpty()) {
+        args << QStringLiteral("--append-system-prompt") << m_screenplayContext;
     }
     args << QStringLiteral("--print")
          << QStringLiteral("--output-format") << QStringLiteral("json")
@@ -239,6 +246,16 @@ void ClaudeClient::resetConversation()
 bool ClaudeClient::hasActiveSession() const
 {
     return !m_sessionId.isEmpty();
+}
+
+void ClaudeClient::setScreenplayContext(const QString& _context)
+{
+    m_screenplayContext = _context;
+}
+
+QString ClaudeClient::screenplayContext() const
+{
+    return m_screenplayContext;
 }
 
 } // namespace ManagementLayer
