@@ -1,5 +1,7 @@
 #include "production_schedule_view.h"
 
+#include "draggable_scene_list.h"
+
 #include <business_layer/model/abstract_model.h>
 #include <business_layer/model/production/production_models.h>
 #include <business_layer/model/production/production_storage.h>
@@ -19,96 +21,10 @@
 #include <QPointer>
 #include <QPushButton>
 #include <QSplitter>
-#include <QStackedWidget>
 #include <QVBoxLayout>
 
 
 namespace Ui {
-
-class ProductionScheduleView::Implementation
-{
-public:
-    explicit Implementation(ProductionScheduleView* _q);
-
-    ProductionScheduleView* q = nullptr;
-    QPointer<BusinessLayer::ScreenplayTextModel> screenplayModel;
-    QString projectKey; // nombre del proyecto (documentName del modelo)
-    BusinessLayer::ProductionState state;
-
-    // Cache de escenas del guion (idx en orden de aparición)
-    QVector<BusinessLayer::ScreenplayTextModelSceneItem*> sceneCache;
-
-    int selectedDayRow = -1;
-
-    QLabel* titleLabel = nullptr;
-    QSplitter* splitter = nullptr;
-
-    // Panel izquierdo: shooting days
-    QLabel* daysHeader = nullptr;
-    QListWidget* daysList = nullptr;
-    QPushButton* newDayButton = nullptr;
-    QPushButton* deleteDayButton = nullptr;
-
-    // Panel derecho: stack (boneyard / day detail)
-    QStackedWidget* rightStack = nullptr;
-    QWidget* boneyardPage = nullptr;
-    QWidget* dayDetailPage = nullptr;
-
-    // Boneyard
-    QLabel* boneyardHeader = nullptr;
-    QListWidget* boneyardList = nullptr;
-    QPushButton* assignSceneButton = nullptr;
-
-    // Day detail
-    QLabel* dayDetailHeader = nullptr;
-    QListWidget* assignedScenesList = nullptr;
-    QPushButton* unassignSceneButton = nullptr;
-
-    QLabel* statusLabel = nullptr;
-};
-
-ProductionScheduleView::Implementation::Implementation(ProductionScheduleView* _q)
-    : q(_q)
-    , titleLabel(new QLabel(_q))
-    , splitter(new QSplitter(Qt::Horizontal, _q))
-    , daysHeader(new QLabel(_q))
-    , daysList(new QListWidget(_q))
-    , newDayButton(new QPushButton(_q))
-    , deleteDayButton(new QPushButton(_q))
-    , rightStack(new QStackedWidget(_q))
-    , boneyardPage(new QWidget(_q))
-    , dayDetailPage(new QWidget(_q))
-    , boneyardHeader(new QLabel(_q))
-    , boneyardList(new QListWidget(_q))
-    , assignSceneButton(new QPushButton(_q))
-    , dayDetailHeader(new QLabel(_q))
-    , assignedScenesList(new QListWidget(_q))
-    , unassignSceneButton(new QPushButton(_q))
-    , statusLabel(new QLabel(_q))
-{
-    titleLabel->setText(QStringLiteral("Plan de rodaje"));
-    titleLabel->setAlignment(Qt::AlignCenter);
-
-    daysHeader->setText(QStringLiteral("Días de rodaje"));
-    newDayButton->setText(QStringLiteral("Nuevo día"));
-    deleteDayButton->setText(QStringLiteral("Eliminar día"));
-    deleteDayButton->setEnabled(false);
-
-    boneyardHeader->setText(QStringLiteral("Escenas sin asignar"));
-    assignSceneButton->setText(QStringLiteral("Asignar al día seleccionado"));
-    assignSceneButton->setEnabled(false);
-
-    dayDetailHeader->setText(QStringLiteral("Selecciona un día"));
-    unassignSceneButton->setText(QStringLiteral("Quitar del día"));
-    unassignSceneButton->setEnabled(false);
-
-    statusLabel->setText(QString());
-    statusLabel->setAlignment(Qt::AlignCenter);
-}
-
-
-// ****
-
 
 namespace {
 
@@ -145,58 +61,128 @@ QString dayLabel(const BusinessLayer::ShootingDay& _day, int _sceneCount)
 } // anonymous namespace
 
 
+class ProductionScheduleView::Implementation
+{
+public:
+    explicit Implementation(ProductionScheduleView* _q);
+
+    ProductionScheduleView* q = nullptr;
+    QPointer<BusinessLayer::ScreenplayTextModel> screenplayModel;
+    QString projectKey;
+    BusinessLayer::ProductionState state;
+    QVector<BusinessLayer::ScreenplayTextModelSceneItem*> sceneCache;
+    int selectedDayRow = -1;
+
+    QLabel* titleLabel = nullptr;
+    QSplitter* splitter = nullptr;
+
+    // Col 1: shooting days
+    QLabel* daysHeader = nullptr;
+    QListWidget* daysList = nullptr;
+    QPushButton* newDayButton = nullptr;
+    QPushButton* deleteDayButton = nullptr;
+
+    // Col 2: detalle del día (escenas asignadas)
+    QLabel* dayDetailHeader = nullptr;
+    DraggableSceneList* assignedScenesList = nullptr;
+    QPushButton* unassignSceneButton = nullptr;
+
+    // Col 3: boneyard
+    QLabel* boneyardHeader = nullptr;
+    DraggableSceneList* boneyardList = nullptr;
+    QPushButton* assignSceneButton = nullptr;
+
+    QLabel* statusLabel = nullptr;
+};
+
+ProductionScheduleView::Implementation::Implementation(ProductionScheduleView* _q)
+    : q(_q)
+    , titleLabel(new QLabel(_q))
+    , splitter(new QSplitter(Qt::Horizontal, _q))
+    , daysHeader(new QLabel(_q))
+    , daysList(new QListWidget(_q))
+    , newDayButton(new QPushButton(_q))
+    , deleteDayButton(new QPushButton(_q))
+    , dayDetailHeader(new QLabel(_q))
+    , assignedScenesList(new DraggableSceneList(_q))
+    , unassignSceneButton(new QPushButton(_q))
+    , boneyardHeader(new QLabel(_q))
+    , boneyardList(new DraggableSceneList(_q))
+    , assignSceneButton(new QPushButton(_q))
+    , statusLabel(new QLabel(_q))
+{
+    titleLabel->setText(QStringLiteral("Plan de rodaje"));
+    titleLabel->setAlignment(Qt::AlignCenter);
+
+    daysHeader->setText(QStringLiteral("Días de rodaje"));
+    newDayButton->setText(QStringLiteral("Nuevo día"));
+    deleteDayButton->setText(QStringLiteral("Eliminar día"));
+    deleteDayButton->setEnabled(false);
+
+    dayDetailHeader->setText(QStringLiteral("Selecciona un día"));
+    unassignSceneButton->setText(QStringLiteral("← Boneyard"));
+    unassignSceneButton->setEnabled(false);
+
+    boneyardHeader->setText(QStringLiteral("Escenas sin asignar"));
+    assignSceneButton->setText(QStringLiteral("→ Día"));
+    assignSceneButton->setEnabled(false);
+
+    statusLabel->setText(QString());
+    statusLabel->setAlignment(Qt::AlignCenter);
+}
+
+
+// ****
+
+
 ProductionScheduleView::ProductionScheduleView(QWidget* _parent)
     : Widget(_parent)
     , d(new Implementation(this))
 {
     //
-    // Panel izquierdo
+    // Col 1: shooting days
     //
-    auto leftWidget = new QWidget(this);
-    auto leftLayout = new QVBoxLayout(leftWidget);
-    leftLayout->setContentsMargins(0, 0, 0, 0);
-    leftLayout->setSpacing(8);
-    leftLayout->addWidget(d->daysHeader);
-    leftLayout->addWidget(d->daysList, 1);
-    auto leftButtons = new QHBoxLayout;
-    leftButtons->setContentsMargins({});
-    leftButtons->addWidget(d->newDayButton);
-    leftButtons->addWidget(d->deleteDayButton);
-    leftButtons->addStretch();
-    leftLayout->addLayout(leftButtons);
+    auto col1 = new QWidget(this);
+    auto col1Layout = new QVBoxLayout(col1);
+    col1Layout->setContentsMargins(0, 0, 0, 0);
+    col1Layout->setSpacing(8);
+    col1Layout->addWidget(d->daysHeader);
+    col1Layout->addWidget(d->daysList, 1);
+    auto col1Buttons = new QHBoxLayout;
+    col1Buttons->setContentsMargins({});
+    col1Buttons->addWidget(d->newDayButton);
+    col1Buttons->addWidget(d->deleteDayButton);
+    col1Buttons->addStretch();
+    col1Layout->addLayout(col1Buttons);
 
     //
-    // Panel derecho — boneyard page
+    // Col 2: detalle del día (escenas asignadas)
     //
-    {
-        auto layout = new QVBoxLayout(d->boneyardPage);
-        layout->setContentsMargins(0, 0, 0, 0);
-        layout->setSpacing(8);
-        layout->addWidget(d->boneyardHeader);
-        layout->addWidget(d->boneyardList, 1);
-        layout->addWidget(d->assignSceneButton);
-    }
+    auto col2 = new QWidget(this);
+    auto col2Layout = new QVBoxLayout(col2);
+    col2Layout->setContentsMargins(0, 0, 0, 0);
+    col2Layout->setSpacing(8);
+    col2Layout->addWidget(d->dayDetailHeader);
+    col2Layout->addWidget(d->assignedScenesList, 1);
+    col2Layout->addWidget(d->unassignSceneButton);
 
     //
-    // Panel derecho — day detail page
+    // Col 3: boneyard
     //
-    {
-        auto layout = new QVBoxLayout(d->dayDetailPage);
-        layout->setContentsMargins(0, 0, 0, 0);
-        layout->setSpacing(8);
-        layout->addWidget(d->dayDetailHeader);
-        layout->addWidget(d->assignedScenesList, 1);
-        layout->addWidget(d->unassignSceneButton);
-    }
+    auto col3 = new QWidget(this);
+    auto col3Layout = new QVBoxLayout(col3);
+    col3Layout->setContentsMargins(0, 0, 0, 0);
+    col3Layout->setSpacing(8);
+    col3Layout->addWidget(d->boneyardHeader);
+    col3Layout->addWidget(d->boneyardList, 1);
+    col3Layout->addWidget(d->assignSceneButton);
 
-    d->rightStack->addWidget(d->boneyardPage);
-    d->rightStack->addWidget(d->dayDetailPage);
-    d->rightStack->setCurrentWidget(d->boneyardPage);
-
-    d->splitter->addWidget(leftWidget);
-    d->splitter->addWidget(d->rightStack);
-    d->splitter->setStretchFactor(0, 1);
-    d->splitter->setStretchFactor(1, 1);
+    d->splitter->addWidget(col1);
+    d->splitter->addWidget(col2);
+    d->splitter->addWidget(col3);
+    d->splitter->setStretchFactor(0, 2);
+    d->splitter->setStretchFactor(1, 3);
+    d->splitter->setStretchFactor(2, 3);
 
     auto layout = new QVBoxLayout;
     layout->setContentsMargins(16, 16, 16, 16);
@@ -219,13 +205,56 @@ ProductionScheduleView::ProductionScheduleView(QWidget* _parent)
             &ProductionScheduleView::onAssignSceneClicked);
     connect(d->unassignSceneButton, &QPushButton::clicked, this,
             &ProductionScheduleView::onUnassignSceneClicked);
+
+    //
+    // Habilitar/deshabilitar botones según selección
+    //
     connect(d->boneyardList, &QListWidget::itemSelectionChanged, this, [this] {
-        d->assignSceneButton->setEnabled(d->boneyardList->currentItem() != nullptr
-                                         && d->selectedDayRow >= 0);
+        d->assignSceneButton->setEnabled(
+            !d->boneyardList->selectedItems().isEmpty() && d->selectedDayRow >= 0);
     });
     connect(d->assignedScenesList, &QListWidget::itemSelectionChanged, this, [this] {
-        d->unassignSceneButton->setEnabled(d->assignedScenesList->currentItem() != nullptr);
+        d->unassignSceneButton->setEnabled(!d->assignedScenesList->selectedItems().isEmpty());
     });
+
+    //
+    // Drag&drop entre boneyard y día seleccionado
+    //
+    connect(d->assignedScenesList, &DraggableSceneList::scenesDropped, this,
+            [this](const QVector<QUuid>& _uuids) {
+                if (d->selectedDayRow < 0
+                    || d->selectedDayRow >= d->state.shootingDays.size()) {
+                    //
+                    // Sin día seleccionado no se puede asignar; refrescar
+                    // para revertir el drop visual
+                    //
+                    refreshRightPanel();
+                    return;
+                }
+                auto& day = d->state.shootingDays[d->selectedDayRow];
+                for (const auto& u : _uuids) {
+                    if (!day.sceneUuids.contains(u)) {
+                        day.sceneUuids.append(u);
+                    }
+                }
+                saveState();
+                refreshDaysList();
+                d->daysList->setCurrentRow(d->selectedDayRow);
+            });
+    connect(d->boneyardList, &DraggableSceneList::scenesDropped, this,
+            [this](const QVector<QUuid>& _uuids) {
+                if (d->selectedDayRow < 0
+                    || d->selectedDayRow >= d->state.shootingDays.size()) {
+                    return;
+                }
+                auto& day = d->state.shootingDays[d->selectedDayRow];
+                for (const auto& u : _uuids) {
+                    day.sceneUuids.removeAll(u);
+                }
+                saveState();
+                refreshDaysList();
+                d->daysList->setCurrentRow(d->selectedDayRow);
+            });
 }
 
 ProductionScheduleView::~ProductionScheduleView() = default;
@@ -259,10 +288,6 @@ void ProductionScheduleView::setScreenplayModel(BusinessLayer::AbstractModel* _m
 
     collectScenes(d->screenplayModel->itemForIndex(QModelIndex()), d->sceneCache);
 
-    //
-    // Usamos documentName como clave del proyecto para localizar el JSON.
-    // No tenemos acceso directo al path del .starc desde el modelo.
-    //
     d->projectKey = d->screenplayModel->documentName();
     if (d->projectKey.isEmpty()) {
         d->projectKey = QStringLiteral("Sin nombre");
@@ -272,7 +297,8 @@ void ProductionScheduleView::setScreenplayModel(BusinessLayer::AbstractModel* _m
     refreshDaysList();
     refreshRightPanel();
 
-    d->statusLabel->setText(tr("%1 escenas · %2 días planeados")
+    d->statusLabel->setText(tr("%1 escenas · %2 días planeados · "
+                               "arrastra entre columnas para asignar/quitar")
                                 .arg(d->sceneCache.size())
                                 .arg(d->state.shootingDays.size()));
 }
@@ -293,62 +319,57 @@ void ProductionScheduleView::refreshRightPanel()
     d->assignedScenesList->clear();
 
     if (d->screenplayModel.isNull()) {
-        d->rightStack->setCurrentWidget(d->boneyardPage);
         d->dayDetailHeader->setText(tr("Selecciona un día"));
         d->boneyardHeader->setText(tr("Escenas sin asignar"));
         return;
     }
 
+    //
+    // Boneyard (siempre visible)
+    //
+    const auto assignedScenes = d->state.assignedScenes();
+    int idx = 1;
+    int countUnassigned = 0;
+    for (auto* scene : d->sceneCache) {
+        if (scene == nullptr) {
+            ++idx;
+            continue;
+        }
+        if (!assignedScenes.contains(scene->uuid())) {
+            auto* item = new QListWidgetItem(
+                QStringLiteral("%1. %2").arg(idx).arg(scene->heading()));
+            item->setData(Qt::UserRole, scene->uuid());
+            d->boneyardList->addItem(item);
+            ++countUnassigned;
+        }
+        ++idx;
+    }
+    d->boneyardHeader->setText(tr("Escenas sin asignar (%1)").arg(countUnassigned));
+
+    //
+    // Detalle del día seleccionado (puede estar vacío)
+    //
     if (d->selectedDayRow < 0 || d->selectedDayRow >= d->state.shootingDays.size()) {
-        //
-        // Mostrar boneyard
-        //
-        d->rightStack->setCurrentWidget(d->boneyardPage);
-        const auto assignedScenes = d->state.assignedScenes();
-        int idx = 1;
-        int countUnassigned = 0;
-        for (auto* scene : d->sceneCache) {
-            if (scene == nullptr) {
-                ++idx;
-                continue;
-            }
-            if (!assignedScenes.contains(scene->uuid())) {
-                auto* item = new QListWidgetItem(
-                    QStringLiteral("%1. %2").arg(idx).arg(scene->heading()));
-                item->setData(Qt::UserRole, scene->uuid());
-                d->boneyardList->addItem(item);
-                ++countUnassigned;
-            }
+        d->dayDetailHeader->setText(tr("Selecciona un día →"));
+        return;
+    }
+    const auto& day = d->state.shootingDays[d->selectedDayRow];
+    d->dayDetailHeader->setText(dayLabel(day, day.sceneUuids.size()));
+
+    const QSet<QUuid> dayScenes(day.sceneUuids.begin(), day.sceneUuids.end());
+    idx = 1;
+    for (auto* scene : d->sceneCache) {
+        if (scene == nullptr) {
             ++idx;
+            continue;
         }
-        d->boneyardHeader->setText(
-            tr("Escenas sin asignar (%1)").arg(countUnassigned));
-        d->assignSceneButton->setEnabled(false); // sin día seleccionado, no se puede asignar
-    } else {
-        //
-        // Mostrar detalle del día
-        //
-        d->rightStack->setCurrentWidget(d->dayDetailPage);
-        const auto& day = d->state.shootingDays[d->selectedDayRow];
-        d->dayDetailHeader->setText(dayLabel(day, day.sceneUuids.size()));
-        //
-        // Listar escenas del día en orden del guion
-        //
-        const QSet<QUuid> dayScenes(day.sceneUuids.begin(), day.sceneUuids.end());
-        int idx = 1;
-        for (auto* scene : d->sceneCache) {
-            if (scene == nullptr) {
-                ++idx;
-                continue;
-            }
-            if (dayScenes.contains(scene->uuid())) {
-                auto* item = new QListWidgetItem(
-                    QStringLiteral("%1. %2").arg(idx).arg(scene->heading()));
-                item->setData(Qt::UserRole, scene->uuid());
-                d->assignedScenesList->addItem(item);
-            }
-            ++idx;
+        if (dayScenes.contains(scene->uuid())) {
+            auto* item = new QListWidgetItem(
+                QStringLiteral("%1. %2").arg(idx).arg(scene->heading()));
+            item->setData(Qt::UserRole, scene->uuid());
+            d->assignedScenesList->addItem(item);
         }
+        ++idx;
     }
 }
 
@@ -357,10 +378,6 @@ void ProductionScheduleView::onDaySelectionChanged(int _row)
     d->selectedDayRow = _row;
     d->deleteDayButton->setEnabled(_row >= 0);
     refreshRightPanel();
-    //
-    // Si volvemos a deseleccionar el día (no debería pasar con SingleSelection,
-    // pero por completitud), también refrescar el panel
-    //
 }
 
 void ProductionScheduleView::onNewDayClicked()
@@ -379,9 +396,6 @@ void ProductionScheduleView::onNewDayClicked()
     d->state.shootingDays.append(day);
     saveState();
     refreshDaysList();
-    //
-    // Seleccionar el día recién creado
-    //
     d->daysList->setCurrentRow(d->state.shootingDays.size() - 1);
 }
 
@@ -408,21 +422,20 @@ void ProductionScheduleView::onAssignSceneClicked()
     if (d->selectedDayRow < 0 || d->selectedDayRow >= d->state.shootingDays.size()) {
         return;
     }
-    auto* current = d->boneyardList->currentItem();
-    if (current == nullptr) {
+    const auto selected = d->boneyardList->selectedItems();
+    if (selected.isEmpty()) {
         return;
     }
-    const QUuid sceneUuid = current->data(Qt::UserRole).toUuid();
     auto& day = d->state.shootingDays[d->selectedDayRow];
-    if (!day.sceneUuids.contains(sceneUuid)) {
-        day.sceneUuids.append(sceneUuid);
-        saveState();
-        refreshDaysList();
-        //
-        // Re-seleccionar el día actual (refreshDaysList recreó los items)
-        //
-        d->daysList->setCurrentRow(d->selectedDayRow);
+    for (auto* it : selected) {
+        const QUuid u = it->data(Qt::UserRole).toUuid();
+        if (!u.isNull() && !day.sceneUuids.contains(u)) {
+            day.sceneUuids.append(u);
+        }
     }
+    saveState();
+    refreshDaysList();
+    d->daysList->setCurrentRow(d->selectedDayRow);
 }
 
 void ProductionScheduleView::onUnassignSceneClicked()
@@ -430,13 +443,15 @@ void ProductionScheduleView::onUnassignSceneClicked()
     if (d->selectedDayRow < 0 || d->selectedDayRow >= d->state.shootingDays.size()) {
         return;
     }
-    auto* current = d->assignedScenesList->currentItem();
-    if (current == nullptr) {
+    const auto selected = d->assignedScenesList->selectedItems();
+    if (selected.isEmpty()) {
         return;
     }
-    const QUuid sceneUuid = current->data(Qt::UserRole).toUuid();
     auto& day = d->state.shootingDays[d->selectedDayRow];
-    day.sceneUuids.removeAll(sceneUuid);
+    for (auto* it : selected) {
+        const QUuid u = it->data(Qt::UserRole).toUuid();
+        day.sceneUuids.removeAll(u);
+    }
     saveState();
     refreshDaysList();
     d->daysList->setCurrentRow(d->selectedDayRow);
@@ -458,8 +473,8 @@ void ProductionScheduleView::updateTranslations()
     d->daysHeader->setText(tr("Días de rodaje"));
     d->newDayButton->setText(tr("Nuevo día"));
     d->deleteDayButton->setText(tr("Eliminar día"));
-    d->assignSceneButton->setText(tr("Asignar al día seleccionado"));
-    d->unassignSceneButton->setText(tr("Quitar del día"));
+    d->assignSceneButton->setText(tr("→ Día"));
+    d->unassignSceneButton->setText(tr("← Boneyard"));
 }
 
 void ProductionScheduleView::designSystemChangeEvent(DesignSystemChangeEvent* _event)
@@ -482,7 +497,9 @@ void ProductionScheduleView::designSystemChangeEvent(DesignSystemChangeEvent* _e
               .arg(bodyColor,
                    DesignSystem::color().background().name(),
                    DesignSystem::color().onBackground().name());
-    for (auto* lw : { d->daysList, d->boneyardList, d->assignedScenesList }) {
+    for (auto* lw : { static_cast<QListWidget*>(d->daysList),
+                      static_cast<QListWidget*>(d->boneyardList),
+                      static_cast<QListWidget*>(d->assignedScenesList) }) {
         lw->setFont(DesignSystem::font().body2());
         lw->setStyleSheet(listSs);
     }

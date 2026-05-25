@@ -25,10 +25,12 @@ INCLUDEPATH += $$PWD/../../../../corelib
 DEPENDPATH += $$PWD/../../../../corelib
 
 HEADERS += \
+    draggable_scene_list.h \
     production_schedule_manager.h \
     production_schedule_view.h
 
 SOURCES += \
+    draggable_scene_list.cpp \
     production_schedule_manager.cpp \
     production_schedule_view.cpp
 
