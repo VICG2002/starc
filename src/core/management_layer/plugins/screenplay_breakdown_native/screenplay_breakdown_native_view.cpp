@@ -21,14 +21,17 @@
 #include <QLineEdit>
 #include <QListWidget>
 #include <QMessageBox>
+#include <QDir>
 #include <QPdfWriter>
 #include <QPointer>
+#include <QProcess>
 #include <QPushButton>
 #include <QSpinBox>
 #include <QSplitter>
 #include <QStandardItemModel>
 #include <QStandardPaths>
 #include <QTableView>
+#include <QTextEdit>
 #include <QTextCursor>
 #include <QTextDocument>
 #include <QTextStream>
@@ -65,6 +68,7 @@ public:
 
     // Toolbar superior (al lado del título)
     QPushButton* exportButton = nullptr;
+    QPushButton* autoExtractButton = nullptr;
 
     QLabel* statusLabel = nullptr;
 };
@@ -80,6 +84,7 @@ ScreenplayBreakdownNativeView::Implementation::Implementation(ScreenplayBreakdow
     , addResourceButton(new QPushButton(_q))
     , removeResourceButton(new QPushButton(_q))
     , exportButton(new QPushButton(_q))
+    , autoExtractButton(new QPushButton(_q))
     , statusLabel(new QLabel(_q))
 {
     titleLabel->setText(QStringLiteral("Desglose del guion"));
@@ -109,6 +114,10 @@ ScreenplayBreakdownNativeView::Implementation::Implementation(ScreenplayBreakdow
 
     exportButton->setText(QStringLiteral("Exportar..."));
     exportButton->setToolTip(QStringLiteral("Exportar breakdown a PDF o CSV"));
+
+    autoExtractButton->setText(QStringLiteral("Auto-extraer con Claude"));
+    autoExtractButton->setToolTip(QStringLiteral(
+        "Pide a Claude que analice tu guion y sugiera recursos por escena"));
 
     statusLabel->setText(QString());
     statusLabel->setAlignment(Qt::AlignCenter);
@@ -263,6 +272,7 @@ ScreenplayBreakdownNativeView::ScreenplayBreakdownNativeView(QWidget* _parent)
     headerRow->setContentsMargins({});
     headerRow->setSpacing(8);
     headerRow->addWidget(d->titleLabel, 1);
+    headerRow->addWidget(d->autoExtractButton);
     headerRow->addWidget(d->exportButton);
 
     auto layout = new QVBoxLayout;
@@ -289,6 +299,8 @@ ScreenplayBreakdownNativeView::ScreenplayBreakdownNativeView(QWidget* _parent)
     });
     connect(d->exportButton, &QPushButton::clicked, this,
             &ScreenplayBreakdownNativeView::onExportClicked);
+    connect(d->autoExtractButton, &QPushButton::clicked, this,
+            &ScreenplayBreakdownNativeView::onAutoExtractClicked);
 }
 
 ScreenplayBreakdownNativeView::~ScreenplayBreakdownNativeView() = default;
@@ -615,6 +627,283 @@ void ScreenplayBreakdownNativeView::onRemoveResourceClicked()
     if (auto* item = d->sceneTableModel->item(d->selectedRow, 2)) {
         item->setText(QString::number(scene->resources().size()));
     }
+}
+
+namespace {
+
+/**
+ * @brief Buscar el CLI `claude` en ubicaciones típicas o en PATH.
+ *        Duplica la lógica de ClaudeClient::findClaudeCli del plugin
+ *        writing_assistant — se considera mover a corelib en bloque futuro.
+ */
+QString locateClaudeCli()
+{
+    const QStringList candidates = {
+        QDir::homePath() + QStringLiteral("/.local/bin/claude"),
+        QStringLiteral("/opt/homebrew/bin/claude"),
+        QStringLiteral("/usr/local/bin/claude"),
+    };
+    for (const auto& path : candidates) {
+        if (QFileInfo(path).isExecutable()) {
+            return path;
+        }
+    }
+    QProcess which;
+    which.start(QStringLiteral("/usr/bin/which"), { QStringLiteral("claude") });
+    if (which.waitForFinished(2000) && which.exitCode() == 0) {
+        const QString out = QString::fromUtf8(which.readAllStandardOutput()).trimmed();
+        if (!out.isEmpty() && QFileInfo(out).isExecutable()) {
+            return out;
+        }
+    }
+    return QString();
+}
+
+/**
+ * @brief Modal de progreso + resultado para auto-extract con Claude.
+ *        Bloquea la UI mientras Claude procesa (puede tardar 30-90s para
+ *        guiones largos). Muestra el CSV crudo recibido para que el
+ *        usuario verifique antes de aplicar.
+ */
+class AutoExtractDialog : public QDialog
+{
+public:
+    AutoExtractDialog(const QString& _cliPath, const QString& _prompt, QWidget* _parent)
+        : QDialog(_parent)
+    {
+        setWindowTitle(QObject::tr("Auto-extraer recursos con Claude"));
+        resize(700, 500);
+
+        m_statusLabel = new QLabel(QObject::tr("Procesando con Claude... puede tardar 30-90s."),
+                                   this);
+        m_outputEdit = new QTextEdit(this);
+        m_outputEdit->setReadOnly(true);
+        m_outputEdit->setPlaceholderText(QObject::tr("La respuesta de Claude aparecerá aquí."));
+
+        m_buttons = new QDialogButtonBox(this);
+        m_applyButton = new QPushButton(QObject::tr("Aplicar al breakdown"), this);
+        m_applyButton->setEnabled(false);
+        m_buttons->addButton(m_applyButton, QDialogButtonBox::AcceptRole);
+        m_buttons->addButton(QDialogButtonBox::Cancel);
+        connect(m_buttons, &QDialogButtonBox::accepted, this, &QDialog::accept);
+        connect(m_buttons, &QDialogButtonBox::rejected, this, &QDialog::reject);
+
+        auto* layout = new QVBoxLayout(this);
+        layout->addWidget(m_statusLabel);
+        layout->addWidget(m_outputEdit, 1);
+        layout->addWidget(m_buttons);
+
+        m_process = new QProcess(this);
+        m_process->setProgram(_cliPath);
+        m_process->setStandardInputFile(QProcess::nullDevice());
+        m_process->setArguments({
+            QStringLiteral("--print"),
+            QStringLiteral("--output-format"),
+            QStringLiteral("text"),
+            _prompt,
+        });
+        connect(m_process, QOverload<int, QProcess::ExitStatus>::of(&QProcess::finished), this,
+                [this](int _code, QProcess::ExitStatus) {
+                    const QString stdout_ = QString::fromUtf8(m_process->readAllStandardOutput());
+                    const QString stderr_ = QString::fromUtf8(m_process->readAllStandardError());
+                    if (_code != 0 && stdout_.isEmpty()) {
+                        m_outputEdit->setPlainText(QObject::tr("Error CLI: %1").arg(stderr_));
+                        m_statusLabel->setText(QObject::tr("Error al ejecutar Claude."));
+                        return;
+                    }
+                    m_outputEdit->setPlainText(stdout_);
+                    m_csvOutput = stdout_;
+                    m_applyButton->setEnabled(true);
+                    m_statusLabel->setText(QObject::tr(
+                        "Listo. Revisa el CSV de Claude y aplica si está bien."));
+                });
+        m_process->start();
+    }
+
+    QString csv() const { return m_csvOutput; }
+
+private:
+    QLabel* m_statusLabel = nullptr;
+    QTextEdit* m_outputEdit = nullptr;
+    QDialogButtonBox* m_buttons = nullptr;
+    QPushButton* m_applyButton = nullptr;
+    QProcess* m_process = nullptr;
+    QString m_csvOutput;
+};
+
+} // anonymous namespace
+
+void ScreenplayBreakdownNativeView::onAutoExtractClicked()
+{
+    if (d->screenplayModel.isNull() || d->sceneCache.isEmpty()) {
+        QMessageBox::information(this, tr("Auto-extract"),
+                                 tr("No hay escenas para analizar. Abre un proyecto."));
+        return;
+    }
+    const QString cliPath = locateClaudeCli();
+    if (cliPath.isEmpty()) {
+        QMessageBox::warning(this, tr("Auto-extract"),
+                             tr("Claude CLI no encontrado. Instálalo desde "
+                                "https://docs.claude.com/claude-code y haz "
+                                "'claude auth login --claudeai'."));
+        return;
+    }
+
+    //
+    // Construir resumen de escenas para enviar a Claude
+    //
+    QStringList sceneLines;
+    int idx = 1;
+    for (auto* scene : d->sceneCache) {
+        if (scene == nullptr) {
+            ++idx;
+            continue;
+        }
+        sceneLines << QStringLiteral("%1. %2").arg(idx++).arg(scene->heading());
+    }
+
+    //
+    // Prompt: que Claude responda en CSV estricto para que sea parseable
+    //
+    const QString prompt
+        = QStringLiteral(
+              "Eres un asistente de pre-producción cinematográfica. Te paso la "
+              "lista de cabeceras de las escenas de un guion. Para cada escena, "
+              "infiere qué recursos físicos serían necesarios (props notables, "
+              "vestuario distintivo, vehículos, armas, animales, efectos, "
+              "música cue). Responde ÚNICAMENTE con líneas CSV en este formato "
+              "exacto, sin cabecera ni comentarios ni markdown:\n\n"
+              "numero_escena,categoria,recurso,cantidad,detalle\n\n"
+              "Donde categoria es una de: Props, Vestuario, Vehículos, Animales, "
+              "Maquillaje/SFX, VFX, Armas, Música, Stunts, Otros. "
+              "Si una escena no necesita recursos físicos especiales, no la "
+              "incluyas. Sé conservador — solo lo que realmente se vea o se "
+              "mencione, no inventes.\n\n"
+              "Escenas del guion:\n%1")
+              .arg(sceneLines.join(QStringLiteral("\n")));
+
+    AutoExtractDialog dialog(cliPath, prompt, this);
+    if (dialog.exec() == QDialog::Accepted) {
+        applyAutoExtractedCsv(dialog.csv());
+    }
+}
+
+void ScreenplayBreakdownNativeView::applyAutoExtractedCsv(const QString& _csv)
+{
+    if (d->screenplayModel.isNull()) {
+        return;
+    }
+    auto* dictionaries = d->screenplayModel->dictionariesModel();
+    if (dictionaries == nullptr) {
+        return;
+    }
+
+    int applied = 0;
+    int skipped = 0;
+    const auto lines = _csv.split(QChar('\n'), Qt::SkipEmptyParts);
+    for (const auto& rawLine : lines) {
+        const QString line = rawLine.trimmed();
+        if (line.isEmpty() || line.startsWith(QChar('#'))) {
+            continue;
+        }
+        //
+        // Parseo CSV simple — no maneja comillas escapadas pero el prompt
+        // pide formato simple. Si Claude se desvía, las líneas se ignoran.
+        //
+        const QStringList parts = line.split(QChar(','));
+        if (parts.size() < 4) {
+            ++skipped;
+            continue;
+        }
+        bool ok = false;
+        const int sceneNum = parts[0].trimmed().toInt(&ok);
+        if (!ok || sceneNum < 1 || sceneNum > d->sceneCache.size()) {
+            ++skipped;
+            continue;
+        }
+        const QString category = parts[1].trimmed();
+        const QString resourceName = parts[2].trimmed();
+        const int qty = parts[3].trimmed().toInt(&ok);
+        if (category.isEmpty() || resourceName.isEmpty() || !ok || qty < 1) {
+            ++skipped;
+            continue;
+        }
+        const QString detail = parts.size() >= 5
+            ? parts.mid(4).join(QChar(',')).trimmed()
+            : QString();
+
+        //
+        // Resolver/crear categoría
+        //
+        QUuid categoryUuid;
+        for (const auto& cat : dictionaries->resourceCategories()) {
+            if (cat.name.compare(category, Qt::CaseInsensitive) == 0) {
+                categoryUuid = cat.uuid;
+                break;
+            }
+        }
+        if (categoryUuid.isNull()) {
+            const QColor catColor = colorForCategory(category,
+                                                     dictionaries->resourceCategories().size());
+            dictionaries->addResourceCategory(category,
+                                              QString::fromUtf8(u8"\U000F0766"),
+                                              catColor, false);
+            for (const auto& cat : dictionaries->resourceCategories()) {
+                if (cat.name == category) {
+                    categoryUuid = cat.uuid;
+                    break;
+                }
+            }
+        }
+        if (categoryUuid.isNull()) {
+            ++skipped;
+            continue;
+        }
+
+        //
+        // Resolver/crear recurso
+        //
+        QUuid resourceUuid;
+        for (const auto& r : dictionaries->resources()) {
+            if (r.categoryUuid == categoryUuid
+                && r.name.compare(resourceName, Qt::CaseInsensitive) == 0) {
+                resourceUuid = r.uuid;
+                break;
+            }
+        }
+        if (resourceUuid.isNull()) {
+            dictionaries->addResource(categoryUuid, resourceName, QString());
+            for (const auto& r : dictionaries->resources()) {
+                if (r.categoryUuid == categoryUuid && r.name == resourceName) {
+                    resourceUuid = r.uuid;
+                    break;
+                }
+            }
+        }
+        if (resourceUuid.isNull()) {
+            ++skipped;
+            continue;
+        }
+
+        //
+        // Aplicar a la escena (sceneNum es 1-based)
+        //
+        auto* scene = d->sceneCache[sceneNum - 1];
+        if (scene == nullptr) {
+            ++skipped;
+            continue;
+        }
+        scene->storeResource(resourceUuid, qty, detail);
+        ++applied;
+    }
+
+    //
+    // Refrescar UI
+    //
+    refreshSceneTable();
+    QMessageBox::information(this, tr("Auto-extract completado"),
+                             tr("Se añadieron %1 recursos al breakdown.\n"
+                                "Líneas ignoradas: %2.").arg(applied).arg(skipped));
 }
 
 void ScreenplayBreakdownNativeView::onExportClicked()

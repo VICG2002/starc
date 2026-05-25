@@ -52,6 +52,8 @@ private:
     void onAddResourceClicked();
     void onRemoveResourceClicked();
     void onExportClicked();
+    void onAutoExtractClicked();
+    void applyAutoExtractedCsv(const QString& _csv);
     void exportToCsv(const QString& _filePath) const;
     void exportToPdf(const QString& _filePath) const;
     void refreshSceneTable();
