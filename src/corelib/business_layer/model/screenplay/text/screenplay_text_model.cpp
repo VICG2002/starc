@@ -843,10 +843,25 @@ void ScreenplayTextModel::updateRuntimeDictionaries()
     QSet<QString> locations;
 
     //
+    // Aula 122: lookup de locaciones registradas en MAYÚSCULAS → nombre canónico.
+    // Se usa al procesar SceneHeadings para agrupar variantes ("CASA DE VERO - SALA",
+    // "CASA DE VERO - COCINA", "CASA DE VERO (FLASHBACK)") bajo la registrada
+    // "CASA DE VERO". Si no hay match contra registradas, fallback al "tronco"
+    // antes del primer " - ".
+    //
+    QHash<QString, QString> locationLookup;
+    for (int row = 0; row < locationsModel()->rowCount(); ++row) {
+        const auto location = locationsModel()->location(row);
+        if (location != nullptr) {
+            locationLookup.insert(location->name().toUpper().trimmed(), location->name());
+        }
+    }
+
+    //
     // Если нужно собирать персонажей и локации из текста
     //
     std::function<void(const TextModelItem*)> findInText;
-    findInText = [&findInText, &characters, &locations](const TextModelItem* _item) {
+    findInText = [&findInText, &characters, &locations, &locationLookup](const TextModelItem* _item) {
         for (int childIndex = 0; childIndex < _item->childCount(); ++childIndex) {
             auto childItem = _item->childAt(childIndex);
             switch (childItem->type()) {
@@ -861,7 +876,30 @@ void ScreenplayTextModel::updateRuntimeDictionaries()
 
                 switch (textItem->paragraphType()) {
                 case TextParagraphType::SceneHeading: {
-                    locations.insert(ScreenplaySceneHeadingParser::location(textItem->text()));
+                    //
+                    // Aula 122: agrupar variantes de la misma locación.
+                    //
+                    const QString rawLocation
+                        = ScreenplaySceneHeadingParser::location(textItem->text());
+                    QString canonical = rawLocation;
+                    bool matched = false;
+                    for (auto it = locationLookup.cbegin(); it != locationLookup.cend(); ++it) {
+                        const QString& registeredUpper = it.key();
+                        if (rawLocation == registeredUpper
+                            || rawLocation.startsWith(registeredUpper + QStringLiteral(" - "))
+                            || rawLocation.startsWith(registeredUpper + QStringLiteral(" ("))) {
+                            canonical = it.value();
+                            matched = true;
+                            break;
+                        }
+                    }
+                    if (!matched) {
+                        const int dashIdx = rawLocation.indexOf(QStringLiteral(" - "));
+                        if (dashIdx > 0) {
+                            canonical = rawLocation.left(dashIdx).trimmed();
+                        }
+                    }
+                    locations.insert(canonical);
                     break;
                 }
                 case TextParagraphType::SceneCharacters: {
