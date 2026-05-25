@@ -14,6 +14,7 @@
 #include <business_layer/templates/screenplay_template.h>
 #include <data_layer/storage/settings_storage.h>
 #include <data_layer/storage/storage_facade.h>
+#include <ui/widgets/text_edit/spell_check/spell_checker.h>
 #include <utils/helpers/text_helper.h>
 #include <utils/logging.h>
 
@@ -1028,6 +1029,30 @@ void ScreenplayTextModel::updateRuntimeDictionaries()
     // ... создаём (при необходимости) и наполняем модель локаций
     //
     locationsModelFromText()->setStringList(locations.values());
+
+    //
+    // Aula 122: inyectar nombres canónicos de Characters y Locations al
+    // spell checker para que NO se marquen como typos. Cada palabra del
+    // nombre se ignora individualmente (hunspell evalúa palabra a palabra).
+    // Solo afecta la sesión actual; se rehidrata al reabrir el proyecto.
+    //
+    auto& spellChecker = SpellChecker::instance();
+    if (spellChecker.isAvailable()) {
+        auto ignoreNameTokens = [&spellChecker](const QString& _name) {
+            for (const QString& token :
+                 _name.split(QRegularExpression("\\s+"), Qt::SkipEmptyParts)) {
+                if (token.length() > 1) {
+                    spellChecker.ignoreWord(token);
+                }
+            }
+        };
+        for (const QString& character : std::as_const(characters)) {
+            ignoreNameTokens(character);
+        }
+        for (const QString& location : std::as_const(locations)) {
+            ignoreNameTokens(location);
+        }
+    }
 }
 
 void ScreenplayTextModel::initEmptyDocument()
