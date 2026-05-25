@@ -9,11 +9,22 @@
 #include <business_layer/templates/text_template.h>
 #include <ui/design_system/design_system.h>
 
+#include <QComboBox>
+#include <QDialog>
+#include <QDialogButtonBox>
+#include <QFormLayout>
 #include <QHBoxLayout>
 #include <QHeaderView>
 #include <QLabel>
+#include <QLineEdit>
+#include <QListWidget>
+#include <QPointer>
+#include <QPushButton>
+#include <QSpinBox>
+#include <QSplitter>
 #include <QStandardItemModel>
 #include <QTableView>
+#include <QUuid>
 #include <QVBoxLayout>
 
 
@@ -22,34 +33,65 @@ namespace Ui {
 class ScreenplayBreakdownNativeView::Implementation
 {
 public:
-    explicit Implementation(QWidget* _parent);
+    explicit Implementation(ScreenplayBreakdownNativeView* _q);
+
+    ScreenplayBreakdownNativeView* q = nullptr;
+    QPointer<BusinessLayer::ScreenplayTextModel> screenplayModel;
+    QVector<BusinessLayer::ScreenplayTextModelSceneItem*> sceneCache;
+    int selectedRow = -1;
 
     QLabel* titleLabel = nullptr;
+    QSplitter* splitter = nullptr;
+
+    // Lado izquierdo
     QTableView* sceneTable = nullptr;
-    QStandardItemModel* sceneModel = nullptr;
+    QStandardItemModel* sceneTableModel = nullptr;
+
+    // Lado derecho — detalle
+    QLabel* detailHeading = nullptr;
+    QListWidget* resourcesList = nullptr;
+    QPushButton* addResourceButton = nullptr;
+    QPushButton* removeResourceButton = nullptr;
+
     QLabel* statusLabel = nullptr;
 };
 
-ScreenplayBreakdownNativeView::Implementation::Implementation(QWidget* _parent)
-    : titleLabel(new QLabel(_parent))
-    , sceneTable(new QTableView(_parent))
-    , sceneModel(new QStandardItemModel(_parent))
-    , statusLabel(new QLabel(_parent))
+ScreenplayBreakdownNativeView::Implementation::Implementation(ScreenplayBreakdownNativeView* _q)
+    : q(_q)
+    , titleLabel(new QLabel(_q))
+    , splitter(new QSplitter(Qt::Horizontal, _q))
+    , sceneTable(new QTableView(_q))
+    , sceneTableModel(new QStandardItemModel(_q))
+    , detailHeading(new QLabel(_q))
+    , resourcesList(new QListWidget(_q))
+    , addResourceButton(new QPushButton(_q))
+    , removeResourceButton(new QPushButton(_q))
+    , statusLabel(new QLabel(_q))
 {
     titleLabel->setText(QStringLiteral("Desglose del guion"));
     titleLabel->setAlignment(Qt::AlignCenter);
 
-    sceneModel->setHorizontalHeaderLabels({
+    sceneTableModel->setHorizontalHeaderLabels({
         QStringLiteral("#"),
         QStringLiteral("Heading"),
         QStringLiteral("Recursos"),
     });
-    sceneTable->setModel(sceneModel);
+    sceneTable->setModel(sceneTableModel);
     sceneTable->setEditTriggers(QAbstractItemView::NoEditTriggers);
     sceneTable->setSelectionBehavior(QAbstractItemView::SelectRows);
+    sceneTable->setSelectionMode(QAbstractItemView::SingleSelection);
     sceneTable->setAlternatingRowColors(true);
-    sceneTable->horizontalHeader()->setStretchLastSection(true);
+    sceneTable->horizontalHeader()->setStretchLastSection(false);
+    sceneTable->horizontalHeader()->setSectionResizeMode(1, QHeaderView::Stretch);
     sceneTable->verticalHeader()->setVisible(false);
+
+    detailHeading->setText(QStringLiteral("Selecciona una escena para ver sus recursos"));
+    detailHeading->setWordWrap(true);
+
+    addResourceButton->setText(QStringLiteral("Añadir recurso"));
+    removeResourceButton->setText(QStringLiteral("Quitar"));
+    removeResourceButton->setEnabled(false);
+    addResourceButton->setEnabled(false);
 
     statusLabel->setText(QString());
     statusLabel->setAlignment(Qt::AlignCenter);
@@ -59,36 +101,11 @@ ScreenplayBreakdownNativeView::Implementation::Implementation(QWidget* _parent)
 // ****
 
 
-ScreenplayBreakdownNativeView::ScreenplayBreakdownNativeView(QWidget* _parent)
-    : Widget(_parent)
-    , d(new Implementation(this))
-{
-    auto layout = new QVBoxLayout;
-    layout->setContentsMargins(16, 16, 16, 16);
-    layout->setSpacing(12);
-    layout->addWidget(d->titleLabel);
-    layout->addWidget(d->sceneTable, 1);
-    layout->addWidget(d->statusLabel);
-    setLayout(layout);
-}
-
-ScreenplayBreakdownNativeView::~ScreenplayBreakdownNativeView() = default;
-
-QWidget* ScreenplayBreakdownNativeView::asQWidget()
-{
-    return this;
-}
-
-void ScreenplayBreakdownNativeView::setEditingMode(ManagementLayer::DocumentEditingMode _mode)
-{
-    Q_UNUSED(_mode)
-}
-
 namespace {
 
 /**
- * @brief Recorre recursivamente el árbol del modelo recolectando todas
- *        las escenas (TextModelGroupItem cuyo subtype es Scene).
+ * @brief Recorre recursivamente el árbol del modelo recolectando todas las
+ *        escenas (TextModelGroupItem cuyo subtype es Scene).
  */
 void collectScenes(BusinessLayer::TextModelItem* _item,
                    QVector<BusinessLayer::ScreenplayTextModelSceneItem*>& _out)
@@ -112,22 +129,103 @@ void collectScenes(BusinessLayer::TextModelItem* _item,
 
 } // anonymous namespace
 
+
+ScreenplayBreakdownNativeView::ScreenplayBreakdownNativeView(QWidget* _parent)
+    : Widget(_parent)
+    , d(new Implementation(this))
+{
+    //
+    // Panel izquierdo: tabla de escenas
+    //
+    auto leftWidget = new QWidget(this);
+    auto leftLayout = new QVBoxLayout(leftWidget);
+    leftLayout->setContentsMargins(0, 0, 0, 0);
+    leftLayout->setSpacing(8);
+    leftLayout->addWidget(d->sceneTable, 1);
+
+    //
+    // Panel derecho: detalle de recursos
+    //
+    auto rightWidget = new QWidget(this);
+    auto rightLayout = new QVBoxLayout(rightWidget);
+    rightLayout->setContentsMargins(8, 0, 0, 0);
+    rightLayout->setSpacing(8);
+    rightLayout->addWidget(d->detailHeading);
+    rightLayout->addWidget(d->resourcesList, 1);
+    auto buttonsRow = new QHBoxLayout;
+    buttonsRow->setContentsMargins({});
+    buttonsRow->addWidget(d->addResourceButton);
+    buttonsRow->addWidget(d->removeResourceButton);
+    buttonsRow->addStretch();
+    rightLayout->addLayout(buttonsRow);
+
+    d->splitter->addWidget(leftWidget);
+    d->splitter->addWidget(rightWidget);
+    d->splitter->setStretchFactor(0, 2);
+    d->splitter->setStretchFactor(1, 1);
+
+    auto layout = new QVBoxLayout;
+    layout->setContentsMargins(16, 16, 16, 16);
+    layout->setSpacing(12);
+    layout->addWidget(d->titleLabel);
+    layout->addWidget(d->splitter, 1);
+    layout->addWidget(d->statusLabel);
+    setLayout(layout);
+
+    //
+    // Wiring
+    //
+    connect(d->sceneTable->selectionModel(), &QItemSelectionModel::currentRowChanged, this,
+            [this](const QModelIndex& _current, const QModelIndex&) {
+                onSceneSelectionChanged(_current.row());
+            });
+    connect(d->addResourceButton, &QPushButton::clicked, this,
+            &ScreenplayBreakdownNativeView::onAddResourceClicked);
+    connect(d->removeResourceButton, &QPushButton::clicked, this,
+            &ScreenplayBreakdownNativeView::onRemoveResourceClicked);
+    connect(d->resourcesList, &QListWidget::itemSelectionChanged, this, [this] {
+        d->removeResourceButton->setEnabled(d->resourcesList->currentItem() != nullptr);
+    });
+}
+
+ScreenplayBreakdownNativeView::~ScreenplayBreakdownNativeView() = default;
+
+QWidget* ScreenplayBreakdownNativeView::asQWidget()
+{
+    return this;
+}
+
+void ScreenplayBreakdownNativeView::setEditingMode(ManagementLayer::DocumentEditingMode _mode)
+{
+    Q_UNUSED(_mode)
+}
+
 void ScreenplayBreakdownNativeView::setScreenplayModel(BusinessLayer::AbstractModel* _model)
 {
-    d->sceneModel->removeRows(0, d->sceneModel->rowCount());
+    d->screenplayModel = qobject_cast<BusinessLayer::ScreenplayTextModel*>(_model);
+    d->selectedRow = -1;
+    refreshSceneTable();
+}
 
-    auto* screenplay = qobject_cast<BusinessLayer::ScreenplayTextModel*>(_model);
-    if (screenplay == nullptr) {
+void ScreenplayBreakdownNativeView::refreshSceneTable()
+{
+    d->sceneTableModel->removeRows(0, d->sceneTableModel->rowCount());
+    d->sceneCache.clear();
+    d->detailHeading->setText(tr("Selecciona una escena para ver sus recursos"));
+    d->resourcesList->clear();
+    d->addResourceButton->setEnabled(false);
+    d->removeResourceButton->setEnabled(false);
+
+    if (d->screenplayModel.isNull()) {
         d->statusLabel->setText(
             tr("Abre un proyecto de guion para ver el desglose de escenas."));
         return;
     }
 
-    QVector<BusinessLayer::ScreenplayTextModelSceneItem*> scenes;
-    collectScenes(screenplay->itemForIndex(QModelIndex()), scenes);
+    collectScenes(d->screenplayModel->itemForIndex(QModelIndex()), d->sceneCache);
 
     int idx = 1;
-    for (auto* scene : scenes) {
+    for (auto* scene : d->sceneCache) {
         if (scene == nullptr) {
             continue;
         }
@@ -135,22 +233,280 @@ void ScreenplayBreakdownNativeView::setScreenplayModel(BusinessLayer::AbstractMo
         auto* headingItem = new QStandardItem(scene->heading());
         auto* resourcesItem = new QStandardItem(
             QString::number(scene->resources().size()));
-        d->sceneModel->appendRow({ numberItem, headingItem, resourcesItem });
+        numberItem->setFlags(Qt::ItemIsSelectable | Qt::ItemIsEnabled);
+        headingItem->setFlags(Qt::ItemIsSelectable | Qt::ItemIsEnabled);
+        resourcesItem->setFlags(Qt::ItemIsSelectable | Qt::ItemIsEnabled);
+        d->sceneTableModel->appendRow({ numberItem, headingItem, resourcesItem });
     }
 
-    d->statusLabel->setText(
-        tr("%1 escenas en el guion. Etapas siguientes habilitan tagging "
-           "y export.").arg(scenes.size()));
+    d->statusLabel->setText(tr("%1 escenas. Selecciona una para editar sus recursos.")
+                                .arg(d->sceneCache.size()));
+}
+
+void ScreenplayBreakdownNativeView::onSceneSelectionChanged(int _row)
+{
+    d->selectedRow = _row;
+    refreshResourcesList();
+}
+
+void ScreenplayBreakdownNativeView::refreshResourcesList()
+{
+    d->resourcesList->clear();
+    d->removeResourceButton->setEnabled(false);
+
+    if (d->selectedRow < 0 || d->selectedRow >= d->sceneCache.size()
+        || d->screenplayModel.isNull()) {
+        d->detailHeading->setText(tr("Selecciona una escena para ver sus recursos"));
+        d->addResourceButton->setEnabled(false);
+        return;
+    }
+
+    auto* scene = d->sceneCache[d->selectedRow];
+    if (scene == nullptr) {
+        return;
+    }
+
+    d->detailHeading->setText(scene->heading());
+    d->addResourceButton->setEnabled(true);
+
+    auto* dictionaries = d->screenplayModel->dictionariesModel();
+    const auto sceneResources = scene->resources();
+    for (const auto& sr : sceneResources) {
+        QString categoryName;
+        QString resourceName;
+        if (dictionaries != nullptr) {
+            const auto resource = dictionaries->resource(sr.uuid);
+            resourceName = resource.name;
+            if (!resource.categoryUuid.isNull()) {
+                categoryName = dictionaries->resourceCategory(resource.categoryUuid).name;
+            }
+        }
+        if (resourceName.isEmpty()) {
+            resourceName = sr.description.isEmpty() ? tr("(sin nombre)") : sr.description;
+        }
+        QString label;
+        if (!categoryName.isEmpty()) {
+            label = QStringLiteral("%1: %2").arg(categoryName, resourceName);
+        } else {
+            label = resourceName;
+        }
+        if (sr.qty > 1) {
+            label += QStringLiteral(" × %1").arg(sr.qty);
+        }
+        if (!sr.description.isEmpty() && sr.description != resourceName) {
+            label += QStringLiteral(" — %1").arg(sr.description);
+        }
+        auto* item = new QListWidgetItem(label);
+        item->setData(Qt::UserRole, sr.uuid);
+        d->resourcesList->addItem(item);
+    }
+}
+
+namespace {
+
+/**
+ * @brief Diálogo simple para añadir un recurso a una escena.
+ *        Categoría (combo), nombre del recurso, cantidad, descripción.
+ */
+struct AddResourceResult {
+    bool accepted = false;
+    QString categoryName;
+    QString resourceName;
+    int qty = 1;
+    QString description;
+};
+
+AddResourceResult promptForResource(QWidget* _parent,
+                                    const QStringList& _existingCategories)
+{
+    AddResourceResult result;
+    QDialog dialog(_parent);
+    dialog.setWindowTitle(QObject::tr("Añadir recurso a la escena"));
+
+    auto* categoryCombo = new QComboBox(&dialog);
+    categoryCombo->setEditable(true);
+    if (_existingCategories.isEmpty()) {
+        categoryCombo->addItems({
+            QObject::tr("Props"),
+            QObject::tr("Vestuario"),
+            QObject::tr("Vehículos"),
+            QObject::tr("Animales"),
+            QObject::tr("Maquillaje/SFX"),
+            QObject::tr("VFX"),
+            QObject::tr("Armas"),
+            QObject::tr("Música"),
+            QObject::tr("Stunts"),
+            QObject::tr("Otros"),
+        });
+    } else {
+        categoryCombo->addItems(_existingCategories);
+    }
+
+    auto* nameEdit = new QLineEdit(&dialog);
+    nameEdit->setPlaceholderText(QObject::tr("Nombre del recurso (ej. Pistola, Vestido rojo)"));
+
+    auto* qtySpin = new QSpinBox(&dialog);
+    qtySpin->setRange(1, 9999);
+    qtySpin->setValue(1);
+
+    auto* descEdit = new QLineEdit(&dialog);
+    descEdit->setPlaceholderText(QObject::tr("Detalle opcional para esta escena"));
+
+    auto* form = new QFormLayout;
+    form->addRow(QObject::tr("Categoría:"), categoryCombo);
+    form->addRow(QObject::tr("Recurso:"), nameEdit);
+    form->addRow(QObject::tr("Cantidad:"), qtySpin);
+    form->addRow(QObject::tr("Detalle escena:"), descEdit);
+
+    auto* buttonBox = new QDialogButtonBox(
+        QDialogButtonBox::Ok | QDialogButtonBox::Cancel, &dialog);
+    QObject::connect(buttonBox, &QDialogButtonBox::accepted, &dialog, &QDialog::accept);
+    QObject::connect(buttonBox, &QDialogButtonBox::rejected, &dialog, &QDialog::reject);
+
+    auto* layout = new QVBoxLayout(&dialog);
+    layout->addLayout(form);
+    layout->addWidget(buttonBox);
+
+    nameEdit->setFocus();
+    if (dialog.exec() == QDialog::Accepted && !nameEdit->text().trimmed().isEmpty()) {
+        result.accepted = true;
+        result.categoryName = categoryCombo->currentText().trimmed();
+        result.resourceName = nameEdit->text().trimmed();
+        result.qty = qtySpin->value();
+        result.description = descEdit->text().trimmed();
+    }
+    return result;
+}
+
+} // anonymous namespace
+
+void ScreenplayBreakdownNativeView::onAddResourceClicked()
+{
+    if (d->selectedRow < 0 || d->selectedRow >= d->sceneCache.size()
+        || d->screenplayModel.isNull()) {
+        return;
+    }
+    auto* scene = d->sceneCache[d->selectedRow];
+    auto* dictionaries = d->screenplayModel->dictionariesModel();
+    if (scene == nullptr || dictionaries == nullptr) {
+        return;
+    }
+
+    //
+    // Recolectar nombres de categorías existentes en el diccionario para el combo
+    //
+    QStringList existingCategoryNames;
+    for (const auto& cat : dictionaries->resourceCategories()) {
+        if (!cat.name.isEmpty()) {
+            existingCategoryNames << cat.name;
+        }
+    }
+
+    const auto input = promptForResource(this, existingCategoryNames);
+    if (!input.accepted) {
+        return;
+    }
+
+    //
+    // Encontrar/crear categoría
+    //
+    QUuid categoryUuid;
+    for (const auto& cat : dictionaries->resourceCategories()) {
+        if (cat.name.compare(input.categoryName, Qt::CaseInsensitive) == 0) {
+            categoryUuid = cat.uuid;
+            break;
+        }
+    }
+    if (categoryUuid.isNull()) {
+        //
+        // Crear nueva categoría con icono y color genéricos
+        //
+        dictionaries->addResourceCategory(input.categoryName,
+                                          QString::fromUtf8(u8"\U000F0766"), // tag icon
+                                          QColor(), false);
+        for (const auto& cat : dictionaries->resourceCategories()) {
+            if (cat.name == input.categoryName) {
+                categoryUuid = cat.uuid;
+                break;
+            }
+        }
+    }
+
+    //
+    // Encontrar/crear recurso dentro de la categoría
+    //
+    QUuid resourceUuid;
+    for (const auto& r : dictionaries->resources()) {
+        if (r.categoryUuid == categoryUuid
+            && r.name.compare(input.resourceName, Qt::CaseInsensitive) == 0) {
+            resourceUuid = r.uuid;
+            break;
+        }
+    }
+    if (resourceUuid.isNull()) {
+        dictionaries->addResource(categoryUuid, input.resourceName, QString());
+        for (const auto& r : dictionaries->resources()) {
+            if (r.categoryUuid == categoryUuid && r.name == input.resourceName) {
+                resourceUuid = r.uuid;
+                break;
+            }
+        }
+    }
+    if (resourceUuid.isNull()) {
+        return;
+    }
+
+    //
+    // Asignar a la escena
+    //
+    scene->storeResource(resourceUuid, input.qty, input.description);
+
+    //
+    // Refrescar UI
+    //
+    refreshResourcesList();
+    //
+    // También actualizar la columna "Recursos" en la tabla
+    //
+    if (auto* item = d->sceneTableModel->item(d->selectedRow, 2)) {
+        item->setText(QString::number(scene->resources().size()));
+    }
+}
+
+void ScreenplayBreakdownNativeView::onRemoveResourceClicked()
+{
+    if (d->selectedRow < 0 || d->selectedRow >= d->sceneCache.size()) {
+        return;
+    }
+    auto* current = d->resourcesList->currentItem();
+    if (current == nullptr) {
+        return;
+    }
+    const auto resourceUuid = current->data(Qt::UserRole).toUuid();
+    if (resourceUuid.isNull()) {
+        return;
+    }
+    auto* scene = d->sceneCache[d->selectedRow];
+    if (scene == nullptr) {
+        return;
+    }
+    scene->removeResource(resourceUuid);
+    refreshResourcesList();
+    if (auto* item = d->sceneTableModel->item(d->selectedRow, 2)) {
+        item->setText(QString::number(scene->resources().size()));
+    }
 }
 
 void ScreenplayBreakdownNativeView::updateTranslations()
 {
     d->titleLabel->setText(tr("Desglose del guion"));
-    d->sceneModel->setHorizontalHeaderLabels({
+    d->sceneTableModel->setHorizontalHeaderLabels({
         tr("#"),
         tr("Heading"),
         tr("Recursos"),
     });
+    d->addResourceButton->setText(tr("Añadir recurso"));
+    d->removeResourceButton->setText(tr("Quitar"));
 }
 
 void ScreenplayBreakdownNativeView::designSystemChangeEvent(DesignSystemChangeEvent* _event)
@@ -172,9 +528,21 @@ void ScreenplayBreakdownNativeView::designSystemChangeEvent(DesignSystemChangeEv
                  DesignSystem::color().background().name(),
                  DesignSystem::color().onBackground().name()));
 
+    d->detailHeading->setFont(DesignSystem::font().subtitle2());
+    d->detailHeading->setStyleSheet(QString("color: %1;").arg(bodyColor));
+
+    d->resourcesList->setFont(DesignSystem::font().body2());
+    d->resourcesList->setStyleSheet(
+        QString("QListWidget { color: %1; background: %2; border: 1px solid %3; }")
+            .arg(bodyColor,
+                 DesignSystem::color().background().name(),
+                 DesignSystem::color().onBackground().name()));
+
+    d->addResourceButton->setFont(DesignSystem::font().button());
+    d->removeResourceButton->setFont(DesignSystem::font().button());
+
     d->statusLabel->setFont(DesignSystem::font().caption());
-    d->statusLabel->setStyleSheet(
-        QString("color: %1;").arg(DesignSystem::color().onSurface().name()));
+    d->statusLabel->setStyleSheet(QString("color: %1;").arg(bodyColor));
 }
 
 } // namespace Ui
