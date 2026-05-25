@@ -11,8 +11,8 @@ DEFINES += MANAGER_PLUGIN
 DEFINES += QT_DEPRECATED_WARNINGS
 
 mac {
-    DESTDIR = ../../../../_build/aula122.app/Contents/PlugIns
-    CORELIBDIR = ../../../../_build/aula122.app/Contents/Frameworks
+    DESTDIR = ../../../../_build/Aula_122.app/Contents/PlugIns
+    CORELIBDIR = ../../../../_build/Aula_122.app/Contents/Frameworks
 } else {
     DESTDIR = ../../../../_build/plugins
     CORELIBDIR = ../../../../_build

@@ -242,6 +242,10 @@ const QHash<QString, QString> kMimeToPlugin
     = { { "application/x-starc/editor/project/information", "*projectinformationplugin*" },
         { kProjectCollaboratorsMime, "*projectcollaboratorsplugin*" },
         //
+        // Aula 122 — asistente de escritura (plugin custom del fork)
+        //
+        { "app/x-diez50/writing-assistant", "*writingassistantplugin*" },
+        //
         { kSimpleTextFolderEditorMime, "*simpletextplugin*" },
         { kSimpleTextEditorMime, "*simpletextplugin*" },
         { kSimpleTextNavigatorMime, "*simpletextstructureplugin*" },

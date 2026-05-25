@@ -13,6 +13,9 @@
 #include "content/writing_session/writing_session_manager.h"
 #include "plugins_builder.h"
 
+#include <interfaces/management_layer/i_document_manager.h>
+#include <interfaces/ui/i_document_view.h>
+
 #ifdef CLOUD_SERVICE_MANAGER
 #include <cloud/cloud_service_manager.h>
 #endif
@@ -183,6 +186,11 @@ public:
      * @brief Показать страницу настроек
      */
     void showSettings();
+
+    /**
+     * @brief Mostrar la página del asistente de escritura (plugin Aula 122)
+     */
+    void showAssistant();
 
     /**
      * @brief Показать страницу статистика работы с программой
@@ -983,6 +991,38 @@ void ApplicationManager::Implementation::showSettings()
 {
     Log::info("Show settings screen");
     showContent(settingsManager.data());
+}
+
+void ApplicationManager::Implementation::showAssistant()
+{
+    Log::info("Show writing assistant screen");
+    menuView->checkAssistant();
+
+    const QString assistantMime = "app/x-diez50/writing-assistant";
+    if (!pluginsBuilder.initPlugin(assistantMime)) {
+        Log::warning("Failed to init writing assistant plugin");
+        return;
+    }
+    auto* plugin = pluginsBuilder.plugin(assistantMime);
+    if (plugin == nullptr) {
+        Log::warning("Writing assistant plugin not found after init");
+        return;
+    }
+    auto* view = plugin->view(nullptr);
+    if (view == nullptr) {
+        Log::warning("Writing assistant view is null");
+        return;
+    }
+
+    //
+    // Iteración 2b: toolbar y navigator vacíos (placeholders) ya que el
+    // plugin solo expone view via IDocumentManager. Iteraciones futuras
+    // podrían añadirlos si el dock crece.
+    //
+    static auto* emptyToolbar = new QWidget;
+    static auto* emptyNavigator = new QWidget;
+
+    applicationView->showContent(emptyToolbar, emptyNavigator, view->asQWidget());
 }
 
 void ApplicationManager::Implementation::showSessionStatistics()
@@ -2792,6 +2832,7 @@ void ApplicationManager::initConnections()
             [this] { d->exportCurrentDocument(); });
     connect(d->menuView, &Ui::MenuView::fullscreenPressed, this, [this] { d->toggleFullScreen(); });
     connect(d->menuView, &Ui::MenuView::settingsPressed, this, [this] { d->showSettings(); });
+    connect(d->menuView, &Ui::MenuView::assistantPressed, this, [this] { d->showAssistant(); });
     //
     connect(d->menuView, &Ui::MenuView::writingStatisticsPressed, this, [this] {
 #ifdef CLOUD_SERVICE_MANAGER
