@@ -879,27 +879,43 @@ void ScreenplayTextModel::updateRuntimeDictionaries()
                     //
                     // Aula 122: agrupar variantes de la misma locación.
                     //
-                    const QString rawLocation
+                    QString rawLocation
                         = ScreenplaySceneHeadingParser::location(textItem->text());
+                    //
+                    // 1) Eliminar cualquier contenido entre paréntesis — son
+                    //    marcadores (FLASHBACK, MINI DV, PRESENTE…) que no
+                    //    cambian la locación física. Sin esto, el parser deja
+                    //    "(FLASHBACK)" pegado y duplica la locación.
+                    //
+                    rawLocation.remove(QRegularExpression(
+                        QStringLiteral("\\s*\\([^)]*\\)\\s*")));
+                    rawLocation = rawLocation.trimmed();
+                    //
+                    // 2) Match contra registradas (preserva capitalización del usuario)
+                    //
                     QString canonical = rawLocation;
                     bool matched = false;
                     for (auto it = locationLookup.cbegin(); it != locationLookup.cend(); ++it) {
                         const QString& registeredUpper = it.key();
                         if (rawLocation == registeredUpper
-                            || rawLocation.startsWith(registeredUpper + QStringLiteral(" - "))
-                            || rawLocation.startsWith(registeredUpper + QStringLiteral(" ("))) {
+                            || rawLocation.startsWith(registeredUpper + QStringLiteral(" - "))) {
                             canonical = it.value();
                             matched = true;
                             break;
                         }
                     }
+                    //
+                    // 3) Fallback: tronco antes del primer " - "
+                    //
                     if (!matched) {
                         const int dashIdx = rawLocation.indexOf(QStringLiteral(" - "));
                         if (dashIdx > 0) {
                             canonical = rawLocation.left(dashIdx).trimmed();
                         }
                     }
-                    locations.insert(canonical);
+                    if (!canonical.isEmpty()) {
+                        locations.insert(canonical);
+                    }
                     break;
                 }
                 case TextParagraphType::SceneCharacters: {
