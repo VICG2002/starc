@@ -1,6 +1,7 @@
 #include "writing_assistant_manager.h"
 
 #include "claude_client.h"
+#include "structures_loader.h"
 #include "writing_assistant_view.h"
 
 #include <business_layer/model/screenplay/text/screenplay_text_model.h>
@@ -33,10 +34,18 @@ public:
     Ui::WritingAssistantView* view = nullptr;
     Ui::WritingAssistantView* secondaryView = nullptr;
     QVector<QPointer<Ui::WritingAssistantView>> allViews;
+
+    /**
+     * @brief Estructuras narrativas cargadas desde
+     *        ~/memoria-asistente-escritura/referencias/_estructuras.json.
+     *        Vacío si el archivo no existe — el selector se oculta.
+     */
+    QVector<NarrativeStructure> structures;
 };
 
 WritingAssistantManager::Implementation::Implementation()
     : claudeClient(new ClaudeClient)
+    , structures(StructuresLoader::load())
 {
 }
 
@@ -100,6 +109,57 @@ Ui::WritingAssistantView* WritingAssistantManager::Implementation::createView()
                              }
                          }
                      });
+
+    //
+    // Wire: usuario eligió estructura y dio Analizar → armamos prompt
+    // con la descripción detallada de los beats y se la enviamos a Claude.
+    //
+    QObject::connect(newView, &Ui::WritingAssistantView::analyzeStructureRequested,
+                     claudeClient, [this, viewPtr = QPointer<Ui::WritingAssistantView>(newView)](
+                                       const QString& _structureId) {
+                         if (viewPtr.isNull()) {
+                             return;
+                         }
+                         //
+                         // Buscar la estructura por id
+                         //
+                         NarrativeStructure selected;
+                         for (const auto& s : structures) {
+                             if (s.id == _structureId) {
+                                 selected = s;
+                                 break;
+                             }
+                         }
+                         if (selected.id.isEmpty()) {
+                             return;
+                         }
+                         //
+                         // Armar prompt con la descripción de la estructura + petición
+                         //
+                         const QString prompt
+                             = QObject::tr(
+                                   "Analiza mi guion contra la siguiente estructura "
+                                   "narrativa y dime, beat por beat, cuáles están "
+                                   "claramente identificados en mi historia, cuáles "
+                                   "faltan o son débiles, y qué sugerencias tienes "
+                                   "para reforzar la estructura. Sé concreto y conciso.\n\n")
+                             + selected.promptDescription();
+                         viewPtr->appendUserMessage(QObject::tr(
+                             "[Análisis de estructura: %1]").arg(selected.displayLabel()));
+                         viewPtr->setInputEnabled(false);
+                         viewPtr->setStatus(QObject::tr("Analizando contra %1...")
+                                                .arg(selected.name));
+                         claudeClient->sendMessage(prompt);
+                     });
+
+    //
+    // Poblar el selector de estructuras (si las cargamos del JSON)
+    //
+    QVector<QPair<QString, QString>> structuresForCombo;
+    for (const auto& s : structures) {
+        structuresForCombo << qMakePair(s.displayLabel(), s.id);
+    }
+    newView->setStructures(structuresForCombo);
 
     //
     // Status inicial según disponibilidad del CLI de Claude Code

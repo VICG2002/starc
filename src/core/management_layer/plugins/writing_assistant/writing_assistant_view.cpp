@@ -2,6 +2,7 @@
 
 #include <ui/design_system/design_system.h>
 
+#include <QComboBox>
 #include <QHBoxLayout>
 #include <QLabel>
 #include <QLineEdit>
@@ -19,6 +20,9 @@ public:
 
     QLabel* titleLabel = nullptr;
     QPushButton* newConversationButton = nullptr;
+    QLabel* structureLabel = nullptr;
+    QComboBox* structureCombo = nullptr;
+    QPushButton* analyzeStructureButton = nullptr;
     QTextEdit* responseArea = nullptr;
     QLineEdit* inputField = nullptr;
     QPushButton* sendButton = nullptr;
@@ -28,6 +32,9 @@ public:
 WritingAssistantView::Implementation::Implementation(QWidget* _parent)
     : titleLabel(new QLabel(_parent))
     , newConversationButton(new QPushButton(_parent))
+    , structureLabel(new QLabel(_parent))
+    , structureCombo(new QComboBox(_parent))
+    , analyzeStructureButton(new QPushButton(_parent))
     , responseArea(new QTextEdit(_parent))
     , inputField(new QLineEdit(_parent))
     , sendButton(new QPushButton(_parent))
@@ -39,6 +46,21 @@ WritingAssistantView::Implementation::Implementation(QWidget* _parent)
     newConversationButton->setText(QStringLiteral("Nueva conversación"));
     newConversationButton->setToolTip(
         QStringLiteral("Empezar de cero — Claude olvidará lo dicho hasta ahora"));
+
+    structureLabel->setText(QStringLiteral("Estructura narrativa:"));
+    structureCombo->setToolTip(
+        QStringLiteral("Estructura contra la que Claude analizará tu guion"));
+    analyzeStructureButton->setText(QStringLiteral("Analizar"));
+    analyzeStructureButton->setToolTip(
+        QStringLiteral("Pide a Claude un análisis del guion contra la estructura elegida"));
+    //
+    // Por defecto la fila de estructura está oculta hasta que el manager
+    // popule el combo con setStructures(). Si no hay estructuras (JSON
+    // no encontrado), se queda oculta y el chat funciona normal.
+    //
+    structureLabel->setVisible(false);
+    structureCombo->setVisible(false);
+    analyzeStructureButton->setVisible(false);
 
     responseArea->setReadOnly(true);
     responseArea->setPlaceholderText(
@@ -67,6 +89,13 @@ WritingAssistantView::WritingAssistantView(QWidget* _parent)
     headerRow->addWidget(d->titleLabel, 1);
     headerRow->addWidget(d->newConversationButton);
 
+    auto structureRow = new QHBoxLayout;
+    structureRow->setContentsMargins({});
+    structureRow->setSpacing(8);
+    structureRow->addWidget(d->structureLabel);
+    structureRow->addWidget(d->structureCombo, 1);
+    structureRow->addWidget(d->analyzeStructureButton);
+
     auto inputRow = new QHBoxLayout;
     inputRow->setContentsMargins({});
     inputRow->setSpacing(8);
@@ -77,6 +106,7 @@ WritingAssistantView::WritingAssistantView(QWidget* _parent)
     layout->setContentsMargins(16, 16, 16, 16);
     layout->setSpacing(12);
     layout->addLayout(headerRow);
+    layout->addLayout(structureRow);
     layout->addWidget(d->responseArea, 1);
     layout->addLayout(inputRow);
     layout->addWidget(d->statusLabel);
@@ -97,6 +127,12 @@ WritingAssistantView::WritingAssistantView(QWidget* _parent)
     connect(d->inputField, &QLineEdit::returnPressed, this, submitHandler);
     connect(d->newConversationButton, &QPushButton::clicked, this,
             &WritingAssistantView::newConversationRequested);
+    connect(d->analyzeStructureButton, &QPushButton::clicked, this, [this] {
+        const QString id = d->structureCombo->currentData().toString();
+        if (!id.isEmpty()) {
+            emit analyzeStructureRequested(id);
+        }
+    });
 }
 
 WritingAssistantView::~WritingAssistantView() = default;
@@ -150,12 +186,30 @@ void WritingAssistantView::clearConversation()
     d->responseArea->clear();
 }
 
+void WritingAssistantView::setStructures(const QVector<QPair<QString, QString>>& _structures)
+{
+    d->structureCombo->clear();
+    for (const auto& pair : _structures) {
+        d->structureCombo->addItem(pair.first, pair.second);
+    }
+    const bool hasStructures = !_structures.isEmpty();
+    d->structureLabel->setVisible(hasStructures);
+    d->structureCombo->setVisible(hasStructures);
+    d->analyzeStructureButton->setVisible(hasStructures);
+}
+
 void WritingAssistantView::updateTranslations()
 {
     d->titleLabel->setText(tr("Asistente de escritura"));
     d->newConversationButton->setText(tr("Nueva conversación"));
     d->newConversationButton->setToolTip(
         tr("Empezar de cero — Claude olvidará lo dicho hasta ahora"));
+    d->structureLabel->setText(tr("Estructura narrativa:"));
+    d->structureCombo->setToolTip(
+        tr("Estructura contra la que Claude analizará tu guion"));
+    d->analyzeStructureButton->setText(tr("Analizar"));
+    d->analyzeStructureButton->setToolTip(
+        tr("Pide a Claude un análisis del guion contra la estructura elegida"));
     d->inputField->setPlaceholderText(tr("Escribe tu mensaje y presiona Enter o el botón..."));
     d->sendButton->setText(tr("Enviar"));
     d->responseArea->setPlaceholderText(tr("Las respuestas de Claude aparecerán aquí."));
@@ -182,6 +236,10 @@ void WritingAssistantView::designSystemChangeEvent(DesignSystemChangeEvent* _eve
     d->inputField->setFont(DesignSystem::font().body1());
     d->sendButton->setFont(DesignSystem::font().button());
     d->newConversationButton->setFont(DesignSystem::font().button());
+    d->structureLabel->setFont(DesignSystem::font().body2());
+    d->structureLabel->setStyleSheet(QString("color: %1;").arg(bodyColor));
+    d->structureCombo->setFont(DesignSystem::font().body2());
+    d->analyzeStructureButton->setFont(DesignSystem::font().button());
     d->statusLabel->setFont(DesignSystem::font().caption());
     d->statusLabel->setStyleSheet(
         QString("color: %1;").arg(DesignSystem::color().onSurface().name()));

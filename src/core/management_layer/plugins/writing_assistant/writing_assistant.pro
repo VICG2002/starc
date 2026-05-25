@@ -26,11 +26,13 @@ DEPENDPATH += $$PWD/../../../../corelib
 
 HEADERS += \
     claude_client.h \
+    structures_loader.h \
     writing_assistant_manager.h \
     writing_assistant_view.h
 
 SOURCES += \
     claude_client.cpp \
+    structures_loader.cpp \
     writing_assistant_manager.cpp \
     writing_assistant_view.cpp
 

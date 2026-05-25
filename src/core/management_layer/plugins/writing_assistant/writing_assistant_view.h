@@ -62,6 +62,13 @@ public:
      */
     void clearConversation();
 
+    /**
+     * @brief Poblar el selector de estructura narrativa.
+     *        Cada par es (etiqueta para mostrar, id interno).
+     *        Si la lista está vacía, el selector se oculta.
+     */
+    void setStructures(const QVector<QPair<QString, QString>>& _structures);
+
 signals:
     /**
      * @brief El usuario envió un mensaje (click en botón o Enter en input)
@@ -72,6 +79,12 @@ signals:
      * @brief El usuario pidió empezar una nueva conversación (olvidar contexto)
      */
     void newConversationRequested();
+
+    /**
+     * @brief El usuario pidió analizar el guion contra la estructura elegida.
+     *        El parámetro es el id interno (ej. "snyder-beat-sheet").
+     */
+    void analyzeStructureRequested(const QString& _structureId);
 
 protected:
     void updateTranslations() override;
