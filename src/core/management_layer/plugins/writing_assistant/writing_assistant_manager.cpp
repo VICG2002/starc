@@ -84,6 +84,21 @@ Ui::WritingAssistantView* WritingAssistantManager::Implementation::createView()
                      });
 
     //
+    // Wire: usuario pidió nueva conversación → cliente olvida session_id,
+    // todas las vistas limpian su área de respuestas.
+    //
+    QObject::connect(newView, &Ui::WritingAssistantView::newConversationRequested,
+                     claudeClient, [this] {
+                         claudeClient->resetConversation();
+                         for (auto& v : allViews) {
+                             if (!v.isNull()) {
+                                 v->clearConversation();
+                                 v->setStatus(QObject::tr("Nueva conversación iniciada"));
+                             }
+                         }
+                     });
+
+    //
     // Status inicial según disponibilidad del CLI de Claude Code
     //
     if (!claudeClient->isAvailable()) {

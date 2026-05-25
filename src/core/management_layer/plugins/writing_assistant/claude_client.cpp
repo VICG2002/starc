@@ -110,12 +110,17 @@ void ClaudeClient::sendMessage(const QString& _prompt)
     // {"result": "..."} cuando termina exitoso. Sin --bare porque ese flag
     // bloquea la lectura del keychain donde vive la auth OAuth de Claude Code.
     //
-    const QStringList args = {
-        QStringLiteral("--print"),
-        QStringLiteral("--output-format"),
-        QStringLiteral("json"),
-        _prompt,
-    };
+    // Si ya tenemos session_id de un mensaje previo, --resume <id> hace que
+    // Claude vea toda la conversación anterior (multi-turn). Si no, primera
+    // invocación crea una sesión nueva.
+    //
+    QStringList args;
+    if (!m_sessionId.isEmpty()) {
+        args << QStringLiteral("--resume") << m_sessionId;
+    }
+    args << QStringLiteral("--print")
+         << QStringLiteral("--output-format") << QStringLiteral("json")
+         << _prompt;
     m_process->setArguments(args);
 
     //
@@ -200,6 +205,15 @@ void ClaudeClient::handleProcessFinished()
             return;
         }
 
+        //
+        // Capturar / refrescar session_id para que el próximo mensaje
+        // se envíe con --resume <id> y Claude recuerde la conversación.
+        //
+        const QString returnedSession = root.value("session_id").toString();
+        if (!returnedSession.isEmpty()) {
+            m_sessionId = returnedSession;
+        }
+
         emit responseReceived(resultText);
         return;
     }
@@ -215,6 +229,16 @@ void ClaudeClient::handleProcessFinished()
         errMsg = tr("Claude CLI terminó con código %1 sin mensaje").arg(exitCode);
     }
     emit errorOccurred(tr("Error del CLI: %1").arg(errMsg));
+}
+
+void ClaudeClient::resetConversation()
+{
+    m_sessionId.clear();
+}
+
+bool ClaudeClient::hasActiveSession() const
+{
+    return !m_sessionId.isEmpty();
 }
 
 } // namespace ManagementLayer

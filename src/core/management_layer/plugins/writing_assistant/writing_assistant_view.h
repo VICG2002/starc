@@ -57,11 +57,21 @@ public:
      */
     void setInputEnabled(bool _enabled);
 
+    /**
+     * @brief Limpiar visualmente el área de respuestas (al iniciar nueva conversación)
+     */
+    void clearConversation();
+
 signals:
     /**
      * @brief El usuario envió un mensaje (click en botón o Enter en input)
      */
     void messageSubmitted(const QString& _text);
+
+    /**
+     * @brief El usuario pidió empezar una nueva conversación (olvidar contexto)
+     */
+    void newConversationRequested();
 
 protected:
     void updateTranslations() override;

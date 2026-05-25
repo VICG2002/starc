@@ -18,6 +18,7 @@ public:
     explicit Implementation(QWidget* _parent);
 
     QLabel* titleLabel = nullptr;
+    QPushButton* newConversationButton = nullptr;
     QTextEdit* responseArea = nullptr;
     QLineEdit* inputField = nullptr;
     QPushButton* sendButton = nullptr;
@@ -26,6 +27,7 @@ public:
 
 WritingAssistantView::Implementation::Implementation(QWidget* _parent)
     : titleLabel(new QLabel(_parent))
+    , newConversationButton(new QPushButton(_parent))
     , responseArea(new QTextEdit(_parent))
     , inputField(new QLineEdit(_parent))
     , sendButton(new QPushButton(_parent))
@@ -33,6 +35,10 @@ WritingAssistantView::Implementation::Implementation(QWidget* _parent)
 {
     titleLabel->setText(QStringLiteral("Asistente de escritura"));
     titleLabel->setAlignment(Qt::AlignCenter);
+
+    newConversationButton->setText(QStringLiteral("Nueva conversación"));
+    newConversationButton->setToolTip(
+        QStringLiteral("Empezar de cero — Claude olvidará lo dicho hasta ahora"));
 
     responseArea->setReadOnly(true);
     responseArea->setPlaceholderText(
@@ -55,6 +61,12 @@ WritingAssistantView::WritingAssistantView(QWidget* _parent)
     : Widget(_parent)
     , d(new Implementation(this))
 {
+    auto headerRow = new QHBoxLayout;
+    headerRow->setContentsMargins({});
+    headerRow->setSpacing(8);
+    headerRow->addWidget(d->titleLabel, 1);
+    headerRow->addWidget(d->newConversationButton);
+
     auto inputRow = new QHBoxLayout;
     inputRow->setContentsMargins({});
     inputRow->setSpacing(8);
@@ -64,7 +76,7 @@ WritingAssistantView::WritingAssistantView(QWidget* _parent)
     auto layout = new QVBoxLayout;
     layout->setContentsMargins(16, 16, 16, 16);
     layout->setSpacing(12);
-    layout->addWidget(d->titleLabel);
+    layout->addLayout(headerRow);
     layout->addWidget(d->responseArea, 1);
     layout->addLayout(inputRow);
     layout->addWidget(d->statusLabel);
@@ -83,6 +95,8 @@ WritingAssistantView::WritingAssistantView(QWidget* _parent)
     };
     connect(d->sendButton, &QPushButton::clicked, this, submitHandler);
     connect(d->inputField, &QLineEdit::returnPressed, this, submitHandler);
+    connect(d->newConversationButton, &QPushButton::clicked, this,
+            &WritingAssistantView::newConversationRequested);
 }
 
 WritingAssistantView::~WritingAssistantView() = default;
@@ -131,9 +145,17 @@ void WritingAssistantView::setInputEnabled(bool _enabled)
     }
 }
 
+void WritingAssistantView::clearConversation()
+{
+    d->responseArea->clear();
+}
+
 void WritingAssistantView::updateTranslations()
 {
     d->titleLabel->setText(tr("Asistente de escritura"));
+    d->newConversationButton->setText(tr("Nueva conversación"));
+    d->newConversationButton->setToolTip(
+        tr("Empezar de cero — Claude olvidará lo dicho hasta ahora"));
     d->inputField->setPlaceholderText(tr("Escribe tu mensaje y presiona Enter o el botón..."));
     d->sendButton->setText(tr("Enviar"));
     d->responseArea->setPlaceholderText(tr("Las respuestas de Claude aparecerán aquí."));
@@ -159,6 +181,7 @@ void WritingAssistantView::designSystemChangeEvent(DesignSystemChangeEvent* _eve
 
     d->inputField->setFont(DesignSystem::font().body1());
     d->sendButton->setFont(DesignSystem::font().button());
+    d->newConversationButton->setFont(DesignSystem::font().button());
     d->statusLabel->setFont(DesignSystem::font().caption());
     d->statusLabel->setStyleSheet(
         QString("color: %1;").arg(DesignSystem::color().onSurface().name()));

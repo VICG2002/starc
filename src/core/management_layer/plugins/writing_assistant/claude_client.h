@@ -40,8 +40,22 @@ public:
     /**
      * @brief Enviar un mensaje. Resultado async vía responseReceived / errorOccurred.
      *        Si ya hay una petición en curso, se ignora la nueva con error.
+     *
+     * Multi-turn: el primer mensaje crea una sesión nueva y captura su session_id.
+     * Los siguientes mensajes se envían con --resume <session_id>, así Claude
+     * recuerda lo conversado. Para empezar de cero, llamar resetConversation().
      */
     void sendMessage(const QString& _prompt);
+
+    /**
+     * @brief Olvidar la sesión actual. El próximo sendMessage abre una nueva conversación.
+     */
+    void resetConversation();
+
+    /**
+     * @brief ¿Hay una sesión activa con historial?
+     */
+    bool hasActiveSession() const;
 
 signals:
     void responseReceived(const QString& _response);
@@ -53,6 +67,7 @@ private:
 
     QString m_cliPath;
     QProcess* m_process = nullptr;
+    QString m_sessionId; // vacío hasta primera respuesta exitosa
 };
 
 } // namespace ManagementLayer
