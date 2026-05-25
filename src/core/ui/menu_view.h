@@ -63,6 +63,11 @@ public:
     void checkSettings();
 
     /**
+     * @brief Marcar el botón del asistente como seleccionado (Diez50)
+     */
+    void checkAssistant();
+
+    /**
      * @brief Установить состояние сохранённости изменений проекта
      */
     void markChangesSaved(bool _saved);
@@ -178,6 +183,11 @@ signals:
      * @brief Нажат пункт меню "Настройки"
      */
     void settingsPressed();
+
+    /**
+     * @brief Click en el botón "Asistente" del menú lateral (Diez50)
+     */
+    void assistantPressed();
 
     /**
      * @brief Нажат пункт меню "Справка"

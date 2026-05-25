@@ -56,6 +56,7 @@ public:
     QAction* importProject = nullptr;
     QAction* fullScreen = nullptr;
     QAction* settings = nullptr;
+    QAction* assistant = nullptr;
     QAction* aboutApplicationAction = nullptr;
 
     QAction* writingStatistics = nullptr;
@@ -98,6 +99,7 @@ MenuView::Implementation::Implementation(MenuView* _parent)
     , importProject(new QAction)
     , fullScreen(new QAction)
     , settings(new QAction)
+    , assistant(new QAction)
     , aboutApplicationAction(new QAction)
     , writingStatistics(new QAction)
     , writingSprint(new QAction)
@@ -131,6 +133,7 @@ MenuView::Implementation::Implementation(MenuView* _parent)
         drawer->addAction(exportCurrentDocument);
         drawer->addAction(fullScreen);
         drawer->addAction(settings);
+        drawer->addAction(assistant);
 
         drawer->setAccountActions({
             writingStatistics,
@@ -185,11 +188,19 @@ MenuView::Implementation::Implementation(MenuView* _parent)
         settings->setCheckable(false);
         settings->setVisible(true);
         settings->setSeparator(true);
+        //
+        // Asistente de escritura (plugin Diez50)
+        //
+        assistant->setIconText(u8"\U000F0CB6"); // pencil-outline (Material Design Icons, garantizado)
+        assistant->setCheckable(true);
+        assistant->setVisible(true);
+        assistant->setSeparator(true);
 
         QActionGroup* actions = new QActionGroup(_parent);
         actions->addAction(projects);
         actions->addAction(project);
         actions->addAction(settings);
+        actions->addAction(assistant);
 
         writingStatistics->setIconText(u8"\U000F085D");
         //
@@ -276,6 +287,7 @@ MenuView::MenuView(QWidget* _parent)
             &MenuView::exportCurrentDocumentPressed);
     connect(d->fullScreen, &QAction::triggered, this, &MenuView::fullscreenPressed);
     connect(d->settings, &QAction::triggered, this, &MenuView::settingsPressed);
+    connect(d->assistant, &QAction::triggered, this, &MenuView::assistantPressed);
     //
     connect(d->writingStatistics, &QAction::triggered, this, &MenuView::writingStatisticsPressed);
     connect(d->writingSprint, &QAction::triggered, this, &MenuView::writingSprintPressed);
@@ -303,6 +315,7 @@ MenuView::MenuView(QWidget* _parent)
     connect(this, &MenuView::exportCurrentDocumentPressed, this, &MenuView::closeMenu);
     connect(this, &MenuView::fullscreenPressed, this, &MenuView::closeMenu);
     connect(this, &MenuView::settingsPressed, this, &MenuView::closeMenu);
+    connect(this, &MenuView::assistantPressed, this, &MenuView::closeMenu);
     connect(this, &MenuView::helpPressed, this, &MenuView::closeMenu);
     //
     connect(this, &MenuView::writingStatisticsPressed, this, &MenuView::closeMenu);
@@ -404,6 +417,12 @@ void MenuView::checkSettings()
 {
     QSignalBlocker signalBlocker(this);
     d->importProject->setChecked(true);
+}
+
+void MenuView::checkAssistant()
+{
+    QSignalBlocker signalBlocker(this);
+    d->assistant->setChecked(true);
 }
 
 void MenuView::markChangesSaved(bool _saved)
@@ -555,6 +574,7 @@ void MenuView::updateTranslations()
     d->fullScreen->setWhatsThis(
         QKeySequence(QKeySequence::FullScreen).toString(QKeySequence::NativeText));
     d->settings->setText(tr("Application settings"));
+    d->assistant->setText(tr("Writing assistant"));
 
     d->writingStatistics->setToolTip(tr("Show writing statistics"));
     d->writingSprint->setToolTip(tr("Show writing sprint timer"));
