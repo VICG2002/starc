@@ -1,5 +1,6 @@
 #include "application_manager.h"
 
+#include "brain_process_manager.h"
 #include "content/account/account_manager.h"
 #include "content/export/export_manager.h"
 #include "content/import/import_manager.h"
@@ -383,6 +384,7 @@ public:
     QScopedPointer<SettingsManager> settingsManager;
     QScopedPointer<WritingSessionManager> writingSessionManager;
     QScopedPointer<NotificationsManager> notificationsManager;
+    QScopedPointer<BrainProcessManager> brainProcessManager;
 #ifdef CLOUD_SERVICE_MANAGER
     QScopedPointer<CloudServiceManager> cloudServiceManager;
 #endif
@@ -426,6 +428,7 @@ ApplicationManager::Implementation::Implementation(ApplicationManager* _q)
           new SettingsManager(nullptr, applicationView, pluginsBuilder, shortcutsManager.data()))
     , writingSessionManager(new WritingSessionManager(nullptr, applicationView->view()))
     , notificationsManager(new NotificationsManager)
+    , brainProcessManager(new BrainProcessManager(nullptr))
 #ifdef CLOUD_SERVICE_MANAGER
     , cloudServiceManager(new CloudServiceManager)
 #endif
@@ -2490,6 +2493,11 @@ void ApplicationManager::Implementation::exit()
     closeCurrentProject();
 
     //
+    // Detenemos el cerebro local (llama-server + odysseus + chromadb)
+    //
+    brainProcessManager->stopAll();
+
+    //
     // Сохраняем состояние приложения
     //
     setSettingsValues(DataStorageLayer::kApplicationViewStateKey, applicationView->saveState());
@@ -2708,6 +2716,13 @@ void ApplicationManager::exec(const QString& _fileToOpenPath)
             // Настройка
             //
             d->configureAutoSave();
+
+            //
+            // Arrancamos el cerebro local (llama-server + odysseus + chromadb),
+            // empaquetado dentro del .app. No bloquea: el Asistente IA se habilita
+            // cuando el manager emite ready().
+            //
+            d->brainProcessManager->startAll();
 
             //
             // Отображение

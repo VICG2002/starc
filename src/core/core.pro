@@ -49,6 +49,7 @@ DEPENDPATH += $$PWD/../3rd_party/webloader
 
 SOURCES += \
     management_layer/application_manager.cpp \
+    management_layer/brain_process_manager.cpp \
     management_layer/content/account/account_manager.cpp \
     management_layer/content/export/export_manager.cpp \
     management_layer/content/import/import_manager.cpp \
@@ -148,6 +149,7 @@ SOURCES += \
 HEADERS += \
     core_global.h \
     management_layer/application_manager.h \
+    management_layer/brain_process_manager.h \
     management_layer/content/account/account_manager.h \
     management_layer/content/export/export_manager.h \
     management_layer/content/import/import_manager.h \

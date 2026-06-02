@@ -1,6 +1,6 @@
 #include "writing_assistant_manager.h"
 
-#include "claude_client.h"
+#include "odysseus_client.h"
 #include "structures_loader.h"
 #include "writing_assistant_view.h"
 
@@ -26,7 +26,7 @@ public:
     /**
      * @brief Cliente HTTP a la API de Anthropic (compartido entre vistas)
      */
-    ClaudeClient* claudeClient = nullptr;
+    OdysseusClient* claudeClient = nullptr;
 
     /**
      * @brief Vistas activas (primary / secondary / multi-instance)
@@ -44,7 +44,7 @@ public:
 };
 
 WritingAssistantManager::Implementation::Implementation()
-    : claudeClient(new ClaudeClient)
+    : claudeClient(new OdysseusClient)
     , structures(StructuresLoader::load())
 {
 }
@@ -65,7 +65,7 @@ Ui::WritingAssistantView* WritingAssistantManager::Implementation::createView()
                          }
                          viewPtr->appendUserMessage(_text);
                          viewPtr->setInputEnabled(false);
-                         viewPtr->setStatus(QObject::tr("Esperando respuesta de Claude..."));
+                         viewPtr->setStatus(QObject::tr("Esperando respuesta de la IA (odysseus)..."));
                          claudeClient->sendMessage(_text);
                      });
 
@@ -73,7 +73,7 @@ Ui::WritingAssistantView* WritingAssistantManager::Implementation::createView()
     // Wire: Claude responde → mostrar en TODAS las vistas activas (no sabemos cuál envió)
     // Para una sola vista esto funciona. Para multi-vista podría refinar después.
     //
-    QObject::connect(claudeClient, &ClaudeClient::responseReceived,
+    QObject::connect(claudeClient, &OdysseusClient::responseReceived,
                      newView, [this](const QString& _response) {
                          for (auto& v : allViews) {
                              if (!v.isNull()) {
@@ -84,7 +84,7 @@ Ui::WritingAssistantView* WritingAssistantManager::Implementation::createView()
                          }
                      });
 
-    QObject::connect(claudeClient, &ClaudeClient::errorOccurred,
+    QObject::connect(claudeClient, &OdysseusClient::errorOccurred,
                      newView, [this](const QString& _error) {
                          for (auto& v : allViews) {
                              if (!v.isNull()) {
@@ -166,7 +166,7 @@ Ui::WritingAssistantView* WritingAssistantManager::Implementation::createView()
     //
     if (!claudeClient->isAvailable()) {
         newView->setStatus(
-            QObject::tr("⚠ Claude Code CLI no encontrado — instálalo y reinicia"));
+            QObject::tr("⚠ odysseus no configurado — falta el token (Settings → API)"));
     }
 
     return newView;

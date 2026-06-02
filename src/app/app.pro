@@ -27,4 +27,14 @@ win32:RC_FILE = app.rc
 macx {
     ICON = icon.icns
     QMAKE_INFO_PLIST = Info.plist
+
+    #
+    # Fase D del empaquetado del cerebro: con `qmake CONFIG+=bundle_brain`, tras
+    # enlazar la app se ensambla el cerebro (python + llama + odysseus) dentro del
+    # .app (ver ai/PACKAGING.md). Por defecto NO se ejecuta — los builds de
+    # desarrollo apuntan a ai/brain vía $AULA122_BRAIN_DIR (symlinks, instantáneo).
+    #
+    bundle_brain {
+        QMAKE_POST_LINK += $$shell_quote($$PWD/../../ai/build-brain-bundle.sh) $$shell_quote($$PWD/../_build/Aula_122.app)$$escape_expand(\\n\\t)
+    }
 }

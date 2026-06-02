@@ -59,6 +59,15 @@ public:
     QAction* assistant = nullptr;
     QAction* breakdown = nullptr;
     QAction* production = nullptr;
+    // Aula 122 — etapas del pipeline aún sin plugin propio (placeholders)
+    QAction* idea = nullptr;
+    QAction* crew = nullptr;
+    QAction* budget = nullptr;
+    QAction* shotList = nullptr;
+    QAction* locations = nullptr;
+    QAction* casting = nullptr;
+    QAction* callSheet = nullptr;
+    QAction* characters = nullptr;
     QAction* aboutApplicationAction = nullptr;
 
     QAction* writingStatistics = nullptr;
@@ -104,6 +113,14 @@ MenuView::Implementation::Implementation(MenuView* _parent)
     , assistant(new QAction)
     , breakdown(new QAction)
     , production(new QAction)
+    , idea(new QAction)
+    , crew(new QAction)
+    , budget(new QAction)
+    , shotList(new QAction)
+    , locations(new QAction)
+    , casting(new QAction)
+    , callSheet(new QAction)
+    , characters(new QAction)
     , aboutApplicationAction(new QAction)
     , writingStatistics(new QAction)
     , writingSprint(new QAction)
@@ -137,9 +154,19 @@ MenuView::Implementation::Implementation(MenuView* _parent)
         drawer->addAction(exportCurrentDocument);
         drawer->addAction(fullScreen);
         drawer->addAction(settings);
-        drawer->addAction(assistant);
-        drawer->addAction(breakdown);
-        drawer->addAction(production);
+        // Aula 122 — pipeline de producción (orden del usuario). Guión = editor del
+        // proyecto (no es toggle del drawer). Etapas sin plugin van deshabilitadas.
+        drawer->addAction(idea);
+        drawer->addAction(breakdown);  // Desglose (activo)
+        drawer->addAction(crew);
+        drawer->addAction(budget);
+        drawer->addAction(shotList);
+        drawer->addAction(locations);
+        drawer->addAction(casting);
+        drawer->addAction(production);  // Plan de rodaje (activo)
+        drawer->addAction(callSheet);
+        drawer->addAction(characters);
+        drawer->addAction(assistant);   // Asistente IA
 
         drawer->setAccountActions({
             writingStatistics,
@@ -213,6 +240,18 @@ MenuView::Implementation::Implementation(MenuView* _parent)
         production->setIconText(u8"\U000F00ED"); // calendar-clock (MDI)
         production->setCheckable(true);
         production->setVisible(true);
+        //
+        // Aula 122 — etapas del pipeline sin plugin propio: visibles pero deshabilitadas
+        // (codepoints MDI válidos cosechados de document_object.cpp). Se habilitan al portar su vista.
+        //
+        idea->setIconText(u8"\U000F021A");       idea->setVisible(true);       idea->setEnabled(false);
+        crew->setIconText(u8"\U000F0004");       crew->setVisible(true);       crew->setEnabled(false);
+        budget->setIconText(u8"\U000F0127");     budget->setVisible(true);     budget->setEnabled(false);
+        shotList->setIconText(u8"\U000F024F");   shotList->setVisible(true);   shotList->setEnabled(false);
+        locations->setIconText(u8"\U000F0DD4");  locations->setVisible(true);  locations->setEnabled(false);
+        casting->setIconText(u8"\U000F0004");    casting->setVisible(true);    casting->setEnabled(false);
+        callSheet->setIconText(u8"\U000F00BE");  callSheet->setVisible(true);  callSheet->setEnabled(false);
+        characters->setIconText(u8"\U000F0849"); characters->setVisible(true); characters->setEnabled(false);
 
         QActionGroup* actions = new QActionGroup(_parent);
         actions->addAction(projects);
@@ -613,9 +652,17 @@ void MenuView::updateTranslations()
     d->fullScreen->setWhatsThis(
         QKeySequence(QKeySequence::FullScreen).toString(QKeySequence::NativeText));
     d->settings->setText(tr("Application settings"));
-    d->assistant->setText(tr("Writing assistant"));
+    d->assistant->setText(tr("Asistente IA"));
     d->breakdown->setText(tr("Desglose del guion"));
     d->production->setText(tr("Plan de rodaje"));
+    d->idea->setText(tr("Idea / Tratamiento"));
+    d->crew->setText(tr("Crew / Equipo"));
+    d->budget->setText(tr("Presupuesto"));
+    d->shotList->setText(tr("Shot list / Storyboard"));
+    d->locations->setText(tr("Locaciones"));
+    d->casting->setText(tr("Casting"));
+    d->callSheet->setText(tr("Call sheet"));
+    d->characters->setText(tr("Personajes"));
 
     d->writingStatistics->setToolTip(tr("Show writing statistics"));
     d->writingSprint->setToolTip(tr("Show writing sprint timer"));
