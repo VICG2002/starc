@@ -38,6 +38,9 @@ rsync -a --delete \
   --exclude='/.git' --exclude='.DS_Store' --exclude='*.gguf' \
   "$HERE/odysseus/" "$BRAIN/odysseus/"
 
+echo "  · aula122-mcp (servidor MCP del proyecto, lee el .starc)"
+rsync -a --delete --exclude='__pycache__/' --exclude='*.pyc' "$HERE/aula122-mcp/" "$BRAIN/aula122-mcp/"
+
 echo "==> Cerebro ensamblado:"
 du -sh "$BRAIN"/python "$BRAIN"/llama "$BRAIN"/odysseus 2>/dev/null
 echo "==> .app total:"; du -sh "$APP"

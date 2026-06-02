@@ -324,6 +324,70 @@ def _parse_tool_code_block(raw: str) -> Optional[ToolBlock]:
     return None
 
 
+# MCP tool name shape: mcp__<serverid>__<toolname>
+_MCP_NAME_RE = re.compile(r'mcp__\w+__\w+')
+
+
+def _parse_mcp_textcall(s: str) -> Optional[ToolBlock]:
+    """Recover an MCP tool call that a weak local model wrote as TEXT/CODE
+    instead of emitting a native function_call. Returns a ToolBlock
+    (mcp__server__tool) or None.
+
+    Handles the shapes qwen2.5 emits when it skips native tool-calling:
+      {"tool"|"name": "mcp__srv__tool", "arguments": {...}}   (in ```json or bare)
+      (call_)?mcp__srv__tool( {...} | "value" | )             (in ```python)
+      `mcp__srv__tool`                                        (bare mention, no args)
+    Tools with no params (listar_*, estadisticas_guion, proyecto_actual…) work
+    directly; positional args we can't map to a param name are passed best-effort.
+    """
+    if "mcp__" not in s:
+        return None
+    from src.tool_schemas import function_call_to_tool_block
+
+    # (a) JSON object whose tool/name is an mcp__ tool.
+    decoder = json.JSONDecoder()
+    idx = 0
+    while idx < len(s):
+        start = s.find("{", idx)
+        if start == -1:
+            break
+        try:
+            obj, end = decoder.raw_decode(s[start:])
+            idx = start + end
+        except Exception:
+            idx = start + 1
+            continue
+        if isinstance(obj, dict):
+            nm = obj.get("tool") or obj.get("name") or obj.get("tool_name")
+            if isinstance(nm, str) and nm.startswith("mcp__"):
+                a = obj.get("arguments", obj.get("args", obj.get("parameters", {})))
+                a = a if isinstance(a, str) else json.dumps(a or {})
+                block = function_call_to_tool_block(nm, a)
+                if block:
+                    return block
+
+    # (b) function-call style: (call_)?mcp__srv__tool( ... )
+    m = re.search(r'(?:call_)?(mcp__\w+__\w+)\s*\(([\s\S]*?)\)', s)
+    if m:
+        nm, raw = m.group(1), m.group(2).strip()
+        args = "{}"
+        if raw:
+            try:
+                json.loads(raw)
+                args = raw
+            except Exception:
+                args = json.dumps({"input": raw.strip('\'"')})
+        block = function_call_to_tool_block(nm, args)
+        if block:
+            return block
+
+    # (c) bare mention `mcp__srv__tool` → call with no args.
+    m = _MCP_NAME_RE.search(s)
+    if m:
+        return function_call_to_tool_block(m.group(0), "{}")
+    return None
+
+
 def parse_tool_blocks(text: str) -> List[ToolBlock]:
     """Extract executable tool blocks from LLM response text.
 
@@ -356,6 +420,14 @@ def parse_tool_blocks(text: str) -> List[ToolBlock]:
                     blocks.append(block)
                     invoked = True
             if invoked:
+                continue
+        # Weak local models wrap an MCP call inside a ```python/```json fence
+        # (e.g. `call_mcp__srv__tool()` or `{"tool":"mcp__srv__tool"}`). Recover
+        # it as an MCP ToolBlock instead of running it as python/bash.
+        if 'mcp__' in content:
+            mcp_block = _parse_mcp_textcall(content)
+            if mcp_block:
+                blocks.append(mcp_block)
                 continue
         blocks.append(ToolBlock(tag, content))
 
@@ -408,6 +480,14 @@ def parse_tool_blocks(text: str) -> List[ToolBlock]:
             block = _parse_tool_code_block(m.group(1))
             if block:
                 blocks.append(block)
+
+    # Pattern 6: an MCP tool call written as plain text/JSON/code (weak local
+    # models that don't emit native function_calls). Last resort — only when
+    # no other pattern matched.
+    if not blocks:
+        mcp_block = _parse_mcp_textcall(text)
+        if mcp_block:
+            blocks.append(mcp_block)
 
     return blocks
 

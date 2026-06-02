@@ -4,6 +4,7 @@
 #include <QDir>
 #include <QFile>
 #include <QFileInfo>
+#include <QJsonArray>
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QProcess>
@@ -82,7 +83,7 @@ struct BrainProcessManager::Implementation {
         // Modelo: el default materializado por fetch-model.sh, o el primer .gguf
         // que haya en …/brain/models.
         QDir modelsDir(QDir(data).absoluteFilePath(QStringLiteral("models")));
-        modelPath = modelsDir.absoluteFilePath(QStringLiteral("qwen2.5_7b.gguf"));
+        modelPath = modelsDir.absoluteFilePath(QStringLiteral("qwen2.5_14b.gguf"));
         if (!QFileInfo::exists(modelPath)) {
             const QStringList ggufs
                 = modelsDir.entryList({ QStringLiteral("*.gguf") }, QDir::Files);
@@ -243,6 +244,69 @@ struct BrainProcessManager::Implementation {
     }
 
     /**
+     * Registra el servidor MCP del proyecto (aula122-mcp) en odysseus para que el
+     * agente "vea" el .starc (escenas, personajes…). Idempotente: no duplica si ya
+     * existe. Usa la cookie admin recién cacheada; el server.py corre con el python
+     * del bundle. Sin AULA122_PROJECT, abre el .starc más reciente (cambiable en
+     * caliente con la tool usar_proyecto).
+     */
+    void registerProjectMcp()
+    {
+        const QString serverPy
+            = QDir(brainRoot()).absoluteFilePath(QStringLiteral("aula122-mcp/server.py"));
+        if (!QFileInfo::exists(serverPy)) {
+            return;
+        }
+        QString cookie;
+        QFile cf(QDir(QStandardPaths::writableLocation(QStandardPaths::AppDataLocation))
+                     .absoluteFilePath(QStringLiteral("odysseus_session")));
+        if (cf.open(QIODevice::ReadOnly)) {
+            cookie = QString::fromUtf8(cf.readAll()).trimmed();
+            cf.close();
+        }
+        if (cookie.isEmpty()) {
+            return;
+        }
+        const QString cookieArg = QStringLiteral("odysseus_session=") + cookie;
+        const QString base = QStringLiteral("http://127.0.0.1:%1").arg(kOdysseusPort);
+
+        // Idempotencia: ¿ya existe un server "aula122-mcp"?
+        QProcess get;
+        get.setProgram(QStringLiteral("/usr/bin/curl"));
+        get.setArguments({ QStringLiteral("-s"), QStringLiteral("-m"), QStringLiteral("8"),
+                           QStringLiteral("-b"), cookieArg,
+                           base + QStringLiteral("/api/mcp/servers") });
+        get.setStandardInputFile(QProcess::nullDevice());
+        get.start();
+        get.waitForFinished(10000);
+        if (QString::fromUtf8(get.readAllStandardOutput())
+                .contains(QStringLiteral("aula122-mcp"))) {
+            return;
+        }
+
+        const QByteArray argsJson
+            = QJsonDocument(QJsonArray{ serverPy }).toJson(QJsonDocument::Compact);
+        QProcess post;
+        post.setProgram(QStringLiteral("/usr/bin/curl"));
+        post.setArguments({ QStringLiteral("-s"), QStringLiteral("-m"), QStringLiteral("25"),
+                            QStringLiteral("-X"), QStringLiteral("POST"),
+                            QStringLiteral("-b"), cookieArg,
+                            base + QStringLiteral("/api/mcp/servers"),
+                            QStringLiteral("--data-urlencode"),
+                            QStringLiteral("name=aula122-mcp"),
+                            QStringLiteral("--data-urlencode"),
+                            QStringLiteral("transport=stdio"),
+                            QStringLiteral("--data-urlencode"),
+                            QStringLiteral("command=") + pythonBin,
+                            QStringLiteral("--data-urlencode"),
+                            QStringLiteral("args=") + QString::fromUtf8(argsJson) });
+        post.setStandardInputFile(QProcess::nullDevice());
+        post.start();
+        post.waitForFinished(30000);
+        emit q->log(QObject::tr("Tools del proyecto (aula122-mcp) registradas en el cerebro."));
+    }
+
+    /**
      * Sincroniza el código de odysseus desde el bundle (read-only dentro del .app
      * firmado) a una copia MUTABLE en datos de usuario, donde odysseus sí puede
      * escribir su data dir (DB, uploads, chroma…). rsync idempotente; preserva
@@ -301,6 +365,7 @@ struct BrainProcessManager::Implementation {
                 if (up) {
                     healthTimer->stop();
                     cacheAdminSession();
+                    registerProjectMcp();
                     emit q->log(QStringLiteral("Cerebro listo (odysseus en :%1).")
                                     .arg(kOdysseusPort));
                     emit q->ready();

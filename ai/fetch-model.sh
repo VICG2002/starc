@@ -16,7 +16,7 @@
 set -euo pipefail
 
 DEST_DIR="$HOME/Library/Application Support/Diez50/Aula 122/brain/models"
-OLLAMA_TAG="qwen2.5:7b"; HF_REPO=""; HF_FILE=""; MODE="ollama"
+OLLAMA_TAG="qwen2.5:14b"; HF_REPO=""; HF_FILE=""; MODE="ollama"
 
 while [ $# -gt 0 ]; do
   case "$1" in

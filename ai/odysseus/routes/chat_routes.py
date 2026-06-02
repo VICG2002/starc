@@ -406,6 +406,16 @@ def setup_chat_routes(
                 )
             except Exception:
                 pass
+            # Aula 122: las "agent-tools" (python/bash/file ops/navegador/docs/imágenes/
+            # memoria/web) NO están en FUNCTION_TOOL_SCHEMAS. Desactivarlas también para que
+            # el agente del proyecto SOLO vea las tools MCP: si tiene `python`, el modelo local
+            # la usa para "escribir" la llamada en texto en vez de invocar la tool nativamente.
+            disabled_tools.update({
+                "python", "read_file", "write_file", "builtin_browser",
+                "create_document", "edit_document", "update_document", "suggest_document",
+                "generate_image", "manage_memory", "manage_skills", "search_chats",
+                "manage_tasks", "web_search", "web_fetch",
+            })
         if str(allow_bash).lower() != "true":
             disabled_tools.add("bash")
         if str(allow_web_search).lower() != "true":

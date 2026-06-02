@@ -20,7 +20,8 @@ BRAIN="$HERE/brain"
 rm -rf "$BRAIN"; mkdir -p "$BRAIN"
 ln -s "$HERE/odysseus/runtime-python" "$BRAIN/python"    # Fase A — CPython relocatable + deps
 ln -s "$HERE/llama"                   "$BRAIN/llama"      # Fase B — llama-server + dylibs
-ln -s "$HERE/odysseus"                "$BRAIN/odysseus"   # código de odysseus vendorizado
+ln -s "$HERE/odysseus"                "$BRAIN/odysseus"    # código de odysseus vendorizado
+ln -s "$HERE/aula122-mcp"             "$BRAIN/aula122-mcp" # servidor MCP del proyecto (.starc)
 
 echo "✓ brain ensamblado en $BRAIN"
 ls -la "$BRAIN"
