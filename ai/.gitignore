@@ -1,0 +1,17 @@
+# Artefactos de empaquetado del cerebro (Aula 122) — se GENERAN, no se versionan.
+# Las fuentes (bundle-llama.sh, fetch-model.sh, assemble-brain.sh,
+# build-brain-bundle.sh, PACKAGING.md) SÍ van a git.
+
+# salida de bundle-llama.sh (llama-server + dylibs, ~23 MB)
+llama/
+# layout ensamblado por assemble-brain.sh (symlinks en dev)
+brain/
+# salida de la Fase A (CPython relocatable + deps, ~435 MB)
+odysseus/runtime-python/
+# modelos GGUF materializados localmente
+models/
+*.gguf
+
+# Python compilado (aula122-mcp y cualquier paquete fuera de odysseus/)
+__pycache__/
+*.pyc
