@@ -1,0 +1,88 @@
+/* guion.css — área principal del Guion, CALCADA de design/guion.html (<style>).
+   Los tokens y la fuente Material Symbols vienen de aula122-tokens.css.
+   Esta hoja solo define el editor (barra + árbol + página + rail + paneles + estado). */
+
+html, body { height: 100%; margin: 0; }
+
+/* Contenedor = .a122-main del diseño (columna que llena la ventana) */
+.g-main { height: 100vh; min-width: 0; display: flex; flex-direction: column; background: var(--background); }
+
+/* ---- Barra de herramientas (pill flotante, centrada) ---- */
+.ed-toolbar{display:flex;align-items:center;gap:var(--px4);align-self:center;margin:var(--px12) auto;
+  background:var(--background);box-shadow:var(--shadow-2);border-radius:24px;padding:var(--px4) var(--px8)}
+.ed-toolbar button{border:0;background:transparent;cursor:pointer;color:var(--on-surface-medium);
+  padding:var(--px4) var(--px8);border-radius:16px;font-size:var(--fz-body2);display:inline-flex;align-items:center;gap:4px}
+.ed-toolbar button:hover{background:var(--hover)}
+.ed-toolbar .ptype{display:flex;align-items:center;gap:var(--px4);color:var(--on-surface);font-weight:var(--w-medium);
+  border:1px solid var(--divider);border-radius:16px;padding:var(--px4) var(--px12);cursor:pointer}
+.ed-toolbar .on{color:#2f6fd6;background:var(--selected)}
+.ed-toolbar .sep{width:1px;height:20px;background:var(--divider);margin:0 var(--px4)}
+
+/* ---- Cuerpo: árbol | página | rail+paneles ---- */
+.ed-body{flex:1;display:flex;min-height:0}
+
+.ed-tree{width:240px;flex:none;border-right:1px solid var(--divider);overflow:auto;padding:var(--px8) 0}
+.ed-tree .grp{font-size:var(--fz-overline);text-transform:uppercase;letter-spacing:1.5px;
+  color:var(--on-surface-medium);padding:var(--px12) var(--px16) var(--px4)}
+.ed-tree .scene{display:flex;gap:var(--px8);padding:var(--px4) var(--px16);font-size:var(--fz-body2);cursor:pointer;line-height:1.3}
+.ed-tree .scene .n{color:var(--on-surface-medium);width:18px;flex:none}
+.ed-tree .scene .h{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ed-tree .scene:hover{background:var(--hover)}
+.ed-tree .scene.is-active{background:var(--selected);color:#2f6fd6;font-weight:var(--w-medium)}
+.ed-tree .scene.is-active .n{color:#2f6fd6}
+
+/* ---- Página de guion (papel) ---- */
+.ed-pagewrap{flex:1;overflow:auto;background:#e7e7e7;padding:var(--px24);display:flex;justify-content:center}
+.sp-page{width:640px;min-height:840px;height:max-content;background:#fff;color:#000;box-shadow:var(--shadow-2);
+  padding:64px 72px;font-family:"Courier Prime","Courier New",monospace;font-size:13px;line-height:1.5}
+.sp-slug{font-weight:700;text-transform:uppercase;margin:18px 0 10px;display:flex;justify-content:space-between}
+.sp-slug .pg{font-weight:400;color:#6b6b6b}
+.sp-action{margin:0 0 10px;white-space:pre-wrap}
+.sp-char{margin:10px 0 0;padding-left:42%;text-transform:uppercase}
+.sp-paren{padding-left:34%}
+.sp-dialog{padding:0 18% 0 22%;margin:0 0 6px;white-space:pre-wrap}
+.sp-cursor{border-left:2px solid var(--accent)}
+.sp-empty{color:#6b6b6b;text-align:center;margin-top:60px}
+
+/* ---- Lado derecho: rail + paneles ---- */
+.ed-side{display:flex;flex:none;border-left:1px solid var(--divider)}
+.ed-rail{width:48px;flex:none;background:var(--surface);display:flex;flex-direction:column;align-items:center;gap:var(--px4);padding:var(--px8) 0}
+.ed-rail button{width:36px;height:36px;border:0;border-radius:8px;background:transparent;cursor:pointer;
+  color:var(--on-surface-medium);display:flex;align-items:center;justify-content:center}
+.ed-rail button:hover{background:var(--hover)}
+.ed-rail button.is-active{background:var(--selected);color:#2f6fd6}
+.ed-panel{width:288px;flex:none;background:var(--background);display:flex;flex-direction:column}
+.ed-panel[hidden]{display:none}
+.ed-panel__head{padding:var(--px12) var(--px16);border-bottom:1px solid var(--divider);font-weight:var(--w-medium);
+  display:flex;align-items:center;gap:var(--px8)}
+.ed-panel__body{flex:1;overflow:auto;padding:var(--px12)}
+
+/* Panel de Personajes */
+.chl{display:flex;flex-wrap:wrap;gap:4px;margin-bottom:var(--px12)}
+.chl button{border:1px solid var(--divider);background:transparent;border-radius:12px;padding:2px 9px;
+  font-size:var(--fz-caption);cursor:pointer;color:var(--on-surface-medium)}
+.chl button.is-active{background:var(--selected);color:#2f6fd6;border-color:transparent;font-weight:var(--w-medium)}
+.cdetail .nm{font-size:var(--fz-subtitle1);font-weight:var(--w-medium)}
+.cdetail label{display:block;font-size:9px;text-transform:uppercase;letter-spacing:.5px;color:var(--on-surface-medium);margin-top:var(--px12)}
+.cdetail .v{font-size:var(--fz-body2)}
+.cdetail .empty{color:var(--on-surface-disabled);font-style:italic}
+.cdetail .links{display:flex;flex-wrap:wrap;gap:6px;margin-top:var(--px16)}
+.cdetail .links button{padding:4px 8px}
+
+/* Panel de Estadísticas */
+.sgrid{display:grid;grid-template-columns:1fr 1fr;gap:var(--px8);margin-bottom:var(--px8)}
+.sgrid .cell{background:var(--surface);border-radius:var(--radius);padding:var(--px8)}
+.sgrid .b{font-size:var(--fz-h6);font-weight:var(--w-medium);line-height:1;font-variant-numeric:tabular-nums}
+.sgrid .l{font-size:9px;text-transform:uppercase;letter-spacing:.4px;color:var(--on-surface-medium)}
+.sect{font-size:var(--fz-overline);text-transform:uppercase;letter-spacing:1.5px;color:var(--on-surface-medium);margin:var(--px16) 0 var(--px4)}
+.sline{margin:var(--px8) 0}
+.sline .lbl{display:flex;justify-content:space-between;font-size:var(--fz-caption);color:var(--on-surface)}
+.sbar{height:6px;border-radius:3px;background:var(--divider);overflow:hidden;margin-top:3px}
+.sbar > i{display:block;height:100%;background:var(--accent)}
+.sbar.alt > i{background:#5c6bc0}
+
+/* ---- Barra de estado ---- */
+.ed-status{display:flex;gap:var(--px16);align-items:center;padding:var(--px4) var(--px16);
+  border-top:1px solid var(--divider);background:var(--surface);font-size:var(--fz-caption);color:var(--on-surface-medium)}
+.ed-status .spacer{flex:1}
+.muted{color:var(--on-surface-medium)}

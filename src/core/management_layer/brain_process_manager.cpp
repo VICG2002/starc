@@ -22,7 +22,7 @@ namespace {
 // un Ollama externo durante el desarrollo sin chocar.
 const int kOdysseusPort = 7860; // 7860, no 7000 — macOS AirPlay Receiver toma 7000.
 const int kLlamaPort = 8533;
-const int kChromaPort = 8100;
+// (ChromaDB ya no usa puerto: corre EMBEBIDO dentro de odysseus — decisión Fase 2.)
 
 const int kHealthIntervalMs = 1000;
 const int kHealthTimeoutMs = 90000; // el primer arranque carga el modelo (varios s)
@@ -351,6 +351,47 @@ struct BrainProcessManager::Implementation {
         setup.waitForFinished(30000);
     }
 
+    /**
+     * Siembra el conocimiento de Rita (Fase 2) en la data mutable: el índice RAG
+     * embebido (data/chroma) y el modelo de embeddings local (data/fastembed_cache),
+     * copiados desde <brain>/seed/. Copia-si-falta (idempotente): nunca pisa datos
+     * ya presentes del usuario. Sin seed (build viejo) no hace nada.
+     */
+    void seedBrainKnowledge()
+    {
+        const QString seedDir = QDir(brainRoot()).absoluteFilePath(QStringLiteral("seed"));
+        if (!QFileInfo::exists(seedDir)) {
+            return;
+        }
+        const QString dataDir = odysseusRunDir + QStringLiteral("/data");
+        QDir().mkpath(dataDir);
+        const struct {
+            const char* sub;
+            const char* marker;
+        } items[] = {
+            { "chroma", "chroma/chroma.sqlite3" },
+            { "fastembed_cache", "fastembed_cache" },
+        };
+        for (const auto& it : items) {
+            const QString sub = QString::fromLatin1(it.sub);
+            const QString src = QDir(seedDir).absoluteFilePath(sub);
+            if (!QFileInfo::exists(src)) {
+                continue;
+            }
+            if (QFileInfo::exists(dataDir + QStringLiteral("/") + QString::fromLatin1(it.marker))) {
+                continue; // ya sembrado o el usuario ya tiene datos propios
+            }
+            QProcess rsync;
+            rsync.setProgram(QStringLiteral("/usr/bin/rsync"));
+            rsync.setArguments({ QStringLiteral("-a"), src + QStringLiteral("/"),
+                                 QDir(dataDir).absoluteFilePath(sub) + QStringLiteral("/") });
+            rsync.setStandardInputFile(QProcess::nullDevice());
+            rsync.start();
+            rsync.waitForFinished(120000);
+            emit q->log(QObject::tr("Conocimiento de Rita sembrado: %1.").arg(sub));
+        }
+    }
+
     void startHealthCheck()
     {
         healthElapsedMs = 0;
@@ -457,29 +498,42 @@ void BrainProcessManager::startAll()
     //
     d->syncOdysseusRuntime();
     d->ensureOdysseusData();
+    d->seedBrainKnowledge();
 
-    const QProcessEnvironment baseEnv = QProcessEnvironment::systemEnvironment();
-
+    QProcessEnvironment baseEnv = QProcessEnvironment::systemEnvironment();
     //
-    // 1) ChromaDB — memoria vectorial, con el python bundleado. Opcional: si el
-    //    runtime no trae el binario `chroma` (Fase A instaló chromadb-client),
-    //    seguimos sin memoria vectorial en vez de abortar.
-    //
-    if (QFileInfo(d->chromaBin).isExecutable()) {
-        QDir().mkpath(d->chromaDataDir);
-        const QStringList args{ QStringLiteral("run"),
-                                QStringLiteral("--host"),
-                                QStringLiteral("127.0.0.1"),
-                                QStringLiteral("--port"),
-                                QString::number(kChromaPort),
-                                QStringLiteral("--path"),
-                                d->chromaDataDir };
-        d->chroma = d->spawn(QStringLiteral("chroma"), d->chromaBin, args,
-                             d->odysseusRunDir, baseEnv);
-    } else {
-        emit log(tr("chromadb no está en el runtime; el cerebro corre sin memoria "
-                    "vectorial (añadir chromadb a runtime-python, ver PACKAGING Fase C)."));
+    // PATH + caché HF para el Cookbook de odysseus (descarga/serve de modelos).
+    // Dentro del .app (abierto desde Finder) el PATH es el mínimo de macOS: NO
+    // trae Homebrew ni el bin del python bundleado. El Cookbook descarga modelos
+    // corriendo `hf download` dentro de `tmux`, así que necesita resolver AMBOS
+    // binarios. Anteponemos:
+    //   • <brain>/python/bin            → `hf` / `huggingface-cli` / `python3`
+    //   • /opt/homebrew/bin, /usr/local/bin → `tmux`, `git`, etc. del sistema
+    // y fijamos HF_HOME al directorio mutable del cerebro para que lo descargado
+    // quede autocontenido y lo reusen el llama-server y el servidor de imágenes.
+    // (Todo en loopback; el server nunca se expone a la red.)
+    {
+        const QString venvBin = QFileInfo(d->pythonBin).absolutePath();
+        const QString curPath = baseEnv.value(QStringLiteral("PATH"));
+        QStringList parts{ venvBin, QStringLiteral("/opt/homebrew/bin"),
+                           QStringLiteral("/usr/local/bin") };
+        if (!curPath.isEmpty()) {
+            parts << curPath;
+        }
+        baseEnv.insert(QStringLiteral("PATH"), parts.join(QLatin1Char(':')));
+        const QString hfHome
+            = QDir(d->dataRoot()).absoluteFilePath(QStringLiteral("huggingface"));
+        QDir().mkpath(hfHome);
+        baseEnv.insert(QStringLiteral("HF_HOME"), hfHome);
     }
+
+    //
+    // 1) ChromaDB — memoria vectorial. Aula 122 usa ChromaDB EMBEBIDO dentro de
+    //    odysseus (PersistentClient sobre data/chroma): NO se lanza servidor ni se
+    //    ocupa el puerto 8100 (decisión Fase 2 — más rápido, menos RAM y 100%
+    //    autocontenido). El índice de Rita se siembra en seedBrainKnowledge().
+    //
+    emit log(tr("ChromaDB embebido (sin servidor): memoria vectorial dentro de odysseus."));
 
     //
     // 2) llama-server — runtime de modelo en loopback (Metal vía -ngl).
@@ -494,7 +548,27 @@ void BrainProcessManager::startAll()
                                 QStringLiteral("-ngl"),
                                 QStringLiteral("99"),
                                 QStringLiteral("-c"),
-                                QStringLiteral("8192") };
+                                // 16384 (antes 8192). CAUSA RAÍZ de "no funciona bien": en modo
+                                // agente el prompt de una ronda (preset rita + inyección RAG de
+                                // ~8 fragmentos + ~12 esquemas de tools MCP + historial + resultado
+                                // de tool) supera fácil los 8192 tokens → llama-server devolvía
+                                // HTTP 400 "exceeds context size" → el loop caía al fallback en la
+                                // nube (Gemini) que a su vez fallaba por thought_signature → respuesta
+                                // vacía. Qwen2.5-7B admite 32k nativo; 16384 da holgura y cabe en 18 GB
+                                // (7B≈5.7 GB, 14b≈11.5 GB con KV fp16). -fa on mantiene el KV chico.
+                                QStringLiteral("16384"),
+                                //
+                                // M3 / 18 GB: -fa on = flash attention en Metal (más rápido + menos
+                                // RAM de KV-cache). NOTA: --mlock se QUITÓ — forzar el modelo residente
+                                // colgaba la carga cuando la RAM estaba presionada.
+                                //
+                                QStringLiteral("-fa"),
+                                QStringLiteral("on"),
+                                // KV-cache en q8_0 = la MITAD de RAM que fp16, con calidad casi
+                                // idéntica. Hace viable el Qwen2.5-14b@16384 en 18 GB (~10 GB vs
+                                // ~11.6) y deja más holgura al 7B. Requiere -fa on (arriba).
+                                QStringLiteral("-ctk"), QStringLiteral("q8_0"),
+                                QStringLiteral("-ctv"), QStringLiteral("q8_0") };
         d->llama = d->spawn(QStringLiteral("llama"), d->llamaServerBin, args, QString(),
                             baseEnv);
     }
@@ -507,6 +581,14 @@ void BrainProcessManager::startAll()
     {
         QProcessEnvironment env = baseEnv;
         env.insert(QStringLiteral("ODYSSEUS_PORT"), QString::number(kOdysseusPort));
+        // Embeddings DETERMINISTAS y autocontenidos (Fase 2): el índice RAG se
+        // construyó con FastEmbed local (all-MiniLM-L6-v2). Apuntamos EMBEDDING_URL
+        // a un puerto cerrado para que el probe HTTP (Ollama :11434 por defecto)
+        // fast-falle y odysseus use SIEMPRE FastEmbed — mismo espacio vectorial que
+        // el índice, sin depender de un Ollama externo. (Un endpoint que el usuario
+        // configure en Ajustes se persiste aparte y tiene prioridad sobre esto.)
+        env.insert(QStringLiteral("EMBEDDING_URL"),
+                   QStringLiteral("http://127.0.0.1:1/v1/embeddings"));
         const QStringList args{ QStringLiteral("-m"),
                                 QStringLiteral("uvicorn"),
                                 QStringLiteral("app:app"),

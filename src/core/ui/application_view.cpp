@@ -44,6 +44,16 @@ public:
 
     QByteArray lastSplitterState;
     Splitter* splitter = nullptr;
+    // Aula 122 / M2: Odiseo es el anfitrión. Vive PERMANENTE en odiseoHost, a la izquierda de
+    // outerSplitter; el ensamblaje nativo (splitter interno) va a la derecha. Así el editor
+    // nativo se muestra AL LADO de Odiseo sin reparentar su QWebEngineView (no recarga el chat):
+    // solo se oculta/muestra/redimensiona.
+    Widget* odiseoHost = nullptr;
+    Splitter* outerSplitter = nullptr;
+    // Aula 122: ocultar/restaurar el panel de navegación en la vista de Odiseo
+    // (full-bleed) sin perder el ancho que dejó el usuario.
+    bool navHiddenForView = false;
+    QByteArray splitterStateBeforeView;
 
     ThemeSetupView* themeSetupView = nullptr;
 
@@ -56,6 +66,8 @@ ApplicationView::Implementation::Implementation(QWidget* _parent)
     , navigator(new StackWidget(_parent))
     , view(new StackWidget(_parent))
     , splitter(new Splitter(_parent))
+    , odiseoHost(new Widget(_parent))
+    , outerSplitter(new Splitter(_parent))
     , themeSetupView(new ThemeSetupView(_parent))
     , turnOffFullScreenIcon(new IconsBigLabel(_parent))
 {
@@ -86,13 +98,27 @@ ApplicationView::ApplicationView(QWidget* _parent)
     d->splitter->setWidgets(d->navigationWidget, d->view);
     d->splitter->setSizes(kDefaultSizes);
 
+    //
+    // Aula 122 / M2: envolvemos el splitter interno (navegación + vista) en un splitter EXTERIOR
+    // cuyo panel izquierdo (odiseoHost) hospeda a Odiseo de forma permanente. Por defecto va
+    // OCULTO: las pantallas nativas ocupan todo el ancho (idéntico a hoy). showOdiseoFull()/
+    // showOdiseoBeside() lo muestran como anfitrión o lado-a-lado sin reparentar la vista web.
+    //
+    {
+        auto* odiseoLayout = new QVBoxLayout(d->odiseoHost);
+        odiseoLayout->setContentsMargins({});
+        odiseoLayout->setSpacing(0);
+    }
+    d->odiseoHost->hide();
+    d->outerSplitter->setWidgets(d->odiseoHost, d->splitter);
+
     d->themeSetupView->hide();
 
     QVBoxLayout* layout = new QVBoxLayout(this);
     layout->setContentsMargins({});
     layout->setSpacing(0);
     layout->addWidget(d->themeSetupView);
-    layout->addWidget(d->splitter, 1);
+    layout->addWidget(d->outerSplitter, 1);
 
 
     connect(d->turnOffFullScreenIcon, &IconsBigLabel::clicked, this,
@@ -233,7 +259,8 @@ void ApplicationView::restoreState(bool _onboaringPassed, const QVariantMap& _st
     }
 }
 
-void ApplicationView::showContent(QWidget* _toolbar, QWidget* _navigator, QWidget* _view)
+void ApplicationView::showContent(QWidget* _toolbar, QWidget* _navigator, QWidget* _view,
+                                  bool _showNavigation)
 {
     Log::debug("Show content: %1, %2, %3", _toolbar->metaObject()->className(),
                _navigator->metaObject()->className(), _view->metaObject()->className());
@@ -243,9 +270,68 @@ void ApplicationView::showContent(QWidget* _toolbar, QWidget* _navigator, QWidge
     d->view->setCurrentWidget(_view);
 
     //
+    // Aula 122: la vista de Odiseo trae su propia barra lateral, así que ocultamos
+    // el panel de navegación nativo (toolbar + navigator) para que no quede una
+    // columna vacía a su lado. Guardamos el ancho antes de ocultar y lo restauramos
+    // al volver a cualquier otra pantalla (_showNavigation = true por defecto).
+    //
+    if (!_showNavigation) {
+        if (!d->navHiddenForView) {
+            d->splitterStateBeforeView = d->splitter->saveState();
+            d->navHiddenForView = true;
+        }
+        d->navigationWidget->setVisible(false);
+    } else {
+        d->navigationWidget->setVisible(true);
+        if (d->navHiddenForView) {
+            if (!d->splitterStateBeforeView.isEmpty()) {
+                d->splitter->restoreState(d->splitterStateBeforeView);
+            }
+            d->navHiddenForView = false;
+        }
+    }
+
+    //
+    // Aula 122 / M2: por defecto el contenido nativo ocupa todo el ancho (Odiseo oculto). Los
+    // modos anfitrión / lado-a-lado se activan con showOdiseoFull() / showOdiseoBeside() DESPUÉS
+    // de showContent(). El Splitter cede el ancho al panel visible vía sus eventos Hide/Show.
+    //
+    d->splitter->setVisible(true);
+    d->odiseoHost->setVisible(false);
+
+    //
     // Фокусируем представление, после того, как оно будет отображено пользователю
     //
     QTimer::singleShot(d->view->animationDuration() * 1.3, this, [this] { d->view->setFocus(); });
+}
+
+void ApplicationView::setOdiseoWidget(QWidget* _odiseo)
+{
+    if (_odiseo == nullptr || _odiseo->parentWidget() == d->odiseoHost) {
+        return;
+    }
+    d->odiseoHost->layout()->addWidget(_odiseo);
+}
+
+void ApplicationView::showOdiseoFull()
+{
+    //
+    // Odiseo anfitrión a pantalla completa: mostramos su panel y ocultamos el ensamblaje
+    // nativo. El Splitter cede todo el ancho al panel visible.
+    //
+    d->odiseoHost->setVisible(true);
+    d->splitter->setVisible(false);
+}
+
+void ApplicationView::showOdiseoBeside()
+{
+    //
+    // Odiseo + el editor nativo lado a lado, en la MISMA ventana. Odiseo (chats) a la izquierda,
+    // el ensamblaje nativo (árbol de escenas + barra de formato + lienzo) a la derecha.
+    //
+    d->odiseoHost->setVisible(true);
+    d->splitter->setVisible(true);
+    d->outerSplitter->setSizes({ 38, 62 });
 }
 
 void ApplicationView::toggleFullScreen(bool _isFullScreen)

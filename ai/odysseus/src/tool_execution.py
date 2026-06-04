@@ -665,6 +665,51 @@ async def execute_tool_block(
         query = content.split("\n")[0].strip()
         desc = f"search_chats: {query[:80]}"
         result = await do_search_chats(query, owner=owner)
+    elif tool == "buscar_memoria":
+        from src.tool_implementations import do_buscar_memoria
+        query = content.split("\n")[0].strip()
+        desc = f"buscar_memoria: {query[:80]}"
+        result = await do_buscar_memoria(query, owner=owner)
+    elif tool == "leer_memoria":
+        from src.tool_implementations import do_leer_memoria
+        path = content.split("\n")[0].strip()
+        desc = f"leer_memoria: {path[:80]}"
+        result = await do_leer_memoria(path)
+    elif tool == "auditar_memoria":
+        from src.tool_implementations import do_auditar_memoria
+        desc = "auditar_memoria"
+        result = await do_auditar_memoria(content.strip())
+    elif tool == "proponer_cambio_memoria":
+        from src.tool_implementations import do_proponer_cambio_memoria
+        import json as _json
+        try:
+            _a = _json.loads(content) if content.strip().startswith("{") else {"contenido": content}
+        except Exception:
+            _a = {"contenido": content}
+        desc = f"proponer_cambio_memoria: {str(_a.get('titulo','Propuesta'))[:60]}"
+        result = await do_proponer_cambio_memoria(
+            titulo=_a.get("titulo", "Propuesta sin título"),
+            contenido=_a.get("contenido", ""),
+            motivo=_a.get("motivo", ""),
+        )
+    elif tool == "escribir_memoria":
+        from src.tool_implementations import do_escribir_memoria
+        import json as _json
+        try:
+            _a = _json.loads(content)
+        except Exception:
+            _a = {}
+        desc = f"escribir_memoria: {str(_a.get('path',''))[:70]}"
+        result = await do_escribir_memoria(_a.get("path", ""), _a.get("contenido", ""))
+    elif tool == "editar_memoria":
+        from src.tool_implementations import do_editar_memoria
+        import json as _json
+        try:
+            _a = _json.loads(content)
+        except Exception:
+            _a = {}
+        desc = f"editar_memoria: {str(_a.get('path',''))[:70]}"
+        result = await do_editar_memoria(_a.get("path", ""), _a.get("buscar", ""), _a.get("reemplazar", ""))
     elif tool in ("chat_with_model", "create_session", "list_sessions",
                   "send_to_session", "pipeline",
                   "manage_session", "manage_memory", "list_models",

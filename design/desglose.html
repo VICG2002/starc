@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <title>Aula 122 — Desglose de escena (visualización)</title>
+  <link rel="stylesheet" href="./aula122-tokens.css">
+  <style>
+    body{margin:0;background:var(--background)}
+    .muted{color:var(--on-surface-medium)}
+
+    /* Encabezado de escena MUY visible — número de escena junto a la locación */
+    .scene-head{display:flex;align-items:center;gap:var(--px16);
+      margin:var(--px16) var(--px24) 0;padding:var(--px16) var(--px24);
+      background:var(--primary);color:var(--on-primary);border-radius:var(--radius);box-shadow:var(--shadow-1)}
+    .scene-head .scene-num{font-size:var(--fz-h4);font-weight:var(--w-medium);line-height:1;
+      font-variant-numeric:tabular-nums;background:rgba(255,255,255,.14);
+      border-radius:var(--radius);padding:var(--px4) var(--px16);white-space:nowrap}
+    .scene-head .scene-loc{font-size:var(--fz-h5);font-weight:var(--w-medium);letter-spacing:.3px}
+    .scene-head .picker{margin-left:auto;font-size:var(--fz-body2);color:#cfd2d6}
+
+    /* Tarjetas resumen — mismo patrón que presupuesto.html */
+    .summary{display:grid;grid-template-columns:repeat(4,1fr);gap:var(--px16);padding:var(--px16) var(--px24) var(--px8)}
+    .stat{display:flex;flex-direction:column;gap:2px}
+    .stat .big{font-size:var(--fz-h4);font-weight:var(--w-normal);line-height:1;font-variant-numeric:tabular-nums}
+    .stat .lbl{font-size:var(--fz-caption);color:var(--on-surface-medium);text-transform:uppercase;letter-spacing:.4px}
+
+    /* Tabla de elementos del desglose, agrupada por categoría */
+    .table-wrap{flex:1;overflow:auto;padding:0 var(--px24) var(--px48)}
+    table.breakdown{width:100%;border-collapse:collapse;font-size:var(--fz-body2)}
+    table.breakdown th{text-align:left;font-size:var(--fz-caption);text-transform:uppercase;letter-spacing:.4px;
+      color:var(--on-surface-medium);padding:var(--px8);border-bottom:1px solid var(--divider)}
+    table.breakdown td{padding:6px var(--px8);border-bottom:1px solid var(--divider);vertical-align:top}
+    .catrow td{background:#eef0f4;font-weight:var(--w-medium)}
+    .catrow .cnt{color:var(--on-surface-medium);font-weight:var(--w-normal);font-size:var(--fz-caption)}
+    .lvl{padding-left:var(--px24)!important}
+    .notes{color:var(--on-surface-medium)}
+
+    /* Chips de categoría con colores estilo StudioBinder */
+    .cat{display:inline-flex;align-items:center;gap:var(--px4);
+      font-size:var(--fz-caption);font-weight:var(--w-medium);letter-spacing:.4px;
+      padding:var(--px2) var(--px8);border-radius:12px;color:#fff;white-space:nowrap}
+    .cat-reparto{background:#c62828}      /* Reparto — rojo (texto blanco pasa AA) */
+    .cat-utileria{background:#7b1fa2}     /* Utilería — morado (AA) */
+    .cat-vestuario{background:#2e7d32}    /* Vestuario — verde (AA) */
+    .cat-ambientacion{background:#1565c0} /* Ambientación — azul (AA) */
+    .cat-maquillaje{background:#e65100}   /* Maquillaje — naranja (AA) */
+    .cat-vehiculos{background:#5d4037}    /* Vehículos — café (AA) */
+    .cat-sfx{background:#f9a825;color:#000} /* SFX — amarillo con texto negro */
+    /* punto de color en la fila de categoría agrupada */
+    .dot{display:inline-block;width:10px;height:10px;border-radius:50%;margin-right:6px;vertical-align:middle}
+  </style>
+</head>
+<body>
+  <div class="a122-shell">
+
+    <!-- NAVEGACIÓN (verbatim — fila Desglose activa) -->
+    <nav class="a122-nav">
+      <div class="a122-nav__brand"><span class="mi">movie</span> <b>Aula&nbsp;122</b></div>
+      <div class="muted" style="padding:0 var(--px16) var(--px8);font-size:var(--fz-caption)">El Encuentro de los Perdidos · 98 escenas</div>
+      <div class="a122-nav__group">Proyecto</div>
+      <div class="a122-nav__item"><span class="ico"><span class="mi">folder</span></span> Proyectos</div>
+      <div class="a122-nav__item"><span class="ico"><span class="mi">save</span></span> Guardar / Exportar</div>
+      <div class="a122-nav__item"><span class="ico"><span class="mi">psychology</span></span> Personajes</div>
+      <div class="a122-nav__group">Pipeline de la película</div>
+      <div class="a122-nav__item"><span class="num">1</span><span class="ico"><span class="mi">lightbulb</span></span> Idea <span class="st wip">en diseño</span></div>
+      <div class="a122-nav__item"><span class="num">2</span><span class="ico"><span class="mi">edit_document</span></span> Guión <span class="st ok">existe</span></div>
+      <div class="a122-nav__item is-active"><span class="num">3</span><span class="ico"><span class="mi">checklist</span></span> Desglose <span class="st ok">existe</span></div>
+      <div class="a122-nav__item"><span class="num">4</span><span class="ico"><span class="mi">groups</span></span> Crew / Equipo <span class="st wip">en diseño</span></div>
+      <div class="a122-nav__item"><span class="num">5</span><span class="ico"><span class="mi">payments</span></span> Presupuesto <span class="st wip">pendiente</span></div>
+      <div class="a122-nav__item"><span class="num">6</span><span class="ico"><span class="mi">theaters</span></span> Shot list / Storyboard <span class="st wip">en diseño</span></div>
+      <div class="a122-nav__item"><span class="num">7</span><span class="ico"><span class="mi">location_on</span></span> Locaciones <span class="st wip">en diseño</span></div>
+      <div class="a122-nav__item"><span class="num">8</span><span class="ico"><span class="mi">theater_comedy</span></span> Casting <span class="st wip">en diseño</span></div>
+      <div class="a122-nav__item"><span class="num">9</span><span class="ico"><span class="mi">calendar_month</span></span> Plan de rodaje <span class="st ok">existe</span></div>
+      <div class="a122-nav__item"><span class="num">10</span><span class="ico"><span class="mi">description</span></span> Call sheet <span class="st wip">diseñado</span></div>
+      <div class="a122-nav__group">&nbsp;</div>
+      <div class="a122-nav__item"><span class="ico"><span class="mi">settings</span></span> Ajustes</div>
+    </nav>
+
+    <main class="a122-main">
+
+      <div class="a122-appbar">
+        <span class="title">Desglose</span>
+        <span class="spacer"></span>
+        <button class="a122-btn--text" title="Escanea la acción de la escena y propone los elementos del desglose"><span class="mi">auto_awesome</span> Auto-extraer con Claude</button>
+        <button class="a122-btn">+ Añadir elemento</button>
+      </div>
+
+      <!-- Encabezado de escena: NÚMERO junto a la LOCACIÓN -->
+      <div class="scene-head">
+        <span class="scene-num">Escena 3</span>
+        <span class="scene-loc">INT. SALÓN PRIMARIA - OTRO DÍA</span>
+        <span class="picker">◂ escena anterior&nbsp;&nbsp;·&nbsp;&nbsp;escena siguiente ▸</span>
+      </div>
+
+      <div class="summary">
+        <div class="a122-card stat"><span class="big">2</span><span class="lbl">Reparto</span></div>
+        <div class="a122-card stat"><span class="big">5</span><span class="lbl">Utilería</span></div>
+        <div class="a122-card stat"><span class="big">2</span><span class="lbl">Vestuario</span></div>
+        <div class="a122-card stat"><span class="big">4</span><span class="lbl">Ambientación</span></div>
+      </div>
+
+      <div class="table-wrap">
+        <table class="breakdown">
+          <thead><tr><th>Elemento</th><th style="width:200px">Categoría</th><th style="width:42%">Notas</th></tr></thead>
+          <tbody>
+
+            <!-- REPARTO -->
+            <tr class="catrow"><td><span class="dot cat-reparto"></span>Reparto</td><td class="cnt">2 elementos</td><td></td></tr>
+            <tr><td class="lvl">Miss Gloria</td><td><span class="cat cat-reparto">Reparto</span></td><td class="notes">Maestra que confronta a Román por sus dibujos.</td></tr>
+            <tr><td class="lvl">Román</td><td><span class="cat cat-reparto">Reparto</span></td><td class="notes">Niño; alumno señalado. Reacciona al reclamo.</td></tr>
+
+            <!-- UTILERÍA -->
+            <tr class="catrow"><td><span class="dot cat-utileria"></span>Utilería</td><td class="cnt">5 elementos</td><td></td></tr>
+            <tr><td class="lvl">Cuaderno con dibujos</td><td><span class="cat cat-utileria">Utilería</span></td><td class="notes">Detonante de la escena; los dibujos de Román.</td></tr>
+            <tr><td class="lvl">Lápiz</td><td><span class="cat cat-utileria">Utilería</span></td><td class="notes">Con el que Román dibuja en el pupitre.</td></tr>
+            <tr><td class="lvl">Reporte de conducta</td><td><span class="cat cat-utileria">Utilería</span></td><td class="notes">Documento que Miss Gloria sostiene/muestra.</td></tr>
+            <tr><td class="lvl">Lentes (de Miss Gloria)</td><td><span class="cat cat-utileria">Utilería</span></td><td class="notes">Prop personal del personaje; los baja al hablar.</td></tr>
+            <tr><td class="lvl">Crucifijo / cristo (collar)</td><td><span class="cat cat-utileria">Utilería</span></td><td class="notes">Collar de Miss Gloria; detalle de caracterización.</td></tr>
+
+            <!-- VESTUARIO -->
+            <tr class="catrow"><td><span class="dot cat-vestuario"></span>Vestuario</td><td class="cnt">2 elementos</td><td></td></tr>
+            <tr><td class="lvl">Uniforme escolar (Román niño)</td><td><span class="cat cat-vestuario">Vestuario</span></td><td class="notes">Continuidad con el resto de escenas de primaria.</td></tr>
+            <tr><td class="lvl">Atuendo de maestra (Miss Gloria)</td><td><span class="cat cat-vestuario">Vestuario</span></td><td class="notes">Formal; coherente con el crucifijo.</td></tr>
+
+            <!-- AMBIENTACIÓN -->
+            <tr class="catrow"><td><span class="dot cat-ambientacion"></span>Ambientación</td><td class="cnt">4 elementos</td><td></td></tr>
+            <tr><td class="lvl">Ventilador de techo</td><td><span class="cat cat-ambientacion">Ambientación</span></td><td class="notes">Atmósfera del salón; posible ruido en sonido.</td></tr>
+            <tr><td class="lvl">Escritorio de la maestra</td><td><span class="cat cat-ambientacion">Ambientación</span></td><td class="notes">Punto de autoridad desde donde confronta.</td></tr>
+            <tr><td class="lvl">Pupitres</td><td><span class="cat cat-ambientacion">Ambientación</span></td><td class="notes">Set escolar; ubican a Román entre los alumnos.</td></tr>
+            <tr><td class="lvl">Pizarrón</td><td><span class="cat cat-ambientacion">Ambientación</span></td><td class="notes">Fondo del salón de clases.</td></tr>
+
+          </tbody>
+        </table>
+        <p class="t-caption muted" style="margin-top:var(--px12)">Elementos extraídos de la acción del guión (tu .starc). «Auto-extraer con Claude» escanea la escena y propone el desglose; tú apruebas/editas.</p>
+      </div>
+
+    </main>
+  </div>
+</body>
+</html>

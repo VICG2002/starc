@@ -205,6 +205,95 @@ FUNCTION_TOOL_SCHEMAS = [
     {
         "type": "function",
         "function": {
+            "name": "buscar_memoria",
+            "description": "Busca en la MEMORIA CREATIVA de Diez50: proyectos, personajes y sus PERFILES, fichas del autor (Victor), metodologia de Rita, lecciones. Busqueda semantica; devuelve los fragmentos mas relevantes con su archivo. USALA SIEMPRE antes de pedirle al usuario informacion que podria existir ya en la memoria (p. ej. el perfil psicologico de un personaje, datos de un proyecto, el metodo de un desglose). NO inventes ni pidas lo que puedes encontrar aqui.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "query": {"type": "string", "description": "Que buscar: personaje, proyecto, tema o metodo. En espanol."}
+                },
+                "required": ["query"]
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "leer_memoria",
+            "description": "Lee el archivo COMPLETO de la memoria creativa por su ruta relativa a la raiz, p. ej. 'Rita/asistente-de-escritura/.../Tales-Ilan-Magnus-perfil.md'. Usala DESPUES de buscar_memoria para leer una ficha entera, no solo el fragmento.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "path": {"type": "string", "description": "Ruta relativa del archivo dentro de la memoria creativa."}
+                },
+                "required": ["path"]
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "proponer_cambio_memoria",
+            "description": "Registra una PROPUESTA de cambio a la memoria creativa en _cambios/pendientes/ (NO modifica las fichas reales; el humano revisa y aplica — principio 'IA ejecuta, no decide'). Usala cuando detectes algo que falta, esta desactualizado, o un enlace roto.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "titulo": {"type": "string", "description": "Titulo corto de la propuesta."},
+                    "contenido": {"type": "string", "description": "En markdown: que ficha/archivo y que cambio concreto sugieres."},
+                    "motivo": {"type": "string", "description": "Por que se propone (opcional)."}
+                },
+                "required": ["titulo", "contenido"]
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "auditar_memoria",
+            "description": "Audita la memoria creativa (SOLO LECTURA): cuenta archivos, enlaces rotos y fichas huerfanas. Devuelve un informe para que propongas arreglos con proponer_cambio_memoria. No modifica nada.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "scope": {"type": "string", "description": "Opcional: subcarpeta o tema a auditar (vacio = todo)."}
+                },
+                "required": []
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "escribir_memoria",
+            "description": "CREA o SOBREESCRIBE un archivo de texto (.md) de la memoria creativa por su ruta relativa. Respalda la version previa. Usala para cambios que el usuario PIDIO. Para cambios estructurales/dudosos usa proponer_cambio_memoria.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "path": {"type": "string", "description": "Ruta relativa del archivo dentro de la memoria (p. ej. 'Autor/notas/idea.md')."},
+                    "contenido": {"type": "string", "description": "Contenido completo del archivo en markdown."}
+                },
+                "required": ["path", "contenido"]
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "editar_memoria",
+            "description": "Edita un archivo de la memoria creativa con buscar/reemplazar quirurgico. 'buscar' debe aparecer EXACTAMENTE una vez (lee la ficha con leer_memoria y copia el fragmento exacto). Respalda la version previa. Para corregir/insertar un fragmento sin reescribir todo.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "path": {"type": "string", "description": "Ruta relativa del archivo dentro de la memoria."},
+                    "buscar": {"type": "string", "description": "Fragmento EXACTO a reemplazar (unico en el archivo)."},
+                    "reemplazar": {"type": "string", "description": "Texto nuevo que reemplaza al fragmento."}
+                },
+                "required": ["path", "buscar", "reemplazar"]
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
             "name": "chat_with_model",
             "description": "Send a message to another AI model and get its response. Use for getting a second opinion, delegating subtasks, or AI-to-AI communication.",
             "parameters": {
@@ -1179,6 +1268,14 @@ def function_call_to_tool_block(name: str, arguments: str) -> Optional[ToolBlock
         content = json.dumps(args)
     elif tool_type == "ask_teacher":
         content = args.get("model", "auto") + "\n" + args.get("problem", "")
+    elif tool_type == "buscar_memoria":
+        content = args.get("query", "")
+    elif tool_type == "leer_memoria":
+        content = args.get("path", "")
+    elif tool_type == "auditar_memoria":
+        content = args.get("scope", "")
+    elif tool_type in ("proponer_cambio_memoria", "escribir_memoria", "editar_memoria"):
+        content = json.dumps(args)
     else:
         content = json.dumps(args)
 

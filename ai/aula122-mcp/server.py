@@ -52,6 +52,14 @@ _HEADING_PREFIX = re.compile(
     r"^\s*(INT\.?/EXT\.?|EXT\.?/INT\.?|INT\.?|EXT\.?|I/E\.?|E/I\.?|EST\.?)\s*",
     re.IGNORECASE,
 )
+# Prefijo de página/viñeta: algunos guiones (novela gráfica como "Tales of a Man
+# Without Powers") encabezan la escena con "PÁGINA #N:" / "PAGE #N:" / "PANEL N:".
+# Sin quitarlo, INT/EXT (anclado al inicio) no se detectaba. p. ej.
+# "PAGINA #1: INT. HABITACIÓN DE ILAN - NOCHE" -> "INT. HABITACIÓN DE ILAN - NOCHE".
+_PAGE_PREFIX = re.compile(
+    r"^\s*(?:P[ÁA]G(?:INA|\.)?|PAGE|PANEL|VI[ÑN]ETA)\s*#?\s*\d+\s*[:\.\-–]\s*",
+    re.IGNORECASE,
+)
 # Extensiones del cue de personaje: (V.O.), (CONT'D), (O.S.), (FUERA DE CAMPO)...
 _CUE_EXT = re.compile(r"\s*\(.*?\)\s*$")
 
@@ -126,6 +134,9 @@ def _norm_character(cue):
 def _parse_heading(heading):
     """Devuelve (int_ext, locacion, tiempo, dia_noche) de un encabezado de escena."""
     raw = heading or ""
+    # Quita un prefijo de página/viñeta ("PÁGINA #1:", "PANEL 2:") si lo hay, para
+    # que INT/EXT se detecte en guiones con ese formato (novela gráfica).
+    raw = _PAGE_PREFIX.sub("", raw, count=1)
     int_ext = "—"
     rest = raw
     m = _HEADING_PREFIX.match(raw)
@@ -640,6 +651,181 @@ def t_escenas_por_locacion():
     return "\n".join(lines)
 
 
+_WORDS_PER_PAGE = 180  # estimación (coincide con ~181 medido en EDLP)
+
+
+def _eighths(words):
+    """Páginas en octavos (la unidad estándar del desglose). p. ej. '1 3/8'."""
+    pages = max(words / _WORDS_PER_PAGE, 0.0)
+    e = max(1, round(pages * 8))  # mínimo 1/8
+    whole, frac = divmod(e, 8)
+    if whole and frac:
+        return f"{whole} {frac}/8"
+    if whole:
+        return f"{whole}"
+    return f"{frac}/8"
+
+
+def t_generar_desglose():
+    """Genera un DESGLOSE estructural en markdown desde el guion: tabla por escena
+    (INT/EXT, locación, día/noche, personajes, páginas en octavos), más rollups por
+    locación (base del strip board) y por personaje (base del Day-Out-of-Days). Es la
+    materia prima determinista; el tagging de los 21 elementos es la capa siguiente."""
+    proj = _project()
+    if not proj:
+        return _err_no_project()
+    conn = _connect(proj)
+    try:
+        sp = _screenplay_doc(conn)
+        if not sp:
+            return "El proyecto no tiene guion (documento de tipo 10104)."
+        scenes = _parse_scenes(sp[2])
+    finally:
+        conn.close()
+    if not scenes:
+        return "No se encontraron escenas en el guion."
+
+    n = len(scenes)
+    n_int = sum(1 for s in scenes if s["int_ext"] == "INT")
+    n_ext = sum(1 for s in scenes if s["int_ext"] == "EXT")
+    n_ie = sum(1 for s in scenes if s["int_ext"] in ("INT/EXT", "EST"))
+    n_dia = sum(1 for s in scenes if s["dia_noche"] == "DÍA")
+    n_noche = sum(1 for s in scenes if s["dia_noche"] == "NOCHE")
+    total_words = sum(s["palabras"] for s in scenes)
+    locs = sorted({s["locacion"] for s in scenes if s["locacion"]})
+    chars = sorted({c for s in scenes for c in s["personajes"]})
+
+    out = [f"# Desglose — {proj.stem}\n",
+           "> Desglose **estructural** generado automáticamente desde el guion (.starc). "
+           "«Personajes» = los que tienen diálogo/cue en la escena (presencia aproximada). "
+           "El tagging de los 21 elementos (props, vestuario, vehículos, SFX, extras…) es la "
+           "capa siguiente, escena por escena. **Revisión humana antes de programar/presupuestar.**\n",
+           "## Resumen",
+           f"- **Escenas:** {n}  ·  INT: {n_int}  EXT: {n_ext}  INT/EXT·EST: {n_ie}",
+           f"- **Día:** {n_dia}  Noche: {n_noche}  sin definir: {n - n_dia - n_noche}",
+           f"- **Páginas estimadas:** ~{total_words / _WORDS_PER_PAGE:.0f}  ({total_words} palabras)",
+           f"- **Locaciones:** {len(locs)}  ·  **Personajes con presencia:** {len(chars)}\n",
+           "## Desglose por escena",
+           "| # | INT/EXT | Locación | D/N | Personajes | Págs |",
+           "|---|---------|----------|-----|------------|------|"]
+    for s in scenes:
+        per = ", ".join(s["personajes"]) if s["personajes"] else "—"
+        loc = s["locacion"] or "—"
+        out.append(f"| {s['numero']} | {s['int_ext']} | {loc} | {s['dia_noche']} | {per} | {_eighths(s['palabras'])} |")
+
+    out.append("\n## Escenas por locación  *(base del strip board / agrupar el rodaje)*")
+    by_loc = {}
+    for s in scenes:
+        by_loc.setdefault(s["locacion"] or "(sin locación)", []).append(s["numero"])
+    for loc in sorted(by_loc, key=lambda k: (-len(by_loc[k]), k)):
+        nums = by_loc[loc]
+        out.append(f"- **{loc}** — {len(nums)} escena(s): {', '.join('#'+str(x) for x in nums)}")
+
+    out.append("\n## Personajes por escena  *(base del Day-Out-of-Days)*")
+    by_char = {}
+    for s in scenes:
+        for c in s["personajes"]:
+            by_char.setdefault(c, []).append(s["numero"])
+    for c in sorted(by_char, key=lambda k: (-len(by_char[k]), k)):
+        nums = by_char[c]
+        out.append(f"- **{c}** — {len(nums)} escena(s): {', '.join('#'+str(x) for x in nums)}")
+
+    return "\n".join(out)
+
+
+def t_generar_plan_rodaje(paginas_por_dia=5):
+    """Borrador de PLAN DE RODAJE (strip board) + Day-Out-of-Days desde el guion:
+    agrupa las escenas por locación (para minimizar movimientos de compañía), las
+    ordena INT→EXT / DÍA→NOCHE y las empaca en días de ~`paginas_por_dia` páginas.
+    Es un BORRADOR determinista; el AD lo ajusta por disponibilidad de cast/locación."""
+    proj = _project()
+    if not proj:
+        return _err_no_project()
+    try:
+        ppd = max(1.0, float(paginas_por_dia or 5))
+    except (TypeError, ValueError):
+        ppd = 5.0
+    conn = _connect(proj)
+    try:
+        sp = _screenplay_doc(conn)
+        if not sp:
+            return "El proyecto no tiene guion (documento de tipo 10104)."
+        scenes = _parse_scenes(sp[2])
+    finally:
+        conn.close()
+    if not scenes:
+        return "No se encontraron escenas en el guion."
+
+    # Agrupa por locación (locaciones grandes primero) y ordena dentro: INT antes
+    # que EXT, DÍA antes que NOCHE — para batchear setups de luz.
+    by_loc = {}
+    for s in scenes:
+        by_loc.setdefault(s["locacion"] or "(sin locación)", []).append(s)
+    _ie_rank = {"INT": 0, "INT/EXT": 1, "EST": 1, "EXT": 2, "—": 3}
+    _dn_rank = {"DÍA": 0, "—": 1, "NOCHE": 2}
+    ordered = []
+    for loc in sorted(by_loc, key=lambda k: (-len(by_loc[k]), k)):
+        grp = sorted(by_loc[loc], key=lambda s: (_ie_rank.get(s["int_ext"], 3),
+                                                 _dn_rank.get(s["dia_noche"], 1),
+                                                 s["numero"]))
+        ordered.extend(grp)
+
+    # Empaca en días por páginas estimadas.
+    dias, cur, cur_pg = [], [], 0.0
+    for s in ordered:
+        pg = max(s["palabras"] / _WORDS_PER_PAGE, 1 / 8)
+        if cur and cur_pg + pg > ppd:
+            dias.append(cur); cur, cur_pg = [], 0.0
+        cur.append(s); cur_pg += pg
+    if cur:
+        dias.append(cur)
+
+    out = [f"# Plan de rodaje (borrador) — {proj.stem}\n",
+           f"> Strip board determinista: escenas agrupadas por locación y empacadas en "
+           f"días de ~{ppd:.0f} páginas. **Es un borrador** — el 1er AD lo ajusta por "
+           f"disponibilidad de cast/locación, luz, permisos y continuidad.\n",
+           f"**{len(dias)} días de rodaje** · {len(scenes)} escenas · "
+           f"~{sum(s['palabras'] for s in scenes)/_WORDS_PER_PAGE:.0f} páginas\n",
+           "## Strip board por día"]
+    # Día asignado a cada escena (para el DOOD)
+    dia_de = {}
+    for i, dia in enumerate(dias, 1):
+        locs_dia = []
+        for s in dia:
+            if s["locacion"] not in locs_dia:
+                locs_dia.append(s["locacion"] or "(sin locación)")
+        pgs = sum(max(s["palabras"]/_WORDS_PER_PAGE, 1/8) for s in dia)
+        out.append(f"\n### Día {i} — {', '.join(locs_dia)}  ({len(dia)} esc · ~{pgs:.1f} pág)")
+        out.append("| Esc | INT/EXT | D/N | Locación | Personajes |")
+        out.append("|-----|---------|-----|----------|------------|")
+        for s in dia:
+            dia_de.setdefault(s["numero"], i)
+            per = ", ".join(s["personajes"]) if s["personajes"] else "—"
+            out.append(f"| {s['numero']} | {s['int_ext']} | {s['dia_noche']} | "
+                       f"{s['locacion'] or '—'} | {per} |")
+        for s in dia:
+            dia_de[s["numero"]] = i
+
+    # Day-Out-of-Days: por personaje, en qué días trabaja (Start/Work/Hold/Finish).
+    out.append("\n## Day-Out-of-Days (cast)")
+    out.append("| Personaje | Días | Inicio | Fin | Hold |")
+    out.append("|-----------|------|--------|-----|------|")
+    by_char = {}
+    for s in scenes:
+        d = dia_de.get(s["numero"])
+        if d is None:
+            continue
+        for c in s["personajes"]:
+            by_char.setdefault(c, set()).add(d)
+    for c in sorted(by_char, key=lambda k: (min(by_char[k]), -len(by_char[k]), k)):
+        ds = sorted(by_char[c])
+        hold = [d for d in range(ds[0], ds[-1] + 1) if d not in by_char[c]]
+        hold_s = ", ".join("D" + str(d) for d in hold) if hold else "—"
+        out.append(f"| {c} | {', '.join('D'+str(d) for d in ds)} | D{ds[0]} | D{ds[-1]} | {hold_s} |")
+
+    return "\n".join(out)
+
+
 # ---------------------------------------------------------------------------
 # Servidor MCP
 # ---------------------------------------------------------------------------
@@ -713,6 +899,16 @@ async def list_tools() -> list[Tool]:
             description="Agrupa las escenas por la locación de su encabezado, mostrando los números de escena de cada locación (útil para plan de rodaje).",
             inputSchema={"type": "object", "properties": {}},
         ),
+        Tool(
+            name="generar_desglose",
+            description="Genera el DESGLOSE estructural completo del guion en markdown: tabla por escena (INT/EXT, locación, día/noche, personajes, páginas en octavos) + escenas por locación (base del strip board) + personajes por escena (base del Day-Out-of-Days). Es la materia prima determinista para programar y presupuestar. Tras generarlo, guárdalo con create_document para que quede como documento del proyecto.",
+            inputSchema={"type": "object", "properties": {}},
+        ),
+        Tool(
+            name="generar_plan_rodaje",
+            description="Genera un BORRADOR de plan de rodaje (strip board) + Day-Out-of-Days desde el guion: agrupa las escenas por locación, las ordena INT→EXT/DÍA→NOCHE y las empaca en días de ~N páginas. Borrador determinista; el 1er AD lo ajusta por disponibilidad. Tras generarlo, guárdalo con create_document.",
+            inputSchema={"type": "object", "properties": {"paginas_por_dia": {"type": "number", "description": "Páginas objetivo por día de rodaje (default 5)."}}},
+        ),
     ]
 
 
@@ -727,6 +923,8 @@ _DISPATCH = {
     "obtener_personaje": lambda a: t_obtener_personaje(a.get("nombre")),
     "listar_locaciones": lambda a: t_listar_locaciones(),
     "escenas_por_locacion": lambda a: t_escenas_por_locacion(),
+    "generar_desglose": lambda a: t_generar_desglose(),
+    "generar_plan_rodaje": lambda a: t_generar_plan_rodaje(a.get("paginas_por_dia", 5)),
 }
 
 

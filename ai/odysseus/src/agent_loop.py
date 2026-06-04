@@ -1373,6 +1373,14 @@ async def stream_agent_loop(
         _is_api_model = False
     else:
         _is_api_model = any(h in endpoint_url for h in _API_HOSTS) or _model_supports_tools
+    # Aula 122 (3-jun): el llama LOCAL NO recibe schemas de tool nativos. El 14b,
+    # al recibirlos, emite un tool-call que el bucle no surface bien y la respuesta
+    # sale VACÍA (lo confirmé con logs: mismo request SIN tools → 342 deltas de texto;
+    # CON 30 tools → 0). El diseño ya decía "local = bloques con cerca, sin schemas".
+    # Mantengo compact=True (prompt ligero) y la memoria creativa va auto-inyectada,
+    # así que las consultas creativas se responden en texto. El trabajo de herramientas
+    # pesado (que el 14b no aguanta bien) es para el camino híbrido (Gemini).
+    _ep_is_local = ("127.0.0.1" in (endpoint_url or "")) or ("localhost" in (endpoint_url or ""))
     messages, mcp_schemas = _build_system_prompt(
         messages, model, active_document, mcp_mgr, disabled_tools,
         needs_admin=_needs_admin, relevant_tools=_relevant_tools,
@@ -1470,7 +1478,7 @@ async def stream_agent_loop(
             # calling tools. Send NO tools this round so it's forced to
             # write the answer instead of flailing further.
             all_tool_schemas = []
-        elif _is_api_model:
+        elif _is_api_model and not _ep_is_local:
             # Filter schemas by RAG-selected tools (if available)
             if _relevant_tools:
                 base_schemas = [

@@ -508,10 +508,14 @@ class SkillsManager:
             the teacher loop is for the student to find the new
             procedure on the very next turn — waiting for a manual
             publish click defeats the loop.
+          - Aula 122 (autonomía): auto-learned drafts (`source ==
+            "learned"`, distilled by skill_extractor from successful
+            agent workflows, confidence >= 0.6). So Odiseo APPLIES what
+            it learns instead of re-deriving the procedure every time.
 
-        Excludes user-created drafts (status=draft, source != teacher-
-        escalation) — those are work-in-progress and pollute the
-        prompt with half-finished procedures.
+        Excludes only genuine work-in-progress: user-created drafts
+        (status=draft, source not in {teacher-escalation, learned}) —
+        those would pollute the prompt with half-finished procedures.
         """
         active_toolsets = active_toolsets or []
         out = []
@@ -520,8 +524,8 @@ class SkillsManager:
             # Published + None (pre-status legacy) always included.
             # Drafts only if the teacher wrote them.
             if status not in ("published", None):
-                if status == "draft" and s.get("source") == "teacher-escalation":
-                    pass  # let it through
+                if status == "draft" and s.get("source") in ("teacher-escalation", "learned"):
+                    pass  # let it through (teacher-written or auto-learned from success)
                 else:
                     continue
             # Platform gating

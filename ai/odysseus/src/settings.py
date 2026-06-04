@@ -83,13 +83,19 @@ DEFAULT_SETTINGS = {
     # Ordered fallback chain for the Utility model (summarization, naming,
     # tidy actions, etc.).
     "utility_model_fallbacks": [],
+    # teacher_model vacío + teacher_enabled True ⇒ SELF-TEACHER: cuando un turno
+    # en modo agente falla, el propio endpoint local (7B/14B) reintenta con la
+    # traza del fallo y, si acierta, destila una skill. 100% local (sin nube/
+    # Claude), solo se dispara en fallos, y está envuelto en try/except (no puede
+    # romper la respuesta). Para usar un maestro distinto: "modelo@endpoint".
     "teacher_model": "",
-    "teacher_enabled": False,
+    "teacher_enabled": True,
     # Skills: minimum self-reported confidence for an auto-written (LLM-authored)
     # DRAFT skill to be injected into the agent prompt. Published skills always
-    # qualify. Keeps low-confidence auto-skills out of context until they're
-    # vetted/published. 0 disables the gate.
-    "skill_autosave_min_confidence": 0.85,
+    # qualify. Bajado de 0.85 → 0.6 para CERRAR el bucle de aprendizaje: las
+    # skills que Odiseo aprende (source="learned"/"teacher-escalation", conf~0.6)
+    # ahora sí se inyectan y se reutilizan, en vez de quedarse mudas.
+    "skill_autosave_min_confidence": 0.6,
     # Max relevant skills injected into the prompt for one request. The skills
     # library can grow beyond this; cleanup/retirement is an explicit review flow.
     "skill_max_injected": 3,

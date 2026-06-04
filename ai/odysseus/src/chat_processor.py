@@ -8,7 +8,7 @@ from typing import List, Dict, Any, Optional, Tuple
 from src.chat_helpers import extract_urls
 from src.youtube_handler import is_youtube_url
 from src.search import comprehensive_web_search, fetch_webpage_content
-from src.prompt_security import UNTRUSTED_CONTEXT_POLICY, untrusted_context_message
+from src.prompt_security import UNTRUSTED_CONTEXT_POLICY, untrusted_context_message, trusted_reference_message
 
 logger = logging.getLogger(__name__)
 
@@ -236,12 +236,23 @@ class ChatProcessor:
             # (skills index injection moved out — see below; only fires in
             # agent mode so chat mode and incognito stay clean.)
 
-        # RAG: search if enabled and rag_manager available, inject only above threshold
-        if use_rag:
+        # Memoria creativa (RAG de personal_docs / colección odysseus_rag): es el
+        # CEREBRO de Odiseo, no una fuente web opcional. Se inyecta SIEMPRE para dar
+        # autonomía real —que NUNCA diga "no tengo datos, ¿busco?" cuando el dato vive
+        # en la bóveda (perfil de un personaje, proyecto, decisión del colectivo)—,
+        # con INDEPENDENCIA del toggle use_rag. Solo se omite en incógnito (privacidad).
+        # El corte por similitud (RAG_SIMILARITY_THRESHOLD) evita ruido en consultas
+        # no-creativas; si falta profundidad, el modelo escala con buscar_memoria/leer_memoria.
+        if not incognito:
             try:
                 rag_manager = getattr(self.personal_docs_manager, 'rag_manager', None)
                 if rag_manager:
-                    results = rag_manager.search(message, k=5, owner=owner)
+                    # owner=None a propósito: la memoria creativa es conocimiento
+                    # COMPARTIDO de un appliance de un solo usuario (no datos por
+                    # cuenta). Filtrar por owner rompía el RAG cuando la sesión no
+                    # resolvía a "admin" (devolvía 0 chunks). k alto + corte por
+                    # similitud + tope de caracteres acotan el tamaño.
+                    results = rag_manager.search(message, k=8, owner=None)
                     # Filter by similarity threshold
                     relevant = [r for r in results if r.get("similarity", 0) >= self.RAG_SIMILARITY_THRESHOLD]
                     if relevant:
@@ -259,7 +270,10 @@ class ChatProcessor:
                         )
                         if len(rag_content) > 10000:
                             rag_content = rag_content[:10000] + "\n[Truncated]"
-                        preface.append(untrusted_context_message("retrieved documents", rag_content))
+                        # La memoria creativa es fuente de CONFIANZA del usuario
+                        # (no web/email): enmarcarla como tal para que el modelo
+                        # local la use en vez de desconfiar y pedir más datos.
+                        preface.append(trusted_reference_message("memoria creativa", rag_content))
             except Exception as e:
                 logger.warning(f"RAG retrieval failed: {e}")
 

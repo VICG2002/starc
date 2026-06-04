@@ -537,6 +537,16 @@ async function _fetchDependencies() {
     const pkgs = data.packages || [];
     if (!pkgs.length) { list.innerHTML = '<div class="hwfit-loading">No packages found</div>'; return; }
     const _winUnsupported = new Set(['diffusers', 'hf_transfer', 'vllm', 'rembg', 'gfpgan']);
+    // Apple Silicon: vLLM y SGLang son motores de servicio SOLO-CUDA (GPU NVIDIA).
+    // No instalan ni corren en Metal — `pip install sglang[all]`/`vllm` revienta con
+    // traceback al jalar dependencias CUDA. Se marcan N/A cuando el servidor objetivo
+    // es la Mac local (no un box remoto). En Mac el motor correcto es llama.cpp, que
+    // ya está integrado en Odiseo (llama-server). diffusers SÍ corre en Mac (MPS), no se bloquea.
+    const _metalUnsupported = new Set(['vllm', 'sglang']);
+    const _localIsMac = (() => {
+      try { return /Mac|iPhone|iPad/i.test((navigator.platform || '') + ' ' + (navigator.userAgent || '')); }
+      catch { return false; }
+    })();
 
     const _statusTag = (pkg, isLocal, isSystemDep, winBlocked) => {
       if (winBlocked) return `<span class="cookbook-dep-tag cookbook-dep-na">N/A</span>`;
@@ -554,15 +564,22 @@ async function _fetchDependencies() {
       const isLocal = pkg.target === 'local';
       const isSystemDep = pkg.kind === 'system';
       const winBlocked = !isLocal && _isWindows() && _winUnsupported.has(pkg.name);
-      const note = pkg.status_note ? `<div class="memory-item-meta" style="font-size:10px;opacity:0.65;margin-top:3px;">${esc(pkg.status_note)}</div>` : '';
-      return `<div class="cookbook-dep-row${winBlocked ? ' cookbook-dep-blocked' : ''}" data-pkg-name="${esc(pkg.name)}" data-dep-pip="${esc(pkg.pip || '')}" data-dep-target="${isLocal ? 'local' : 'remote'}" data-dep-kind="${esc(pkg.kind || 'python')}">`
+      // Bloqueo Apple Silicon: motor solo-CUDA + servidor objetivo = Mac local (no remoto).
+      const metalBlocked = !_viewingRemote && (_localIsMac || _isMetal()) && _metalUnsupported.has(pkg.name);
+      const blocked = winBlocked || metalBlocked;
+      const blockNote = metalBlocked
+        ? 'Motor de servicio solo-CUDA (GPU NVIDIA) — no aplica en Apple Silicon. En tu Mac el modelo se sirve con llama.cpp, ya integrado en Odiseo.'
+        : '';
+      const _noteText = pkg.status_note || blockNote;
+      const note = _noteText ? `<div class="memory-item-meta" style="font-size:10px;opacity:0.65;margin-top:3px;">${esc(_noteText)}</div>` : '';
+      return `<div class="cookbook-dep-row${blocked ? ' cookbook-dep-blocked' : ''}" data-pkg-name="${esc(pkg.name)}" data-dep-pip="${esc(pkg.pip || '')}" data-dep-target="${isLocal ? 'local' : 'remote'}" data-dep-kind="${esc(pkg.kind || 'python')}">`
         + `<div class="cookbook-dep-info">`
         + `<div class="memory-item-title">${esc(pkg.name)}</div>`
         + `<div class="memory-item-meta" style="font-size:10px;opacity:0.5;margin-top:2px;">${esc(pkg.desc)}</div>`
         + note
         + `</div>`
         + `<span class="cookbook-dep-tag cookbook-dep-cat">${esc(pkg.category)}</span>`
-        + _statusTag(pkg, isLocal, isSystemDep, winBlocked)
+        + _statusTag(pkg, isLocal, isSystemDep, blocked)
         + `</div>`;
     };
 

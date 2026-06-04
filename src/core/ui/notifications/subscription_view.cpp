@@ -77,7 +77,7 @@ void SubscriptionView::Implementation::setupView()
     //
     if (daysLeft < -1) {
         title = tr("Cloud projects removal");
-        body = tr("Your Story Architect cloud projects will be removed tomorrow if you don't "
+        body = tr("Your Aula 122 cloud projects will be removed tomorrow if you don't "
                   "renew CREATOR subscription.");
     }
     //

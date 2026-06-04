@@ -501,6 +501,287 @@ async def do_suggest_document(content: str, doc_id: str = None) -> Dict:
 # Search chats
 # ---------------------------------------------------------------------------
 
+async def do_buscar_memoria(query: str, k: int = 8, owner: str | None = None) -> Dict:
+    """Búsqueda SEMÁNTICA en la memoria creativa de Diez50 (RAG de documentos
+    personales): proyectos, personajes y sus perfiles, fichas del autor,
+    metodología de Rita, lecciones. Devuelve los fragmentos más relevantes con su
+    archivo de origen, para que el agente NO le pida al usuario lo que ya existe."""
+    try:
+        from src.rag_singleton import get_rag_manager
+        rag = get_rag_manager()
+        if not rag or not rag.healthy:
+            return {"results": "Memoria creativa no disponible (RAG no inicializado)."}
+        # owner=None: la memoria creativa es conocimiento COMPARTIDO del appliance
+        # (no datos por cuenta). Filtrar por owner devolvía 0 cuando la sesión no
+        # resolvía a "admin". El corpus es de confianza y de un solo usuario.
+        hits = rag.search(query, k=max(1, min(int(k or 8), 15)), owner=None)
+        if not hits:
+            return {"results": f"Sin coincidencias en la memoria para \"{query}\". "
+                               f"Prueba otros términos (nombre del personaje, proyecto o tema)."}
+        out = [f"MEMORIA CREATIVA — {len(hits)} fragmentos para \"{query}\":"]
+        for i, r in enumerate(hits, 1):
+            meta = r.get("metadata") or {}
+            text = (r.get("document") or r.get("text") or r.get("content") or "").strip()
+            fname = meta.get("filename") or "?"
+            src = meta.get("source") or meta.get("directory") or ""
+            short = src.split("memoria-creativa-odiseo/")[-1] if "memoria-creativa-odiseo/" in src else src
+            out.append(f"\n[{i}] {fname}  ·  {short}\n{text[:1000]}")
+        return {"results": "\n".join(out)}
+    except Exception as e:
+        return {"results": f"Error buscando en la memoria: {e}"}
+
+
+# ── Rita: administración (steward) de la memoria creativa ──────────────────
+# Operan sobre la COPIA DE TRABAJO (no la canónica ~/memoria-creativa/Rita, que
+# gestiona otro chat). Principio "IA ejecuta, no decide": leer y auditar es
+# libre; ESCRIBIR solo va a _cambios/pendientes/ (propuestas), nunca pisa las
+# fichas reales.
+
+def _memoria_root() -> str:
+    """Raíz de la copia de trabajo de la memoria creativa."""
+    env = os.environ.get("MEMORIA_CREATIVA_DIR")
+    if env and os.path.isdir(env):
+        return os.path.realpath(env)
+    cand = os.path.expanduser(
+        "~/Library/Mobile Documents/iCloud~md~obsidian/Documents/memoria-creativa-odiseo"
+    )
+    return os.path.realpath(cand)
+
+
+def _safe_memoria_path(rel: str) -> Optional[str]:
+    """Resuelve `rel` dentro de la raíz; None si escapa (path traversal)."""
+    root = _memoria_root()
+    rel = (rel or "").strip().lstrip("/")
+    full = os.path.realpath(os.path.join(root, rel))
+    if full == root or full.startswith(root + os.sep):
+        return full
+    return None
+
+
+async def do_leer_memoria(path: str, max_chars: int = 8000) -> Dict:
+    """Lee el contenido COMPLETO de un archivo de la memoria creativa por su ruta
+    (relativa a la raíz), p. ej. 'Rita/asistente-de-escritura/.../Tales-Ilan-Magnus-perfil.md'.
+    Úsala tras `buscar_memoria` para leer una ficha entera, no solo el fragmento."""
+    try:
+        root = _memoria_root()
+        if not os.path.isdir(root):
+            return {"content": f"La memoria creativa no está disponible en {root}."}
+        full = _safe_memoria_path(path)
+        if not full:
+            return {"content": f"Ruta inválida o fuera de la memoria: {path!r}"}
+        if not os.path.isfile(full):
+            return {"content": f"No existe {path!r}. Usa buscar_memoria para localizar el archivo."}
+        with open(full, "r", encoding="utf-8", errors="replace") as f:
+            text = f.read()
+        rel = os.path.relpath(full, root)
+        limit = max(500, int(max_chars or 8000))
+        clipped = text[:limit]
+        more = "" if len(text) <= len(clipped) else f"\n\n[...truncado, {len(text)} caracteres en total...]"
+        return {"content": f"# {rel}\n\n{clipped}{more}"}
+    except Exception as e:
+        return {"content": f"Error leyendo la memoria: {e}"}
+
+
+def _slugify(s: str) -> str:
+    s = (s or "propuesta").lower()
+    s = re.sub(r"[^\w\s-]", "", s, flags=re.UNICODE)
+    s = re.sub(r"[\s_]+", "-", s).strip("-")
+    return (s or "propuesta")[:60]
+
+
+async def do_proponer_cambio_memoria(titulo: str, contenido: str, motivo: str = "") -> Dict:
+    """Registra una PROPUESTA de cambio a la memoria creativa en
+    _cambios/pendientes/ (NO modifica las fichas reales). Respeta 'IA ejecuta, no
+    decide': el humano revisa y aplica. `titulo` corto; `contenido` en markdown
+    (qué ficha y qué cambio sugieres); `motivo` (por qué)."""
+    try:
+        import datetime
+        root = _memoria_root()
+        if not os.path.isdir(root):
+            return {"result": f"La memoria creativa no está disponible en {root}."}
+        pend = os.path.join(root, "_cambios", "pendientes")
+        os.makedirs(pend, exist_ok=True)
+        now = datetime.datetime.now()
+        stamp = now.strftime("%Y-%m-%d-%H%M%S")
+        full = os.path.join(pend, f"{stamp}-{_slugify(titulo)}.md")
+        body = (
+            "---\n"
+            "tipo: propuesta-de-cambio\n"
+            f"titulo: {titulo}\n"
+            "autor: Rita (Odiseo)\n"
+            f"fecha: {now.strftime('%Y-%m-%d %H:%M')}\n"
+            "estado: pendiente\n"
+            "---\n\n"
+            f"# {titulo}\n\n"
+            f"**Motivo:** {motivo or '(no especificado)'}\n\n"
+            f"## Propuesta\n\n{contenido}\n\n"
+            "---\n"
+            "> Propuesta de Rita/Odiseo, PENDIENTE de revisión humana "
+            "(IA ejecuta, no decide). Para aplicarla: edítala/muévela a mano y "
+            "regístrala en _cambios/aplicados/.\n"
+        )
+        with open(full, "w", encoding="utf-8") as f:
+            f.write(body)
+        return {"result": f"Propuesta registrada en _cambios/pendientes/{os.path.basename(full)} "
+                          f"— PENDIENTE de tu revisión (no se tocó ninguna ficha real)."}
+    except Exception as e:
+        return {"result": f"Error registrando la propuesta: {e}"}
+
+
+async def do_auditar_memoria(scope: str = "") -> Dict:
+    """Audita la memoria creativa (SOLO LECTURA): cuenta archivos .md, enlaces
+    rotos (wikilinks [[..]] y enlaces markdown a .md) y fichas huérfanas (que
+    nadie enlaza). Devuelve un informe para que Rita proponga arreglos con
+    proponer_cambio_memoria. No modifica nada."""
+    try:
+        root = _memoria_root()
+        if not os.path.isdir(root):
+            return {"report": f"La memoria creativa no está disponible en {root}."}
+        md_files = []
+        for dp, dns, fns in os.walk(root):
+            dns[:] = [d for d in dns if d not in (".git", ".obsidian", "node_modules")]
+            for fn in fns:
+                if fn.lower().endswith(".md"):
+                    md_files.append(os.path.join(dp, fn))
+        by_base: Dict[str, List[str]] = {}
+        for p in md_files:
+            by_base.setdefault(os.path.splitext(os.path.basename(p))[0].lower(), []).append(p)
+        linked = set()
+        broken = []
+        wl = re.compile(r"\[\[([^\]\|#]+)(?:[#\|][^\]]*)?\]\]")
+        ml = re.compile(r"\]\(([^)]+\.md)(?:#[^)]*)?\)")
+        for p in md_files:
+            try:
+                with open(p, "r", encoding="utf-8", errors="replace") as f:
+                    txt = f.read()
+            except Exception:
+                continue
+            rel = os.path.relpath(p, root)
+            for m in wl.finditer(txt):
+                base = os.path.splitext(os.path.basename(m.group(1).strip()))[0].lower()
+                if base in by_base:
+                    linked.update(by_base[base])
+                else:
+                    broken.append((rel, f"[[{m.group(1).strip()}]]"))
+            for m in ml.finditer(txt):
+                tgt = m.group(1).strip()
+                if tgt.startswith("http"):
+                    continue
+                cand = os.path.realpath(os.path.join(os.path.dirname(p), tgt))
+                if os.path.isfile(cand):
+                    linked.add(cand)
+                else:
+                    base = os.path.splitext(os.path.basename(tgt))[0].lower()
+                    if base in by_base:
+                        linked.update(by_base[base])
+                    else:
+                        broken.append((rel, f"]({tgt})"))
+        orphans = [os.path.relpath(p, root) for p in md_files
+                   if p not in linked and not os.path.basename(p).startswith("_")
+                   and os.path.basename(p) not in ("README.md", "MEMORY.md")]
+        lines = [
+            f"AUDITORÍA — {os.path.basename(root)}",
+            f"- Archivos .md: {len(md_files)}",
+            f"- Enlaces rotos: {len(broken)}",
+            f"- Fichas huérfanas (nadie las enlaza): {len(orphans)}",
+        ]
+        if broken:
+            lines.append("\nEnlaces rotos (primeros 25):")
+            lines += [f"  · {s} → {l}" for s, l in broken[:25]]
+        if orphans:
+            lines.append("\nHuérfanas (primeras 25):")
+            lines += [f"  · {o}" for o in orphans[:25]]
+        lines.append("\nPara arreglar: usa proponer_cambio_memoria (va a _cambios/pendientes/, revisión humana).")
+        return {"report": "\n".join(lines)}
+    except Exception as e:
+        return {"report": f"Error auditando la memoria: {e}"}
+
+
+# Edición DIRECTA de la memoria (Victor pidió poder leer Y modificar los .md).
+# Sigue siendo la COPIA de trabajo (no la canónica de Rita). Toda escritura hace
+# copia de seguridad de la versión previa en _cambios/_individuales/, así nada se
+# pierde. Para cambios grandes/dudosos sigue estando proponer_cambio_memoria.
+
+_EDITABLE_EXT = (".md", ".markdown", ".txt", ".canvas")
+
+
+def _backup_memoria_file(full_path: str) -> Optional[str]:
+    """Respalda la versión previa en _cambios/_individuales/. None si no existía."""
+    try:
+        if not os.path.isfile(full_path):
+            return None
+        import datetime, shutil
+        root = _memoria_root()
+        bdir = os.path.join(root, "_cambios", "_individuales")
+        os.makedirs(bdir, exist_ok=True)
+        stamp = datetime.datetime.now().strftime("%Y-%m-%d-%H%M%S")
+        bpath = os.path.join(bdir, f"{stamp}-{os.path.basename(full_path)}.bak")
+        shutil.copy2(full_path, bpath)
+        return bpath
+    except Exception:
+        return None
+
+
+async def do_escribir_memoria(path: str, contenido: str) -> Dict:
+    """CREA o SOBREESCRIBE un archivo de texto de la memoria creativa (ruta
+    relativa a la raíz). Respalda la versión previa. Para cambios que el usuario
+    pidió explícitamente; para cambios estructurales/dudosos usa
+    proponer_cambio_memoria. Opera SOLO sobre la copia de trabajo."""
+    try:
+        root = _memoria_root()
+        if not os.path.isdir(root):
+            return {"result": f"La memoria creativa no está disponible en {root}."}
+        full = _safe_memoria_path(path)
+        if not full:
+            return {"result": f"Ruta inválida o fuera de la memoria: {path!r}"}
+        if not full.lower().endswith(_EDITABLE_EXT):
+            return {"result": f"Solo se permiten archivos de texto {_EDITABLE_EXT}; no {path!r}."}
+        existed = os.path.isfile(full)
+        bak = _backup_memoria_file(full) if existed else None
+        os.makedirs(os.path.dirname(full), exist_ok=True)
+        with open(full, "w", encoding="utf-8") as f:
+            f.write(contenido if contenido is not None else "")
+        rel = os.path.relpath(full, root)
+        verb = "actualizado" if existed else "creado"
+        extra = f" (respaldo en _cambios/_individuales/{os.path.basename(bak)})" if bak else ""
+        return {"result": f"Archivo {verb}: {rel}{extra}."}
+    except Exception as e:
+        return {"result": f"Error escribiendo la memoria: {e}"}
+
+
+async def do_editar_memoria(path: str, buscar: str, reemplazar: str) -> Dict:
+    """Edita un archivo de la memoria creativa con buscar/reemplazar quirúrgico
+    (ruta relativa). `buscar` debe aparecer EXACTAMENTE una vez (copia el fragmento
+    exacto con leer_memoria primero). Respalda la versión previa."""
+    try:
+        root = _memoria_root()
+        if not os.path.isdir(root):
+            return {"result": f"La memoria creativa no está disponible en {root}."}
+        full = _safe_memoria_path(path)
+        if not full or not os.path.isfile(full):
+            return {"result": f"No existe {path!r} (usa buscar_memoria/leer_memoria)."}
+        if not full.lower().endswith(_EDITABLE_EXT):
+            return {"result": f"Solo se permiten archivos de texto; no {path!r}."}
+        with open(full, "r", encoding="utf-8", errors="replace") as f:
+            txt = f.read()
+        if not buscar:
+            return {"result": "El texto a buscar está vacío."}
+        n = txt.count(buscar)
+        if n == 0:
+            return {"result": f"No encontré ese texto en {path!r}. Lee la ficha con leer_memoria y copia el fragmento EXACTO."}
+        if n > 1:
+            return {"result": f"Ese texto aparece {n} veces en {path!r}; sé más específico para que sea único."}
+        bak = _backup_memoria_file(full)
+        new = txt.replace(buscar, reemplazar if reemplazar is not None else "", 1)
+        with open(full, "w", encoding="utf-8") as f:
+            f.write(new)
+        rel = os.path.relpath(full, root)
+        extra = f" (respaldo en _cambios/_individuales/{os.path.basename(bak)})" if bak else ""
+        return {"result": f"Editado {rel}{extra}."}
+    except Exception as e:
+        return {"result": f"Error editando la memoria: {e}"}
+
+
 async def do_search_chats(query: str, limit: int = 20, owner: str | None = None) -> Dict:
     """Search past chat messages for the calling user's sessions only.
 

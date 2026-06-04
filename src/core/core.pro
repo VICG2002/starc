@@ -9,7 +9,7 @@ TEMPLATE = lib
 CONFIG += plugin c++1z
 CONFIG += force_debug_info
 CONFIG += separate_debug_info
-QT += concurrent widgets multimedia network sql xml
+QT += concurrent widgets multimedia network sql xml webenginewidgets
 
 TARGET = coreplugin
 
@@ -106,6 +106,7 @@ SOURCES += \
     ui/import/import_dialog.cpp \
     ui/import/import_file_delegate.cpp \
     ui/menu_view.cpp \
+    ui/odysseus_workspace_view.cpp \
     ui/notifications/credits_view.cpp \
     ui/notifications/release_view.cpp \
     ui/notifications/subscription_view.cpp \
@@ -206,6 +207,7 @@ HEADERS += \
     ui/import/import_dialog.h \
     ui/import/import_file_delegate.h \
     ui/menu_view.h \
+    ui/odysseus_workspace_view.h \
     ui/notifications/credits_view.h \
     ui/notifications/release_view.h \
     ui/notifications/subscription_view.h \

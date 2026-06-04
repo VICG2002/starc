@@ -188,12 +188,12 @@ HOUSEKEEPING_DEFAULTS = {
     "tidy_documents":       {"name": "Documents Tidy",           "trigger_type": "event", "trigger_event": "document_created", "trigger_count": 5, "schedule": None, "scheduled_time": None, "cron_expression": None, "legacy_names": ["Tidy Documents"]},
     "consolidate_memory":   {"name": "Memory Tidy",              "trigger_type": "event", "trigger_event": "memory_added", "trigger_count": 5, "schedule": None, "scheduled_time": None, "cron_expression": None, "legacy_names": ["Tidy Memory"]},
     "tidy_research":        {"name": "Research Tidy",            "trigger_type": "event", "trigger_event": "research_completed", "trigger_count": 5, "schedule": None, "scheduled_time": None, "cron_expression": None, "legacy_names": ["Tidy Research"]},
-    "summarize_emails":     {"name": "Email (Summary)",          "schedule": "cron",  "scheduled_time": None,    "cron_expression": "0 */2 * * *", "ship_paused": True, "legacy_names": ["Tidy Email (Summary)"]},
-    "draft_email_replies":  {"name": "Email AI Auto Reply",      "schedule": "cron",  "scheduled_time": None,    "cron_expression": "0 */2 * * *", "ship_paused": True, "legacy_names": ["Tidy Email (Replies)", "AI Auto Reply"]},
-    "extract_email_events": {"name": "Email Calendar Events",    "schedule": "cron",  "scheduled_time": None,    "cron_expression": "0 */1 * * *", "ship_paused": True, "legacy_names": ["Email → Calendar Events"]},
-    "classify_events":      {"name": "Calendar Classify Events", "schedule": "cron",  "scheduled_time": None,    "cron_expression": "0 6,18 * * *", "ship_paused": True, "legacy_names": ["Classify Calendar Events"]},
+    "summarize_emails":     {"name": "Email (Summary)",          "schedule": "cron",  "scheduled_time": None,    "cron_expression": "0 */2 * * *", "legacy_names": ["Tidy Email (Summary)"]},
+    "draft_email_replies":  {"name": "Email AI Auto Reply",      "schedule": "cron",  "scheduled_time": None,    "cron_expression": "0 */2 * * *", "legacy_names": ["Tidy Email (Replies)", "AI Auto Reply"]},
+    "extract_email_events": {"name": "Email Calendar Events",    "schedule": "cron",  "scheduled_time": None,    "cron_expression": "0 */1 * * *", "legacy_names": ["Email → Calendar Events"]},
+    "classify_events":      {"name": "Calendar Classify Events", "schedule": "cron",  "scheduled_time": None,    "cron_expression": "0 6,18 * * *", "legacy_names": ["Classify Calendar Events"]},
     "mark_email_boundaries": {"name": "Email Mark Boundaries",   "schedule": "cron",  "scheduled_time": None,    "cron_expression": "0 */2 * * *", "legacy_names": ["Mark Email Boundaries"]},
-    "check_email_urgency":   {"name": "Email Tags",               "schedule": "cron",  "scheduled_time": None,    "cron_expression": "0 * * * *", "ship_paused": True, "old_cron_expressions": ["*/15 * * * *"], "legacy_names": ["Email Triage", "Urgent Email"]},
+    "check_email_urgency":   {"name": "Email Tags",               "schedule": "cron",  "scheduled_time": None,    "cron_expression": "0 * * * *", "old_cron_expressions": ["*/15 * * * *"], "legacy_names": ["Email Triage", "Urgent Email"]},
     "audit_skills":          {"name": "Skills Audit",             "trigger_type": "event", "trigger_event": "skill_added", "trigger_count": 5, "schedule": None, "scheduled_time": None, "cron_expression": None, "legacy_names": ["Audit Skills"]},
 }
 
@@ -2044,6 +2044,128 @@ class TaskScheduler:
                 CrewMember.is_default_assistant == True,  # noqa: E712
             ).first()
             if existing:
+                # Reconciliación idempotente: garantiza que el asistente por defecto
+                # YA creado reciba las tools que añadimos después (p. ej. el set de
+                # descarga del Cookbook). Solo AGREGA las que falten — nunca quita
+                # ni pisa ediciones del usuario. Si enabled_tools está vacío/None,
+                # no hay filtro (todas permitidas) y no tocamos nada.
+                try:
+                    _must_have = {"download_model", "list_downloads", "cancel_download",
+                                  "buscar_memoria", "search_chats",
+                                  "leer_memoria", "auditar_memoria", "proponer_cambio_memoria",
+                                  "escribir_memoria", "editar_memoria"}
+                    _cur = json.loads(existing.enabled_tools) if existing.enabled_tools else None
+                    if isinstance(_cur, list) and _cur:
+                        _missing = _must_have - set(_cur)
+                        if _missing:
+                            existing.enabled_tools = json.dumps(_cur + sorted(_missing))
+                            db.commit()
+                            logger.info(
+                                f"ensure_assistant_defaults: +{sorted(_missing)} for {owner}")
+                except Exception as _e:
+                    logger.warning(f"enabled_tools reconcile failed for {owner}: {_e}")
+                # Proactividad (autonomía): siembra un briefing de producción diario
+                # (09:00) como tarea AI recurrente bajo Odiseo. Idempotente por nombre.
+                # Escribe el resultado como NOTA (superficie fiable en la UI) y NO toma
+                # decisiones ni envía nada — solo informa (principio "IA ejecuta").
+                try:
+                    _BRIEF_NAME = "Briefing de producción"
+                    _has = db.query(ScheduledTask).filter(
+                        ScheduledTask.owner == owner,
+                        ScheduledTask.name == _BRIEF_NAME,
+                    ).first()
+                    if not _has:
+                        _ep, _model = self._resolve_defaults(db, owner)
+                        _cron = "0 9 * * *"
+                        _next = compute_next_run("cron", None, None, None,
+                                                 after=datetime.utcnow(), cron_expression=_cron)
+                        db.add(ScheduledTask(
+                            id=str(uuid.uuid4())[:8],
+                            owner=owner,
+                            name=_BRIEF_NAME,
+                            prompt=(
+                                "Briefing de producción diario para el equipo. Reúne el estado y entrégalo como NOTA. "
+                                "Pasos: (1) manage_tasks: lista tareas vencidas y las que vencen en los próximos 3 días. "
+                                "(2) manage_calendar: juntas, deadlines y eventos de hoy y de los próximos 7 días. "
+                                "(3) Si hay un proyecto activo, usa las herramientas del proyecto para detectar pendientes del guion, solo si es rápido. "
+                                "(4) Redacta un briefing CONCISO en español: 5-8 bullets accionables; prioriza lo bloqueante y lo que vence pronto. "
+                                "(5) Guárdalo con manage_notes, título 'Briefing de producción — <fecha de hoy>'. "
+                                "No tomes decisiones ni envíes nada externo; esto es informativo para el equipo."
+                            ),
+                            task_type="ai",
+                            schedule="cron",
+                            cron_expression=_cron,
+                            trigger_type="schedule",
+                            trigger_counter=0,
+                            next_run=_next,
+                            status="active",
+                            output_target="session",
+                            session_id=existing.session_id,
+                            model=_model or None,
+                            endpoint_url=_ep or None,
+                            notifications_enabled=False,
+                        ))
+                        db.commit()
+                        logger.info(f"Seeded daily production briefing for {owner}")
+                except Exception as _e:
+                    logger.warning(f"production briefing seed failed for {owner}: {_e}")
+                # Autonomía: Odiseo vigila SU PROPIO upstream (pewdiepie-archdaemon/
+                # odysseus) y AUTO-APLICA con respaldo las mejoras seguras a una RAMA del
+                # fork (backup + rama + sanity check + nunca a master + nunca push). Tarea
+                # AI recurrente (Lun+Jue 10:23) con bash/git. Sin delegar a Claude.
+                try:
+                    _WATCH_NAME = "Vigilancia upstream odysseus"
+                    _UPSTREAM_PROMPT = (
+                        "Vigila el upstream de odysseus (pewdiepie-archdaemon/odysseus, del que deriva Odiseo) y AUTO-APLICA con respaldo las mejoras SEGURAS a una RAMA de nuestro fork. Eres autónomo: hazlo tú con bash/git, sin pedírselo a nadie. "
+                        "Repo fork: ~/Developer/starc-fork (odysseus vendorizado en ai/odysseus/). Clon del upstream: ~/Developer/odysseus.\n"
+                        "PASOS (usa bash):\n"
+                        "(1) Actualiza el clon del upstream: `cd ~/Developer/odysseus && git fetch origin main`. Si el clon no existe, clónalo primero: `git clone https://github.com/pewdiepie-archdaemon/odysseus.git ~/Developer/odysseus`.\n"
+                        "(2) Recupera con manage_memory la última SHA portada (clave 'odiseo-upstream-sha'). Si NO existe: es el primer arranque — guarda `git -C ~/Developer/odysseus rev-parse origin/main` bajo esa clave, escribe una nota breve 'Vigilancia upstream odysseus iniciada' con la SHA base, y TERMINA (no apliques nada el primer día).\n"
+                        "(3) Lista los commits nuevos: `git -C ~/Developer/odysseus log --oneline <SHA_guardada>..origin/main`. Si NO hay nuevos: TERMINA en silencio (sin nota).\n"
+                        "(4) Si hay nuevos: en el fork (`cd ~/Developer/starc-fork`) verifica árbol limpio con `git status --porcelain`. Si NO está limpio: NO toques git — escribe una nota 'Upstream odysseus: hay novedades pero tu árbol tiene cambios sin commitear; las porto cuando esté limpio' con la lista de commits, y TERMINA. Si está limpio: parte de la rama 'assistant', crea respaldo `git branch odiseo/pre-upstream-$(date +%Y%m%d)` y rama de trabajo `git switch -c odiseo/upstream-$(date +%Y%m%d)`.\n"
+                        "(5) Para CADA commit nuevo mira qué archivos toca (`git -C ~/Developer/odysseus show --stat <sha>`). APLICA SOLO lo seguro: archivos NUEVOS del upstream (que no existan aún en ai/odysseus/) y cambios en archivos LEJOS de los puntos de divergencia de nuestro fork. NO toques (déjalos para revisión humana) nada que afecte: el preset 'rita', el ChromaDB embebido, la config libre de herramientas (lo que era mcp_only/whitelist), la autonomía/scheduler, ni rutas del bundle/brain. Para portar un archivo, copia su versión upstream al path equivalente bajo ai/odysseus/.\n"
+                        "(6) SANITY CHECK obligatorio: compila los .py tocados con la Python del bundle (`python -m py_compile`) y haz un import smoke de los módulos clave. Si algo falla, DESHAZ todo (`git reset --hard odiseo/pre-upstream-$(date +%Y%m%d)`) y NO apliques (pasa directo al reporte).\n"
+                        "(7) Si pasó el sanity: haz commit SOLO en la rama de trabajo (NUNCA en 'assistant' ni 'master'). NUNCA hagas push: el repo es PÚBLICO y el humano corre /seguridad antes de subir.\n"
+                        "(8) Escribe una NOTA con manage_notes 'Upstream odysseus — porte automático' que liste: commits APLICADOS, commits OMITIDOS y por qué (divergencia/conflicto), el nombre de la rama de trabajo, y 'Revísalo y mergea a assistant tras /seguridad'. Luego guarda con manage_memory la SHA más nueva (origin/main) bajo 'odiseo-upstream-sha'.\n"
+                        "REGLA DE ORO: ante la duda, NO apliques — repórtalo. Backup + rama + sanity + sin push + sin master son obligatorios."
+                    )
+                    _hasw = db.query(ScheduledTask).filter(
+                        ScheduledTask.owner == owner,
+                        ScheduledTask.name == _WATCH_NAME,
+                    ).first()
+                    if not _hasw:
+                        _epw, _modelw = self._resolve_defaults(db, owner)
+                        _cronw = "23 10 * * 1,4"
+                        _nextw = compute_next_run("cron", None, None, None,
+                                                  after=datetime.utcnow(), cron_expression=_cronw)
+                        db.add(ScheduledTask(
+                            id=str(uuid.uuid4())[:8],
+                            owner=owner,
+                            name=_WATCH_NAME,
+                            prompt=_UPSTREAM_PROMPT,
+                            task_type="ai",
+                            schedule="cron",
+                            cron_expression=_cronw,
+                            trigger_type="schedule",
+                            trigger_counter=0,
+                            next_run=_nextw,
+                            status="active",
+                            output_target="session",
+                            session_id=existing.session_id,
+                            model=_modelw or None,
+                            endpoint_url=_epw or None,
+                            notifications_enabled=False,
+                        ))
+                        db.commit()
+                        logger.info(f"Seeded upstream odysseus watcher for {owner}")
+                    elif _hasw.prompt and ("pídeselo a Claude" in _hasw.prompt
+                                           or "No portes nada tú" in _hasw.prompt):
+                        # Migra la tarea vieja (solo-avisar) a la nueva (auto-aplicar con respaldo).
+                        _hasw.prompt = _UPSTREAM_PROMPT
+                        db.commit()
+                        logger.info(f"Migrated upstream odysseus watcher to auto-apply for {owner}")
+                except Exception as _e:
+                    logger.warning(f"upstream watcher seed failed for {owner}: {_e}")
                 return  # already seeded
 
             # Resolve a default model/endpoint from any existing session so the
@@ -2051,8 +2173,15 @@ class TaskScheduler:
             endpoint_url, model = self._resolve_defaults(db, owner)
 
             default_personality = (
-                "You are the user's personal assistant. Concise, warm, a little dry. "
-                "Never waste time with fluff. Default to English. Only match the other language when replying to a non-English email.\n\n"
+                "Eres Odiseo, el asistente de IA de Aula 122, el software de preproducción de cine independiente del colectivo Diez50. Corres 100% local. "
+                "RESPONDE SIEMPRE EN ESPAÑOL (cambia de idioma solo si el usuario lo hace). Conciso, honesto y concreto; sin relleno ni adulación.\n\n"
+
+                "PRINCIPIO RECTOR (no negociable): IA ejecuta, no decide. Propones, calculas y ejecutas lo mecánico; las decisiones (cast, presupuesto final, fechas, locación, contratos, cortes creativos) las firma un humano del colectivo. Los entregables van a borrador/staging, nunca sobre la obra real sin aprobación.\n\n"
+
+                "CONOCES LA METODOLOGIA DE RITA (cine indie de Diez50). Cadena de preproduccion: breakdown (elementos por escena, 21 categorias) -> scheduling (strip board + Day-Out-of-Days) -> shooting schedule -> presupuesto (ATL/BTL + contingencia ~10%) -> ruta critica -> visualizacion (shot list, storyboard, mood board) -> location scouting -> call sheets por dia. "
+                "Operas cada etapa con tus tools: datos del guion con las tools del proyecto (listar_escenas, obtener_personaje, estadisticas_guion; si no hay proyecto activo, primero listar_proyectos y usar_proyecto; no inventes); breakdown/call sheet/presupuesto/shot list con create_document; scheduling y fechas con manage_calendar; distribucion de call sheets con send_email/bulk_email (nunca sin instruccion explicita); mood board/storyboard con generate_image; tracking y ruta critica con manage_tasks; scouting y referencias con web_search/trigger_research; contactos del crew con resolve_contact.\n\n"
+
+                "MODELOS (Cookbook local): Aula 122 corre en ESTA maquina (Apple Metal), sin servidores remotos. Para traer un modelo de HuggingFace usa download_model con local:true (GGUF para LLM lo sirve llama.cpp; modelos de difusion para imagenes). Avisa el peso aproximado antes de descargas grandes y sigue el avance con list_downloads. No instales ni sirvas modelos pesados sin que un humano lo pida.\n\n"
 
                 "CORE RULE: You MUST use your tools to take action — do not describe what you would do. "
                 "Never say 'I would check your calendar' — actually call manage_calendar. "
@@ -2128,7 +2257,7 @@ class TaskScheduler:
             assistant = CrewMember(
                 id=crew_id,
                 owner=owner,
-                name="Assistant",
+                name="Odiseo",
                 avatar=None,
                 user_name=None,
                 personality=default_personality,
@@ -2136,14 +2265,18 @@ class TaskScheduler:
                 endpoint_url=endpoint_url,
                 greeting=None,
                 enabled_tools=json.dumps([
-                    "manage_calendar", "manage_notes", "manage_tasks", "manage_memory",
+                    "manage_calendar", "manage_notes", "manage_tasks", "manage_memory", "manage_skills",
                     "list_email_accounts", "list_emails", "read_email", "send_email", "reply_to_email", "archive_email",
                     "mark_email_read", "delete_email", "resolve_contact",
                     "search_chats", "web_search", "web_fetch", "read_file",
                     "create_document", "update_document", "edit_document",
-                    "generate_image", "trigger_research",
-                    "download_model", "serve_model", "list_served_models", "stop_served_model",
-                    "edit_image",
+                    "generate_image", "edit_image", "trigger_research",
+                    # Cookbook (modelos locales): descargar/seguir/cancelar desde el chat.
+                    "download_model", "list_downloads", "cancel_download",
+                    # Memoria creativa: buscar/leer/auditar/proponer + editar (Rita).
+                    "buscar_memoria", "search_chats",
+                    "leer_memoria", "auditar_memoria", "proponer_cambio_memoria",
+                    "escribir_memoria", "editar_memoria",
                 ]),
                 session_id=session_id,
                 is_active=True,

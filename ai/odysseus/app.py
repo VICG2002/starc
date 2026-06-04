@@ -503,6 +503,13 @@ from routes.memory_routes import setup_memory_routes
 app.include_router(setup_memory_routes(memory_manager, session_manager, memory_vector=memory_vector))
 from routes.skills_routes import setup_skills_routes
 app.include_router(setup_skills_routes(skills_manager))
+# Bóveda: visualizar/editar la memoria creativa (copia) dentro de Odiseo.
+from routes.memoria_routes import setup_memoria_routes
+app.include_router(setup_memoria_routes())
+# Guion: visor de solo-lectura del .starc (escenas, stats, personajes) para la
+# página de Guion de Aula 122. Reutiliza el parser de aula122-mcp.
+from routes.guion_routes import setup_guion_routes
+app.include_router(setup_guion_routes())
 
 # Chat
 from routes.chat_routes import setup_chat_routes

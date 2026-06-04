@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Aula 122 — Guion</title>
+<link rel="stylesheet" href="/static/aula122/aula122-tokens.css">
+<link rel="stylesheet" href="/static/aula122/guion.css">
+</head>
+<body>
+<div class="g-main">
+
+  <!-- Barra de herramientas (calcada del diseño) -->
+  <div class="ed-toolbar" role="toolbar" aria-label="Guion">
+    <button data-edit title="Deshacer"><span class="mi">undo</span></button>
+    <button data-edit title="Rehacer"><span class="mi">redo</span></button>
+    <span class="sep"></span>
+    <span class="ptype" data-edit id="tb-ptype" title="Tipo de párrafo">Acción <span class="mi mi-sm">arrow_drop_down</span></span>
+    <span class="sep"></span>
+    <button data-edit title="Beats / estructura"><span class="mi">view_timeline</span> Beats</button>
+    <button data-edit title="Formato rápido"><span class="mi">format_size</span> Formato</button>
+    <button id="tb-search" title="Buscar (⌘F)"><span class="mi">search</span></button>
+    <button data-edit title="Comentarios / revisión"><span class="mi">chat_bubble</span></button>
+    <span class="sep"></span>
+    <button id="tb-ia" title="Asistente IA (Rita)"><span class="mi">auto_awesome</span> IA</button>
+  </div>
+
+  <div class="ed-body">
+
+    <!-- Árbol de escenas -->
+    <aside class="ed-tree" id="ed-tree">
+      <div class="grp" id="ed-tree-grp">Cargando…</div>
+    </aside>
+
+    <!-- Página de guion (papel). Doble clic = abrir el editor nativo al lado. -->
+    <div class="ed-pagewrap" id="ed-pagewrap" title="Doble clic para editar en el editor nativo">
+      <div class="sp-page"><div class="sp-empty">Cargando guion…</div></div>
+    </div>
+
+    <!-- Rail + paneles -->
+    <div class="ed-side">
+      <div class="ed-rail">
+        <button data-edit title="Formato rápido"><span class="mi">format_size</span></button>
+        <button data-edit title="Parámetros de escena"><span class="mi">tune</span></button>
+        <button data-panel="personajes" title="Personajes"><span class="mi">person</span></button>
+        <button class="is-active" id="rail-stats" data-panel="estadisticas" title="Estadísticas del guión"><span class="mi">bar_chart</span></button>
+        <button data-edit title="Comentarios"><span class="mi">chat_bubble</span></button>
+        <button id="rail-ia" title="Asistente IA"><span class="mi">auto_awesome</span></button>
+        <button data-edit title="Marcadores"><span class="mi">bookmark</span></button>
+        <button data-edit title="Diccionarios"><span class="mi">menu_book</span></button>
+      </div>
+
+      <!-- Panel: Estadísticas (datos reales del guion) -->
+      <div class="ed-panel" data-panel="estadisticas" id="panel-estadisticas">
+        <div class="ed-panel__head"><span class="mi">bar_chart</span> Estadísticas</div>
+        <div class="ed-panel__body" id="stats-body"><div class="muted">Cargando…</div></div>
+      </div>
+
+      <!-- Panel: Personajes -->
+      <div class="ed-panel" data-panel="personajes" id="panel-personajes" hidden>
+        <div class="ed-panel__head"><span class="mi">person</span> Personajes <span class="muted t-caption" id="chars-count" style="margin-left:auto"></span></div>
+        <div class="ed-panel__body" id="chars-body"><div class="muted">Cargando…</div></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Barra de estado -->
+  <div class="ed-status">
+    <span id="status-left">—</span>
+    <span class="spacer"></span>
+    <span id="status-right"></span>
+  </div>
+</div>
+<script src="/static/aula122/guion-page.js"></script>
+</body>
+</html>

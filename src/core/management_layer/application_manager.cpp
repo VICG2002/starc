@@ -52,6 +52,7 @@
 #include <ui/crash_report_dialog.h>
 #include <ui/design_system/design_system.h>
 #include <ui/menu_view.h>
+#include <ui/odysseus_workspace_view.h>
 #include <ui/modules/avatar_generator/avatar_generator.h>
 #include <ui/widgets/dialog/dialog.h>
 #include <ui/widgets/dialog/standard_dialog.h>
@@ -202,6 +203,11 @@ public:
      * @brief Mostrar la página del plan de rodaje (plugin Aula 122 / Bloque 7)
      */
     void showProductionSchedule();
+
+    /**
+     * @brief Mostrar el workspace COMPLETO de Odiseo embebido (Aula 122 / Fase 4)
+     */
+    void showOdysseus();
 
     /**
      * @brief Показать страницу статистика работы с программой
@@ -955,9 +961,11 @@ void ApplicationManager::Implementation::showContent()
     //
     else {
         //
-        // ... а затем уже отобразить
+        // Aula 122: el shell arranca DIRECTAMENTE en Odiseo (la IA es la puerta de
+        // entrada). El editor nativo (guion + pipeline) se alcanza desde el grupo
+        // "Aula 122" de su sidebar. (Upstream mostraba showProjects() — el selector.)
         //
-        showProjects();
+        showOdysseus();
     }
 }
 
@@ -997,6 +1005,11 @@ void ApplicationManager::Implementation::showProject()
     Log::info("Show project screen");
     menuView->checkProject();
     showContent(projectManager.data());
+    //
+    // Aula 122 / M2: el editor nativo se muestra EMBEBIDO al lado de Odiseo (misma ventana),
+    // no como pantalla aparte. Mientras editas, los chats de Odiseo quedan a la vista.
+    //
+    applicationView->showOdiseoBeside();
     saveLastContent(projectManager.data());
 }
 
@@ -1043,6 +1056,63 @@ void ApplicationManager::Implementation::showAssistant()
     static auto* emptyNavigator = new QWidget;
 
     applicationView->showContent(emptyToolbar, emptyNavigator, view->asQWidget());
+}
+
+void ApplicationManager::Implementation::showOdysseus()
+{
+    Log::info("Show Odiseo workspace");
+    menuView->checkOdysseus();
+
+    //
+    // Aula 122 / Fase 4: el workspace COMPLETO de Odiseo (odysseus) embebido vía
+    // QtWebEngine, apuntando al cerebro local (127.0.0.1:7860) con auto-login por
+    // cookie. Se crea una vez y se reutiliza (conserva el estado de la sesión).
+    //
+    static auto* odysseusView = [this] {
+        auto* v = new Ui::OdysseusWorkspaceView;
+        //
+        // Recargar cuando el cerebro quede listo: en el arranque, el server 7860
+        // puede no estar arriba todavía cuando la vista carga por primera vez (o el
+        // token de sesión aún no está cacheado). ready() llega tras el health-check.
+        //
+        QObject::connect(brainProcessManager.data(), &BrainProcessManager::ready, v,
+                         [v] { v->reload(); });
+        //
+        // Puente "Aula 122": la sidebar web pide una etapa del pipeline. Las 3
+        // construidas cambian al módulo NATIVO; requieren un proyecto abierto (si no
+        // hay, llevamos al selector). Las demás etapas son "próximamente".
+        //
+        QObject::connect(v, &Ui::OdysseusWorkspaceView::navigateRequested, q,
+                         [this](const QString& _view) {
+                             //
+                             // "Proyectos" es la 1ª etapa del pipeline: siempre lleva
+                             // al selector (abrir/crear). Las demás necesitan proyecto.
+                             //
+                             if (_view == QLatin1String("proyectos")) {
+                                 showProjects();
+                                 return;
+                             }
+                             if (projectsManager->currentProject() == nullptr) {
+                                 showProjects();
+                                 return;
+                             }
+                             if (_view == QLatin1String("guion")) {
+                                 showProject();
+                             } else if (_view == QLatin1String("desglose")) {
+                                 showBreakdown();
+                             } else if (_view == QLatin1String("plan-rodaje")) {
+                                 showProductionSchedule();
+                             }
+                         });
+        return v;
+    }();
+    //
+    // Aula 122 / M2: Odiseo es el ANFITRIÓN. Vive permanente en su panel; aquí lo instalamos
+    // (una sola vez) y lo mostramos a pantalla completa. El editor nativo se mostrará AL LADO
+    // (showOdiseoBeside) sin reparentar esta vista web → el chat no se recarga.
+    //
+    applicationView->setOdiseoWidget(odysseusView);
+    applicationView->showOdiseoFull();
 }
 
 void ApplicationManager::Implementation::showBreakdown()
@@ -1422,13 +1492,13 @@ void ApplicationManager::Implementation::setDesignSystemDensity(int _density)
 void ApplicationManager::Implementation::updateWindowTitle(const QString& _projectName)
 {
     if (projectsManager->currentProject() == nullptr) {
-        applicationView->setWindowTitle("Story Architect");
+        applicationView->setWindowTitle("Aula 122");
         return;
     }
 
     const auto currentProject = projectsManager->currentProject();
     applicationView->setWindowTitle(
-        QString("%1%2 (%3) - Story Architect%4")
+        QString("%1%2 (%3) - Aula 122%4")
             .arg(
 #ifndef Q_OS_MAC
                 "[*]"
@@ -1944,7 +2014,7 @@ bool ApplicationManager::Implementation::openProject(const QString& _path)
 
     if (projectsManager->currentProject() != nullptr
         && projectsManager->currentProject()->path() == _path) {
-        showProject();
+        showOdysseus();  // Aula 122: aterrizar en Odiseo (anfitrión), no en el editor
         return false;
     }
 
@@ -2112,9 +2182,11 @@ void ApplicationManager::Implementation::goToEditCurrentProject(bool _afterProje
     }
 
     //
-    // Отобразить страницу самого проекта
+    // Aula 122: tras abrir el proyecto, aterrizamos en ODISEO (el anfitrión), no en
+    // el editor nativo. El editor (y el resto de vistas de STARC) se alcanzan desde el
+    // dropdown "Aula 122" / "Editar" → showProject() vía el puente. (Antes: showProject().)
     //
-    showProject();
+    showOdysseus();
 
     state = ApplicationState::Working;
 
@@ -2143,8 +2215,8 @@ void ApplicationManager::Implementation::goToEditCurrentProject(bool _afterProje
             const auto projectFileSuffix = QFileInfo(currentProject->path()).suffix().toUpper();
             informationDialog->showDialog(
                 tr("Do you want continue to use .%1 file format?").arg(projectFileSuffix),
-                tr("Some project data cannot be saved in .%1 format. We recommend you to use Story "
-                   "Architect .%2 format so all the project data will be saved properly.")
+                tr("Some project data cannot be saved in .%1 format. We recommend you to use Aula "
+                   "122 .%2 format so all the project data will be saved properly.")
                     .arg(projectFileSuffix.toUpper(), ExtensionHelper::starc().toUpper()),
                 { { kNeverAskAgainButtonId, tr("Never ask again"), Dialog::NormalButton },
                   { kKeepButtonId, tr("Keep .%1").arg(projectFileSuffix), Dialog::RejectButton },
@@ -2928,6 +3000,7 @@ void ApplicationManager::initConnections()
     connect(d->menuView, &Ui::MenuView::breakdownPressed, this, [this] { d->showBreakdown(); });
     connect(d->menuView, &Ui::MenuView::productionPressed, this,
             [this] { d->showProductionSchedule(); });
+    connect(d->menuView, &Ui::MenuView::odysseusPressed, this, [this] { d->showOdysseus(); });
     //
     connect(d->menuView, &Ui::MenuView::writingStatisticsPressed, this, [this] {
 #ifdef CLOUD_SERVICE_MANAGER
@@ -3045,7 +3118,7 @@ void ApplicationManager::initConnections()
             [this](const QString& _path) {
                 if (d->projectsManager->currentProject() != nullptr
                     && d->projectsManager->currentProject()->path() == _path) {
-                    d->showProject();
+                    d->showOdysseus();  // Aula 122: aterrizar en Odiseo (anfitrión), no en el editor
                     return;
                 }
 

@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <title>Aula 122 — Mapa del proyecto (ejemplo completo, EDLP)</title>
+  <link rel="stylesheet" href="./aula122-tokens.css">
+  <style>
+    body{margin:0;background:var(--background)}
+    .muted{color:var(--on-surface-medium)}
+    a.a122-nav__item{text-decoration:none;color:var(--on-surface)}
+    a.a122-nav__item.is-active{color:#2f6fd6}
+
+    .intro{padding:var(--px24) var(--px24) var(--px8)}
+    .intro h1{font-size:var(--fz-h5);font-weight:var(--w-normal);margin:0 0 var(--px8)}
+    .intro p{margin:0;max-width:760px;color:var(--on-surface-medium);font-size:var(--fz-body2);line-height:1.5}
+
+    .grid{display:grid;grid-template-columns:repeat(2,1fr);gap:var(--px16);padding:var(--px16) var(--px24) var(--px48)}
+    a.card{display:block;text-decoration:none;color:inherit;background:var(--surface);border:1px solid var(--divider);
+      border-radius:var(--radius);padding:var(--px16);box-shadow:var(--shadow-1);transition:box-shadow .12s}
+    a.card:hover{box-shadow:var(--shadow-2)}
+    .card .top{display:flex;align-items:center;gap:var(--px8);margin-bottom:var(--px4)}
+    .card .num{width:24px;height:24px;border-radius:50%;background:var(--selected);color:#2f6fd6;
+      display:flex;align-items:center;justify-content:center;font-size:var(--fz-caption);font-weight:var(--w-medium);flex:none}
+    .card .name{font-size:var(--fz-subtitle1);font-weight:var(--w-medium)}
+    .card .st{margin-left:auto;font-size:8.5px;text-transform:uppercase;letter-spacing:.5px;padding:1px 8px;border-radius:8px}
+    .st.ok{background:rgba(46,125,50,.12);color:#2e7d32}
+    .st.wip{background:rgba(178,106,0,.14);color:#b26a00}
+    .st.soon{background:rgba(0,0,0,.06);color:var(--on-surface-medium)}
+    .card p{margin:0;font-size:var(--fz-body2);color:var(--on-surface-medium);line-height:1.45}
+  </style>
+</head>
+<body>
+  <div class="a122-shell">
+
+    <!-- NAVEGACIÓN clickable: cada etapa abre su wireframe -->
+    <nav class="a122-nav">
+      <div class="a122-nav__brand"><span class="mi">movie</span> <b>Aula&nbsp;122</b></div>
+      <div class="muted" style="padding:0 var(--px16) var(--px8);font-size:var(--fz-caption)">El Encuentro de los Perdidos · 98 escenas</div>
+      <div class="a122-nav__group">Proyecto</div>
+      <div class="a122-nav__item is-active"><span class="ico"><span class="mi">map</span></span> Mapa del proyecto</div>
+      <a class="a122-nav__item" href="personajes.html"><span class="ico"><span class="mi">psychology</span></span> Personajes</a>
+      <div class="a122-nav__group">Pipeline de la película</div>
+      <a class="a122-nav__item" href="idea.html"><span class="num">1</span><span class="ico"><span class="mi">lightbulb</span></span> Idea <span class="st wip">en diseño</span></a>
+      <a class="a122-nav__item" href="guion.html"><span class="num">2</span><span class="ico"><span class="mi">edit_document</span></span> Guión <span class="st ok">existe</span></a>
+      <a class="a122-nav__item" href="desglose.html"><span class="num">3</span><span class="ico"><span class="mi">checklist</span></span> Desglose <span class="st ok">existe</span></a>
+      <a class="a122-nav__item" href="equipo.html"><span class="num">4</span><span class="ico"><span class="mi">groups</span></span> Crew / Equipo <span class="st wip">en diseño</span></a>
+      <a class="a122-nav__item" href="presupuesto.html"><span class="num">5</span><span class="ico"><span class="mi">payments</span></span> Presupuesto <span class="st wip">pendiente</span></a>
+      <a class="a122-nav__item" href="shotlist.html"><span class="num">6</span><span class="ico"><span class="mi">theaters</span></span> Shot list / Storyboard <span class="st wip">en diseño</span></a>
+      <a class="a122-nav__item" href="locaciones.html"><span class="num">7</span><span class="ico"><span class="mi">location_on</span></span> Locaciones <span class="st wip">en diseño</span></a>
+      <a class="a122-nav__item" href="casting.html"><span class="num">8</span><span class="ico"><span class="mi">theater_comedy</span></span> Casting <span class="st wip">en diseño</span></a>
+      <a class="a122-nav__item" href="plan-rodaje.html"><span class="num">9</span><span class="ico"><span class="mi">calendar_month</span></span> Plan de rodaje <span class="st ok">existe</span></a>
+      <a class="a122-nav__item" href="7c-crew-call-sheets.html"><span class="num">10</span><span class="ico"><span class="mi">description</span></span> Call sheet <span class="st wip">diseñado</span></a>
+      <div class="a122-nav__group">&nbsp;</div>
+      <div class="a122-nav__item"><span class="ico"><span class="mi">settings</span></span> Ajustes</div>
+    </nav>
+
+    <main class="a122-main">
+      <div class="intro">
+        <h1>Mapa del proyecto — visualización completa</h1>
+        <p>Recorrido por las <b>10 etapas</b> del pipeline, en tu orden, con datos <b>reales</b> de <i>El Encuentro de los Perdidos</i> (98 escenas leídas de tu <code>.starc</code>). Haz clic en cualquier etapa, en las tarjetas o en el menú. <b>Nada de esto está aún en la app Qt</b>: son los planos de diseño que validamos antes de portar. El número de escena viaja con la locación por todo el pipeline.</p>
+      </div>
+
+      <div class="grid">
+        <a class="card" href="idea.html">
+          <div class="top"><span class="num">1</span><span class="name"><span class="mi">lightbulb</span> Idea / Tratamiento</span><span class="st wip">en diseño</span></div>
+          <p>El punto de partida: logline, tema, moodboard. (Borrador editable.)</p>
+        </a>
+        <a class="card" href="guion.html">
+          <div class="top"><span class="num">2</span><span class="name"><span class="mi">edit_document</span> Guión</span><span class="st ok">existe</span></div>
+          <p>Editor STARC. Escena 3 real: <i>INT. Salón primaria</i> — Miss Gloria confronta a Román. Asistente IA que conoce el guión.</p>
+        </a>
+        <a class="card" href="personajes.html">
+          <div class="top"><span class="num"><span class="mi mi-sm">psychology</span></span><span class="name">Personajes</span><span class="st ok">datos</span></div>
+          <p>Dossier por personaje: biografía, relaciones, arco y análisis psicológico. Distinto de Casting; también accesible desde el rail del Guión.</p>
+        </a>
+        <a class="card" href="desglose.html">
+          <div class="top"><span class="num">3</span><span class="name"><span class="mi">checklist</span> Desglose</span><span class="st ok">existe</span></div>
+          <p>Elementos de la escena 3 por categoría: cuaderno, lápiz, lentes, crucifijo, ventilador… Auto-extracción con Claude.</p>
+        </a>
+        <a class="card" href="equipo.html">
+          <div class="top"><span class="num">4</span><span class="name"><span class="mi">groups</span> Crew / Equipo</span><span class="st wip">en diseño</span></div>
+          <p>14 personas por departamento, costo/día estimado, edición CRUD. Alimenta presupuesto y call sheets.</p>
+        </a>
+        <a class="card" href="presupuesto.html">
+          <div class="top"><span class="num">5</span><span class="name"><span class="mi">payments</span> Presupuesto</span><span class="st wip">pendiente</span></div>
+          <p>Top sheet desarrollado y trazable: cada cifra muestra su origen. Crew y Cast se jalan de sus secciones.</p>
+        </a>
+        <a class="card" href="shotlist.html">
+          <div class="top"><span class="num">6</span><span class="name"><span class="mi">theaters</span> Shot list / Storyboard</span><span class="st wip">en diseño</span></div>
+          <p>8 planos derivados de la acción real de la escena 3 + tablero de storyboard. Puente a Storyboarder.</p>
+        </a>
+        <a class="card" href="locaciones.html">
+          <div class="top"><span class="num">7</span><span class="name"><span class="mi">location_on</span> Locaciones</span><span class="st wip">en diseño</span></div>
+          <p>5 locaciones reales, cada una con sus <b>números de escena</b> (Salón de primaria → esc. 2, 3). Permisos, scouting, mapa.</p>
+        </a>
+        <a class="card" href="casting.html">
+          <div class="top"><span class="num">8</span><span class="name"><span class="mi">theater_comedy</span> Casting</span><span class="st wip">en diseño</span></div>
+          <p>9 personajes reales → actores: Román, Magnolia, Piero, Miss Gloria… Con escenas en que aparecen y "Generar side".</p>
+        </a>
+        <a class="card" href="plan-rodaje.html">
+          <div class="top"><span class="num">9</span><span class="name"><span class="mi">calendar_month</span> Plan de rodaje</span><span class="st ok">existe</span></div>
+          <p>Strip board: tiras de escenas reales (número + locación) organizadas por día, con boneyard.</p>
+        </a>
+        <a class="card" href="7c-crew-call-sheets.html">
+          <div class="top"><span class="num">10</span><span class="name"><span class="mi">description</span> Call sheet</span><span class="st wip">diseñado</span></div>
+          <p>Hoja carta del Día 1: Salón de primaria, esc. 2 y 3, cast Román + Miss Gloria. Autocompletado del resto del pipeline.</p>
+        </a>
+      </div>
+    </main>
+  </div>
+</body>
+</html>

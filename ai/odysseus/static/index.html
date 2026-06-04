@@ -761,6 +761,43 @@
         </div>
       </div>
 
+      <!-- Aula 122: pipeline de producción NATIVO. Clic en una etapa construida
+           navega al puente http://aula122.bridge/open/<etapa>, que la OdysseusPage
+           del shell intercepta (acceptNavigationRequest) y cambia a la vista Qt.
+           Colapsable/reordenable solo por ser .section (section-management.js). -->
+      <div class="section" id="aula122-section">
+        <div class="section-header-flex">
+          <span class="section-title"><svg class="section-icon" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7V5a2 2 0 0 1 2-2h2M17 3h2a2 2 0 0 1 2 2v2M21 17v2a2 2 0 0 1-2 2h-2M7 21H5a2 2 0 0 1-2-2v-2"/><rect x="8" y="8" width="8" height="8" rx="1"/></svg><span>Aula 122</span></span>
+        </div>
+        <div id="aula122-list">
+          <div class="list-item" id="aula122-proyectos-btn" title="Proyectos (abrir o crear)">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0;opacity:0.55;"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
+            <span class="grow">Proyectos</span>
+          </div>
+          <div class="list-item" id="aula122-guion-btn" title="Editor de guion">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0;opacity:0.55;"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6M16 13H8M16 17H8M10 9H8"/></svg>
+            <span class="grow">Guion</span>
+          </div>
+          <div class="list-item" id="aula122-desglose-btn" title="Desglose de producción">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0;opacity:0.55;"><path d="M9 11H3v10h6zM21 3h-6v18h6zM15 7H9v14h6z"/></svg>
+            <span class="grow">Desglose</span>
+          </div>
+          <div class="list-item" id="aula122-plan-rodaje-btn" title="Plan de rodaje (strip board)">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0;opacity:0.55;"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>
+            <span class="grow">Plan de rodaje</span>
+          </div>
+          <div class="list-item" id="boveda-open-btn" title="Ver y editar tu bóveda de memoria creativa">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0;opacity:0.55;"><rect x="2" y="3" width="20" height="5" rx="1"/><path d="M4 8v11a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1V8"/><path d="M10 12h4"/></svg>
+            <span class="grow">Bóveda</span>
+          </div>
+          <div class="list-item" style="opacity:0.4;pointer-events:none;"><span class="grow">Presupuesto <span style="font-size:10px;opacity:0.7;">· pronto</span></span></div>
+          <div class="list-item" style="opacity:0.4;pointer-events:none;"><span class="grow">Shot list <span style="font-size:10px;opacity:0.7;">· pronto</span></span></div>
+          <div class="list-item" style="opacity:0.4;pointer-events:none;"><span class="grow">Storyboard <span style="font-size:10px;opacity:0.7;">· pronto</span></span></div>
+          <div class="list-item" style="opacity:0.4;pointer-events:none;"><span class="grow">Mood board <span style="font-size:10px;opacity:0.7;">· pronto</span></span></div>
+          <div class="list-item" style="opacity:0.4;pointer-events:none;"><span class="grow">Call sheets <span style="font-size:10px;opacity:0.7;">· pronto</span></span></div>
+        </div>
+      </div>
+
       <div class="section" id="email-section">
         <div class="section-header-flex">
           <span class="section-title" id="email-section-title" style="cursor:pointer;" title="Open email inbox"><svg class="section-icon" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"/></svg><span>Email</span></span>

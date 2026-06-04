@@ -925,7 +925,7 @@ void OnboardingNavigator::setAccountInfo(const Domain::AccountInfo& _accountInfo
 
 void OnboardingNavigator::updateTranslations()
 {
-    d->uiTitle->setText(tr("Welcome to the Story Architect"));
+    d->uiTitle->setText(tr("Welcome to Aula 122"));
     d->uiSubtitle->setText(tr("Let's configure something before start"));
     d->uiLanguage->setLabel(tr("Language"));
     if (const auto translationProgress
@@ -954,13 +954,13 @@ void OnboardingNavigator::updateTranslations()
     d->accountChangeAvatarButton->setText(tr("Change avatar"));
     d->accountName->setLabel(tr("Your name"));
     d->accountDescription->setLabel(tr("Your bio"));
-    d->accountSubscription->setText(tr("I want to receive STARC news"));
+    d->accountSubscription->setText(tr("I want to receive Aula 122 news"));
     d->accountContinueButton->setText(tr("Continue"));
 
     d->modulesTitle->setText(tr("Customize your workspace"));
     d->modulesSubtitle->setText(tr("Feel at home"));
     d->modulesDescription->setText(
-        tr("Story Architect provides tools for working with any form of writing. Choose which ones "
+        tr("Aula 122 provides tools for working with any form of writing. Choose which ones "
            "you plan to use:"));
     d->modulesScreenplayTitle->setText(tr("Screenplay"));
     d->modulesComicBookTitle->setText(tr("Comic book"));
@@ -972,7 +972,7 @@ void OnboardingNavigator::updateTranslations()
     d->styleChooseTitle->setText(tr("Customize your work environment"));
     d->styleChooseSubtitle->setText(tr("Feel at home"));
     d->styleChooseDescription->setText(
-        tr("We'll help you get used to STARC by leveraging your experience with other "
+        tr("We'll help you get used to Aula 122 by leveraging your experience with other "
            "applications."));
     d->styleChooseContinueButton->setText(tr("Continue"));
     d->styleChooseComboBox->setLabel(tr("Application"));
@@ -995,7 +995,7 @@ void OnboardingNavigator::updateTranslations()
     d->backupsTitle->setText(tr("Before you get started"));
     d->backupsSubtitle->setText(tr("Feel our care"));
     d->backupsDescription->setText(
-        tr("You should know that Story Architect cares about the safety of your work, so the "
+        tr("You should know that Aula 122 cares about the safety of your work, so the "
            "app:\n\n"
            "• automatically saves changes every three seconds when there is no activity\n\n"
            "• automatically saves changes every three minutes when you are actively working\n\n"

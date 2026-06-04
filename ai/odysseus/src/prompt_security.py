@@ -37,3 +37,31 @@ def untrusted_context_message(label: str, content: Any) -> Dict[str, Any]:
         ),
         "metadata": {"trusted": False, "source": label},
     }
+
+
+TRUSTED_REFERENCE_HEADER = (
+    "MATERIAL DE TU MEMORIA CREATIVA (fuente de confianza del propio usuario).\n"
+    "Esto NO es contenido externo ni sospechoso: son notas curadas por Victor y por "
+    "el colectivo Diez50 (perfiles de personajes, proyectos, metodología, decisiones). "
+    "Úsalo directamente para responder la petición del usuario. Si contiene lo que "
+    "pide (p. ej. el perfil de un personaje), respóndelo; no pidas datos que ya están aquí."
+)
+
+
+def trusted_reference_message(label: str, content: Any) -> Dict[str, Any]:
+    """Local single-user appliance: the user's own curated memory is TRUSTED.
+
+    Unlike `untrusted_context_message` (for web/email/tool output that may carry
+    prompt-injection), this frames the creative-memory corpus as a confident
+    reference so a small local model actually uses it instead of hedging.
+    """
+    text = "" if content is None else str(content)
+    return {
+        "role": "user",
+        "content": (
+            f"{TRUSTED_REFERENCE_HEADER}\n"
+            f"Fuente: {label}\n\n"
+            f"{text}"
+        ),
+        "metadata": {"trusted": True, "source": label},
+    }

@@ -46,7 +46,25 @@ def get_chroma_client():
             "dependency with: pip install chromadb-client"
         ) from e
 
-    host = os.getenv("CHROMADB_HOST", "localhost")
+    # Aula 122 — por defecto ChromaDB EMBEBIDO (PersistentClient): sin servidor,
+    # sin puerto, 100% autocontenido dentro del .app (decisión Fase 2). El índice
+    # vive en <odysseus>/data/chroma (o CHROMADB_PATH) y viaja/siembra con el .app.
+    # El modo cliente-servidor (HttpClient) queda OPT-IN: sólo si se define
+    # CHROMADB_HOST explícitamente (p. ej. un chroma compartido en desarrollo).
+    if "CHROMADB_HOST" not in os.environ:
+        base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        persist_path = os.getenv("CHROMADB_PATH") or os.path.join(base_dir, "data", "chroma")
+        os.makedirs(persist_path, exist_ok=True)
+        client = chromadb.PersistentClient(path=persist_path)
+        try:
+            client.heartbeat()
+        except Exception:
+            pass  # PersistentClient no usa red; el heartbeat es best-effort
+        _client = client
+        logger.info(f"ChromaDB embebido (PersistentClient): {persist_path}")
+        return _client
+
+    host = os.environ["CHROMADB_HOST"]
     port = int(os.getenv("CHROMADB_PORT", "8100"))
 
     if not _port_open(host, port):
@@ -63,7 +81,7 @@ def get_chroma_client():
     # client; leave _client unset so the next call retries.
     client.heartbeat()
     _client = client
-    logger.info(f"ChromaDB connected: {host}:{port}")
+    logger.info(f"ChromaDB connected (HTTP): {host}:{port}")
     return _client
 
 

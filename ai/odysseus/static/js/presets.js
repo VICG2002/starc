@@ -5,7 +5,11 @@
  */
 
 let API_BASE = '';
-let selectedPreset = null;
+// Aula 122: preset RITA por defecto — Odiseo ES Rita. Sin esto, la SPA no manda
+// preset_id, así que el chat no recibía la identidad/orquestación de Rita ni las
+// instrucciones de usar la memoria creativa (buscar_memoria) → respuestas genéricas.
+// El usuario puede cambiar de preset; este es solo el valor inicial por carga.
+let selectedPreset = 'rita';
 let presets = {};
 
 // Built-in prompt templates (moved from cot_prompts.py)

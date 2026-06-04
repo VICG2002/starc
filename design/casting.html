@@ -1,0 +1,267 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <title>Aula 122 — Casting (visualización)</title>
+  <link rel="stylesheet" href="./aula122-tokens.css">
+  <style>
+    body{margin:0;background:var(--background)}
+    .muted{color:var(--on-surface-medium)}
+    .a122-appbar .title{flex:none}
+    .tb-field{display:flex;flex-direction:column;gap:2px}
+    .tb-field label{font-size:9px;text-transform:uppercase;letter-spacing:.5px;color:var(--on-surface-medium)}
+    .tb-field input,.tb-field select{border:1px solid var(--divider);border-radius:var(--radius);
+      padding:6px 10px;font-size:var(--fz-body2);background:var(--background)}
+
+    /* Tarjetas de resumen */
+    .summary{display:grid;grid-template-columns:repeat(4,1fr);gap:var(--px16);padding:var(--px16) var(--px24)}
+    .stat{display:flex;flex-direction:column;gap:2px}
+    .stat .big{font-size:var(--fz-h4);font-weight:var(--w-normal);line-height:1}
+    .stat .lbl{font-size:var(--fz-caption);color:var(--on-surface-medium);text-transform:uppercase;letter-spacing:.4px}
+
+    /* Cuerpo: tabla + panel de edición */
+    .body{flex:1;display:flex;min-height:0}
+    .table-wrap{flex:1;overflow:auto;padding:0 var(--px24) var(--px24)}
+    .a122-table td .scenes{font-size:var(--fz-caption);color:var(--on-surface-medium);display:block}
+    .a122-table td .pres{display:inline-flex;align-items:center;gap:var(--px8)}
+    .bar{width:64px;height:6px;border-radius:3px;background:var(--divider);overflow:hidden;flex:none}
+    .bar > i{display:block;height:100%;background:var(--accent)}
+    .acts{display:flex;gap:2px;align-items:center}
+
+    /* Chips de status del casting (color-coded) */
+    .chip-ok{background:rgba(46,125,50,.12);color:#2e7d32}
+    .chip-aud{background:rgba(178,106,0,.14);color:#b26a00}
+    .chip-todo{background:rgba(0,0,0,.08);color:#424242}
+
+    /* Panel de edición (drawer derecho) */
+    .edit{width:320px;flex:none;border-left:1px solid var(--divider);background:var(--surface);
+      display:flex;flex-direction:column}
+    .edit__head{padding:var(--px12) var(--px16);border-bottom:1px solid var(--divider);
+      font-weight:var(--w-medium);display:flex;align-items:center}
+    .edit__body{flex:1;overflow:auto;padding:var(--px16);display:flex;flex-direction:column;gap:var(--px12)}
+    .edit__foot{padding:var(--px12) var(--px16);border-top:1px solid var(--divider);display:flex;gap:var(--px8);justify-content:flex-end}
+
+    /* Headshot placeholder */
+    .headshot{align-self:center;width:120px;height:120px;border-radius:var(--radius);
+      background:var(--divider);display:flex;flex-direction:column;align-items:center;justify-content:center;
+      gap:var(--px4);color:var(--on-surface-medium);cursor:pointer;border:1px dashed var(--on-surface-disabled)}
+    .headshot .plus{font-size:var(--fz-h4);line-height:1}
+    .headshot .cap{font-size:var(--fz-caption);text-transform:uppercase;letter-spacing:.5px}
+
+    /* Resalte "Aparece en escenas" */
+    .scene-hl{background:var(--selected);border-radius:var(--radius);padding:var(--px8) var(--px12);
+      display:flex;flex-direction:column;gap:2px}
+    .scene-hl .lbl{font-size:9px;text-transform:uppercase;letter-spacing:.5px;color:var(--on-surface-medium)}
+    .scene-hl .val{font-size:var(--fz-subtitle1);font-weight:var(--w-medium);color:#2f6fd6}
+
+    .a122-field--btn{margin-top:var(--px4)}
+  </style>
+</head>
+<body>
+  <div class="a122-shell">
+
+    <!-- NAVEGACIÓN (orden de Victor — #8 Casting activo) -->
+    <nav class="a122-nav">
+      <div class="a122-nav__brand"><span class="mi">movie</span> <b>Aula&nbsp;122</b></div>
+      <div class="muted" style="padding:0 var(--px16) var(--px8);font-size:var(--fz-caption)">El Encuentro de los Perdidos · 98 escenas</div>
+      <div class="a122-nav__group">Proyecto</div>
+      <div class="a122-nav__item"><span class="ico"><span class="mi">folder</span></span> Proyectos</div>
+      <div class="a122-nav__item"><span class="ico"><span class="mi">save</span></span> Guardar / Exportar</div>
+      <div class="a122-nav__item"><span class="ico"><span class="mi">psychology</span></span> Personajes</div>
+      <div class="a122-nav__group">Pipeline de la película</div>
+      <div class="a122-nav__item"><span class="num">1</span><span class="ico"><span class="mi">lightbulb</span></span> Idea <span class="st wip">en diseño</span></div>
+      <div class="a122-nav__item"><span class="num">2</span><span class="ico"><span class="mi">edit_document</span></span> Guión <span class="st ok">existe</span></div>
+      <div class="a122-nav__item"><span class="num">3</span><span class="ico"><span class="mi">checklist</span></span> Desglose <span class="st ok">existe</span></div>
+      <div class="a122-nav__item"><span class="num">4</span><span class="ico"><span class="mi">groups</span></span> Crew / Equipo <span class="st wip">en diseño</span></div>
+      <div class="a122-nav__item"><span class="num">5</span><span class="ico"><span class="mi">payments</span></span> Presupuesto <span class="st wip">pendiente</span></div>
+      <div class="a122-nav__item"><span class="num">6</span><span class="ico"><span class="mi">theaters</span></span> Shot list / Storyboard <span class="st wip">en diseño</span></div>
+      <div class="a122-nav__item"><span class="num">7</span><span class="ico"><span class="mi">location_on</span></span> Locaciones <span class="st wip">en diseño</span></div>
+      <div class="a122-nav__item is-active"><span class="num">8</span><span class="ico"><span class="mi">theater_comedy</span></span> Casting <span class="st wip">en diseño</span></div>
+      <div class="a122-nav__item"><span class="num">9</span><span class="ico"><span class="mi">calendar_month</span></span> Plan de rodaje <span class="st ok">existe</span></div>
+      <div class="a122-nav__item"><span class="num">10</span><span class="ico"><span class="mi">description</span></span> Call sheet <span class="st wip">diseñado</span></div>
+      <div class="a122-nav__group">&nbsp;</div>
+      <div class="a122-nav__item"><span class="ico"><span class="mi">settings</span></span> Ajustes</div>
+    </nav>
+
+    <!-- ÁREA PRINCIPAL = gestor de casting -->
+    <main class="a122-main">
+
+      <!-- App-bar de la sección -->
+      <div class="a122-appbar">
+        <span class="title">Casting</span>
+        <span class="spacer"></span>
+        <div class="tb-field"><label>Buscar</label><input placeholder="Personaje o actor…" style="width:160px"></div>
+        <button class="a122-btn">+ Añadir personaje</button>
+      </div>
+
+      <!-- Resumen (visibilidad de estado: avance del casting) -->
+      <div class="summary">
+        <div class="a122-card stat"><span class="big">9</span><span class="lbl">Personajes</span></div>
+        <div class="a122-card stat"><span class="big">1</span><span class="lbl">Confirmado</span></div>
+        <div class="a122-card stat"><span class="big">3</span><span class="lbl">En audición</span></div>
+        <div class="a122-card stat"><span class="big">5</span><span class="lbl">Por castear</span></div>
+      </div>
+
+      <!-- Tabla de personajes (leídos del guión) + panel de edición -->
+      <div class="body">
+        <div class="table-wrap">
+          <table class="a122-table">
+            <thead><tr>
+              <th>Personaje</th>
+              <th style="width:150px">Presencia</th>
+              <th>Aparece en escenas</th>
+              <th style="width:120px">Status</th>
+              <th style="width:150px">Actor</th>
+              <th style="width:130px">Contacto</th>
+              <th style="width:150px">Acciones</th>
+            </tr></thead>
+            <tbody>
+              <tr>
+                <td><b>Román</b></td>
+                <td><span class="pres"><span class="bar"><i style="width:100%"></i></span>142 menciones</span></td>
+                <td><span class="scenes">esc. 1–7, 12, 15, 18–24, 31…</span></td>
+                <td><span class="a122-chip chip-ok">Confirmado</span></td>
+                <td class="muted">(por definir)</td>
+                <td class="muted">—</td>
+                <td class="acts">
+                  <button class="a122-btn--text" title="Extrae las escenas de Román en PDF">Generar side</button>
+                  <button class="a122-iconbtn" title="Editar"><span class="mi">edit</span></button>
+                </td>
+              </tr>
+              <tr>
+                <td><b>Magnolia</b></td>
+                <td><span class="pres"><span class="bar"><i style="width:92%"></i></span>131 menciones</span></td>
+                <td><span class="scenes">esc. 1, 3, 5–9, 14, 16, 20…</span></td>
+                <td><span class="a122-chip chip-aud">En audición</span></td>
+                <td class="muted">(3 candidatas)</td>
+                <td class="muted">—</td>
+                <td class="acts">
+                  <button class="a122-btn--text" title="Extrae las escenas de Magnolia en PDF">Generar side</button>
+                  <button class="a122-iconbtn" title="Editar"><span class="mi">edit</span></button>
+                </td>
+              </tr>
+              <tr>
+                <td><b>Piero</b></td>
+                <td><span class="pres"><span class="bar"><i style="width:41%"></i></span>58 menciones</span></td>
+                <td><span class="scenes">esc. 4–7, 10, 13, 19, 22…</span></td>
+                <td><span class="a122-chip chip-aud">En audición</span></td>
+                <td class="muted">(por definir)</td>
+                <td class="muted">—</td>
+                <td class="acts">
+                  <button class="a122-btn--text" title="Extrae las escenas de Piero en PDF">Generar side</button>
+                  <button class="a122-iconbtn" title="Editar"><span class="mi">edit</span></button>
+                </td>
+              </tr>
+              <tr>
+                <td><b>Frutos</b></td>
+                <td><span class="pres"><span class="bar"><i style="width:23%"></i></span>33 menciones</span></td>
+                <td><span class="scenes">esc. 8, 11, 26, 29…</span></td>
+                <td><span class="a122-chip chip-todo">Por castear</span></td>
+                <td class="muted">—</td>
+                <td class="muted">—</td>
+                <td class="acts">
+                  <button class="a122-btn--text" title="Extrae las escenas de Frutos en PDF">Generar side</button>
+                  <button class="a122-iconbtn" title="Editar"><span class="mi">edit</span></button>
+                </td>
+              </tr>
+              <tr>
+                <td><b>Silverio</b></td>
+                <td><span class="pres"><span class="bar"><i style="width:11%"></i></span>15 menciones</span></td>
+                <td><span class="scenes">esc. 17, 33, 40…</span></td>
+                <td><span class="a122-chip chip-todo">Por castear</span></td>
+                <td class="muted">—</td>
+                <td class="muted">—</td>
+                <td class="acts">
+                  <button class="a122-btn--text" title="Extrae las escenas de Silverio en PDF">Generar side</button>
+                  <button class="a122-iconbtn" title="Editar"><span class="mi">edit</span></button>
+                </td>
+              </tr>
+              <tr>
+                <td><b>Aurora</b></td>
+                <td><span class="pres"><span class="bar"><i style="width:10%"></i></span>14 menciones</span></td>
+                <td><span class="scenes">esc. 21, 28, 35…</span></td>
+                <td><span class="a122-chip chip-todo">Por castear</span></td>
+                <td class="muted">—</td>
+                <td class="muted">—</td>
+                <td class="acts">
+                  <button class="a122-btn--text" title="Extrae las escenas de Aurora en PDF">Generar side</button>
+                  <button class="a122-iconbtn" title="Editar"><span class="mi">edit</span></button>
+                </td>
+              </tr>
+              <tr>
+                <td><b>Vero</b></td>
+                <td><span class="pres"><span class="bar"><i style="width:8%"></i></span>12 menciones</span></td>
+                <td><span class="scenes">esc. 9, 25, 38…</span></td>
+                <td><span class="a122-chip chip-aud">En audición</span></td>
+                <td class="muted">—</td>
+                <td class="muted">—</td>
+                <td class="acts">
+                  <button class="a122-btn--text" title="Extrae las escenas de Vero en PDF">Generar side</button>
+                  <button class="a122-iconbtn" title="Editar"><span class="mi">edit</span></button>
+                </td>
+              </tr>
+              <tr class="is-selected">
+                <td><b>Miss Gloria</b></td>
+                <td><span class="pres"><span class="bar"><i style="width:8%"></i></span>11 menciones</span></td>
+                <td><span class="scenes">esc. 2, 3</span></td>
+                <td><span class="a122-chip chip-todo">Por castear</span></td>
+                <td class="muted">—</td>
+                <td class="muted">—</td>
+                <td class="acts">
+                  <button class="a122-btn--text" title="Extrae las escenas de Miss Gloria en PDF">Generar side</button>
+                  <button class="a122-iconbtn" title="Editar"><span class="mi">edit</span></button>
+                </td>
+              </tr>
+              <tr>
+                <td><b>Miguel</b></td>
+                <td><span class="pres"><span class="bar"><i style="width:6%"></i></span>8 menciones</span></td>
+                <td><span class="scenes">esc. 30, 42…</span></td>
+                <td><span class="a122-chip chip-todo">Por castear</span></td>
+                <td class="muted">—</td>
+                <td class="muted">—</td>
+                <td class="acts">
+                  <button class="a122-btn--text" title="Extrae las escenas de Miguel en PDF">Generar side</button>
+                  <button class="a122-iconbtn" title="Editar"><span class="mi">edit</span></button>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+          <p class="t-caption muted" style="margin-top:var(--px12)">Los personajes se leen del <b>Guión</b> (98 escenas). <b>«Generar side»</b> extrae solo las escenas del personaje. El cast confirmado alimenta el <b>Presupuesto</b> y los <b>Call sheets</b>.</p>
+        </div>
+
+        <!-- Panel de edición (CRUD) — Miss Gloria seleccionada -->
+        <aside class="edit">
+          <div class="edit__head">Editar personaje</div>
+          <div class="edit__body">
+            <div class="headshot" title="Subir headshot del actor">
+              <span class="plus">＋</span><span class="cap">foto</span>
+            </div>
+            <div class="a122-field"><label>Personaje</label><input value="Miss Gloria"></div>
+            <div class="a122-field"><label>Descripción</label><textarea rows="2">Maestra de primaria, 60s, severa</textarea></div>
+            <div class="scene-hl">
+              <span class="lbl">Aparece en escenas</span>
+              <span class="val">2, 3</span>
+            </div>
+            <div class="a122-field"><label>Status</label>
+              <select>
+                <option>Por castear</option>
+                <option>En audición</option>
+                <option>Confirmado</option>
+              </select></div>
+            <div class="a122-field"><label>Actor</label><input placeholder="(por definir)"></div>
+            <div class="a122-field"><label>Contacto</label><input placeholder="Teléfono o email"></div>
+            <div class="a122-field"><label>Tarifa</label><input placeholder="$ por día / fijo"></div>
+            <div class="a122-field a122-field--btn">
+              <button class="a122-btn--outlined" title="Extrae las escenas 2 y 3 (las de Miss Gloria) en PDF para audición">Generar side (esc. 2, 3)</button>
+            </div>
+          </div>
+          <div class="edit__foot">
+            <button class="a122-btn--text">Cancelar</button>
+            <button class="a122-btn">Guardar</button>
+          </div>
+        </aside>
+      </div>
+    </main>
+  </div>
+</body>
+</html>

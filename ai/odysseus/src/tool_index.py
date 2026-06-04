@@ -35,6 +35,11 @@ ALWAYS_AVAILABLE = frozenset({
     # Generic API loopback — the catch-all when no named tool fits.
     "app_api",
 })
+# NOTA (3-jun): buscar_memoria/leer_memoria se PROBARON en ALWAYS_AVAILABLE y
+# rompían el modo agente con el 14b local (forzaba un tool-call que salía VACÍO,
+# 0 tokens, incluso para "hola"). La autonomía de memoria ya la da la INYECCIÓN
+# automática de memoria creativa en chat_processor (siempre activa, probada). Estas
+# tools siguen disponibles vía tool-RAG cuando la consulta lo amerita; no forzadas.
 
 # Tools that the Personal Assistant always has access to during scheduled
 # check-ins and proactive tasks, in addition to RAG-selected tools.
@@ -89,6 +94,12 @@ BUILTIN_TOOL_DESCRIPTIONS: Dict[str, str] = {
     "list_sessions": "List all chats with their metadata (the UI calls these 'chats'). Use for 'list my chats', 'rename all my chats' (list first, then manage_session to rename each).",
     "send_to_session": "Send a message to another chat. Cross-chat communication.",
     "search_chats": "Search through chat history across all sessions.",
+    "buscar_memoria": "Busca en la memoria creativa de Diez50 (proyectos, personajes y perfiles, fichas del autor, metodologia de Rita). Semantica; devuelve fragmentos con su archivo. Usala ANTES de pedirle datos al usuario que podrian estar en la memoria (perfiles de personaje, proyectos, metodos).",
+    "leer_memoria": "Lee el archivo COMPLETO de la memoria creativa por su ruta relativa. Usala despues de buscar_memoria para leer una ficha entera (no solo el fragmento).",
+    "proponer_cambio_memoria": "Registra una PROPUESTA de cambio a la memoria creativa en _cambios/pendientes/ (no toca las fichas reales; el humano revisa y aplica). 'IA ejecuta, no decide'.",
+    "auditar_memoria": "Audita la memoria creativa (solo lectura): archivos, enlaces rotos y fichas huerfanas. Devuelve un informe para proponer arreglos.",
+    "escribir_memoria": "Crea o sobreescribe un .md de la memoria creativa (respalda la version previa). Para cambios que el usuario pidio; para estructurales usa proponer_cambio_memoria.",
+    "editar_memoria": "Edita un .md de la memoria con buscar/reemplazar quirurgico (respalda antes). Para corregir un fragmento sin reescribir todo.",
     "ui_control": "Control the UI and toggle tools on/off. Use this to turn off / turn on / disable / enable individual tools and features: shell (bash), search (web), research, browser, documents, incognito. Open panels (documents library, gallery, email inbox, sessions, notes, memories/brain, skills, settings, cookbook) via `open_panel <name>`. Use `open_email_reply <uid> <folder> reply` to open an email reply draft document without sending. Also switches between chat/agent modes, changes the current model, and applies/creates themes.",
     "list_email_accounts": "List configured email accounts and default status. Use before reading or sending mail when the user mentions Gmail, work mail, custom domain mail, another mailbox, or asks to compare/check multiple inboxes.",
     "list_emails": "List emails for a folder/account, newest first, including read messages by default. Shows subject, sender, date, UID, account, and AI summary. Check inbox, find emails needing replies. Supports account from list_email_accounts for Gmail/work/custom mailboxes. For last/latest/newest email, use max_results=1 and unread_only=false.",

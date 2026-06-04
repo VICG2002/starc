@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <title>Aula 122 — Crew / Equipo (visualización)</title>
+  <link rel="stylesheet" href="./aula122-tokens.css">
+  <style>
+    body{margin:0;background:var(--background)}
+    .muted{color:var(--on-surface-medium)}
+    .a122-appbar .title{flex:none}
+    .tb-field{display:flex;flex-direction:column;gap:2px}
+    .tb-field label{font-size:9px;text-transform:uppercase;letter-spacing:.5px;color:var(--on-surface-medium)}
+    .tb-field input,.tb-field select{border:1px solid var(--divider);border-radius:var(--radius);
+      padding:6px 10px;font-size:var(--fz-body2);background:var(--background)}
+
+    /* Tarjetas de resumen */
+    .summary{display:grid;grid-template-columns:repeat(4,1fr);gap:var(--px16);padding:var(--px16) var(--px24)}
+    .stat{display:flex;flex-direction:column;gap:2px}
+    .stat .big{font-size:var(--fz-h4);font-weight:var(--w-normal);line-height:1}
+    .stat .lbl{font-size:var(--fz-caption);color:var(--on-surface-medium);text-transform:uppercase;letter-spacing:.4px}
+
+    /* Cuerpo: tabla + panel de edición */
+    .body{flex:1;display:flex;min-height:0}
+    .table-wrap{flex:1;overflow:auto;padding:0 var(--px24) var(--px24)}
+    .deptrow td{background:#ededed;font-weight:var(--w-medium);font-size:var(--fz-caption);
+      text-transform:uppercase;letter-spacing:.5px;color:#555}
+    .a122-table td .warn{font-size:9px;color:var(--error);display:block}
+    .acts{display:flex;gap:2px}
+
+    /* Panel de edición (drawer derecho) */
+    .edit{width:320px;flex:none;border-left:1px solid var(--divider);background:var(--surface);
+      display:flex;flex-direction:column}
+    .edit__head{padding:var(--px12) var(--px16);border-bottom:1px solid var(--divider);
+      font-weight:var(--w-medium);display:flex;align-items:center}
+    .edit__body{flex:1;overflow:auto;padding:var(--px16);display:flex;flex-direction:column;gap:var(--px12)}
+    .edit__foot{padding:var(--px12) var(--px16);border-top:1px solid var(--divider);display:flex;gap:var(--px8);justify-content:flex-end}
+    .seg{display:inline-flex;border:1px solid var(--divider);border-radius:var(--radius);overflow:hidden}
+    .seg button{border:0;background:transparent;padding:6px 12px;cursor:pointer;font-size:var(--fz-caption);color:var(--on-surface-medium)}
+    .seg button.is-active{background:var(--selected);color:#2f6fd6;font-weight:var(--w-medium)}
+  </style>
+</head>
+<body>
+  <div class="a122-shell">
+
+    <!-- NAVEGACIÓN (orden de Victor — #4 activo) -->
+    <nav class="a122-nav">
+      <div class="a122-nav__brand"><span class="mi">movie</span> <b>Aula&nbsp;122</b></div>
+      <div class="muted" style="padding:0 var(--px16) var(--px8);font-size:var(--fz-caption)">El Encuentro de los Perdidos</div>
+      <div class="a122-nav__group">Proyecto</div>
+      <div class="a122-nav__item"><span class="ico"><span class="mi">folder</span></span> Proyectos</div>
+      <div class="a122-nav__item"><span class="ico"><span class="mi">save</span></span> Guardar / Exportar</div>
+      <div class="a122-nav__item"><span class="ico"><span class="mi">psychology</span></span> Personajes</div>
+      <div class="a122-nav__group">Pipeline de la película</div>
+      <div class="a122-nav__item is-soon"><span class="num">1</span><span class="ico"><span class="mi">lightbulb</span></span> Idea <span class="st soon">próximo</span></div>
+      <div class="a122-nav__item"><span class="num">2</span><span class="ico"><span class="mi">edit_document</span></span> Guión <span class="st ok">existe</span></div>
+      <div class="a122-nav__item"><span class="num">3</span><span class="ico"><span class="mi">checklist</span></span> Desglose <span class="st ok">existe</span></div>
+      <div class="a122-nav__item is-active"><span class="num">4</span><span class="ico"><span class="mi">groups</span></span> Crew / Equipo <span class="st wip">en diseño</span></div>
+      <div class="a122-nav__item is-soon"><span class="num">5</span><span class="ico"><span class="mi">payments</span></span> Presupuesto <span class="st soon">próximo</span></div>
+      <div class="a122-nav__item is-soon"><span class="num">6</span><span class="ico"><span class="mi">theaters</span></span> Shot list / Storyboard <span class="st soon">próximo</span></div>
+      <div class="a122-nav__item is-soon"><span class="num">7</span><span class="ico"><span class="mi">location_on</span></span> Locaciones <span class="st soon">próximo</span></div>
+      <div class="a122-nav__item is-soon"><span class="num">8</span><span class="ico"><span class="mi">theater_comedy</span></span> Casting <span class="st soon">próximo</span></div>
+      <div class="a122-nav__item"><span class="num">9</span><span class="ico"><span class="mi">calendar_month</span></span> Plan de rodaje <span class="st ok">existe</span></div>
+      <div class="a122-nav__item"><span class="num">10</span><span class="ico"><span class="mi">description</span></span> Call sheet <span class="st wip">diseñado</span></div>
+      <div class="a122-nav__group">&nbsp;</div>
+      <div class="a122-nav__item"><span class="ico"><span class="mi">settings</span></span> Ajustes</div>
+    </nav>
+
+    <!-- ÁREA PRINCIPAL = gestor de crew -->
+    <main class="a122-main">
+
+      <!-- App-bar de la sección -->
+      <div class="a122-appbar">
+        <span class="title">Crew / Equipo</span>
+        <span class="spacer"></span>
+        <div class="tb-field"><label>Buscar</label><input placeholder="Nombre o puesto…" style="width:160px"></div>
+        <div class="tb-field"><label>Departamento</label>
+          <select><option>Todos</option><option>Dirección</option><option>Cámara</option><option>Sonido</option><option>Arte</option><option>Producción</option></select></div>
+        <button class="a122-btn--outlined" title="Exporta la lista del crew en carta horizontal">Exportar lista (carta ↔)</button>
+        <button class="a122-btn">+ Añadir persona</button>
+      </div>
+
+      <!-- Resumen (visibilidad de estado: tamaño y costo del equipo) -->
+      <div class="summary">
+        <div class="a122-card stat"><span class="big">14</span><span class="lbl">Personas</span></div>
+        <div class="a122-card stat"><span class="big">6</span><span class="lbl">Departamentos</span></div>
+        <div class="a122-card stat"><span class="big">9 / 5</span><span class="lbl">Fijos / Por día</span></div>
+        <div class="a122-card stat"><span class="big">$24,800</span><span class="lbl">Costo estimado / día</span></div>
+      </div>
+
+      <!-- Tabla (agrupada por departamento) + panel de edición -->
+      <div class="body">
+        <div class="table-wrap">
+          <table class="a122-table">
+            <thead><tr><th>Nombre</th><th>Puesto</th><th style="width:90px">Tipo</th><th style="width:96px">Tarifa/día</th><th style="width:64px">Walkie</th><th>Contacto</th><th style="width:72px">Acciones</th></tr></thead>
+            <tbody>
+              <tr class="deptrow"><td colspan="7">Dirección</td></tr>
+              <tr><td>Víctor Correa</td><td>Director</td><td><span class="a122-chip chip-manual">Fijo</span></td><td>—</td><td>1</td><td>vic@diez50.mx</td>
+                <td class="acts"><button class="a122-iconbtn" title="Editar"><span class="mi">edit</span></button><button class="a122-iconbtn" title="Borrar"><span class="mi">delete</span></button></td></tr>
+              <tr><td>M. Ríos</td><td>1st AD</td><td><span class="a122-chip chip-manual">Fijo</span></td><td>$1,800</td><td>1</td><td>55 1111 2222</td>
+                <td class="acts"><button class="a122-iconbtn" title="Editar"><span class="mi">edit</span></button><button class="a122-iconbtn" title="Borrar"><span class="mi">delete</span></button></td></tr>
+
+              <tr class="deptrow"><td colspan="7">Cámara</td></tr>
+              <tr class="is-selected"><td>Ana Ruiz</td><td>DP</td><td><span class="a122-chip chip-manual">Fijo</span></td><td>$3,500</td><td>2</td><td>55 9999 0000</td>
+                <td class="acts"><button class="a122-iconbtn" title="Editar"><span class="mi">edit</span></button><button class="a122-iconbtn" title="Borrar · asignada a 8 días"><span class="mi">delete</span></button></td></tr>
+              <tr><td>J. Mora</td><td>1st AC</td><td><span class="a122-chip chip-auto">Por día</span></td><td>$1,500</td><td>2</td><td>55 2222 3333</td>
+                <td class="acts"><button class="a122-iconbtn" title="Editar"><span class="mi">edit</span></button><button class="a122-iconbtn" title="Borrar"><span class="mi">delete</span></button></td></tr>
+
+              <tr class="deptrow"><td colspan="7">Sonido</td></tr>
+              <tr><td>Beto Lima</td><td>Sonidista</td><td><span class="a122-chip chip-auto">Por día</span></td><td class="needs"><span class="tag-falta">Falta tarifa</span></td><td>3</td><td>55 0000 1111</td>
+                <td class="acts"><button class="a122-iconbtn" title="Editar"><span class="mi">edit</span></button><button class="a122-iconbtn" title="Borrar"><span class="mi">delete</span></button></td></tr>
+
+              <tr class="deptrow"><td colspan="7">Arte</td></tr>
+              <tr><td>Sofía Cruz</td><td>Directora de arte</td><td><span class="a122-chip chip-manual">Fijo</span></td><td>$2,400</td><td>4</td><td>55 4444 5555</td>
+                <td class="acts"><button class="a122-iconbtn" title="Editar"><span class="mi">edit</span></button><button class="a122-iconbtn" title="Borrar"><span class="mi">delete</span></button></td></tr>
+            </tbody>
+          </table>
+          <p class="t-caption muted" style="margin-top:var(--px12)">El crew <b>Fijo</b> aparece automático en cada call sheet. Borrar pide confirmación y avisa si la persona está asignada a días de rodaje (se puede deshacer).</p>
+        </div>
+
+        <!-- Panel de edición (CRUD) -->
+        <aside class="edit">
+          <div class="edit__head">Editar persona</div>
+          <div class="edit__body">
+            <div class="a122-field"><label>Nombre *</label><input value="Ana Ruiz"></div>
+            <div class="a122-field"><label>Departamento *</label>
+              <select><option>Cámara</option><option>Dirección</option><option>Sonido</option><option>Arte</option><option>Producción</option><option>+ Nuevo departamento…</option></select></div>
+            <div class="a122-field"><label>Puesto</label><input value="DP (Director de fotografía)"></div>
+            <div class="a122-field"><label>Tipo</label>
+              <span class="seg"><button class="is-active">Fijo todo el rodaje</button><button>Por día</button></span></div>
+            <div class="a122-field"><label>Tarifa / día</label><input value="$3,500"></div>
+            <div class="a122-field"><label>Teléfono</label><input value="55 9999 0000"></div>
+            <div class="a122-field"><label>Email</label><input value="ana@ejemplo.mx"></div>
+            <div class="a122-field"><label>Canal walkie</label><input value="2"></div>
+            <div class="a122-field"><label>Notas</label><textarea rows="2" placeholder="Equipo propio, disponibilidad, etc."></textarea></div>
+          </div>
+          <div class="edit__foot">
+            <button class="a122-btn--text">Cancelar</button>
+            <button class="a122-btn">Guardar</button>
+          </div>
+        </aside>
+      </div>
+    </main>
+  </div>
+</body>
+</html>

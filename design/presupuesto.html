@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <title>Aula 122 — Presupuesto (real EDLP)</title>
+  <link rel="stylesheet" href="./aula122-tokens.css">
+  <style>
+    body{margin:0;background:var(--background)}
+    .muted{color:var(--on-surface-medium)}
+
+    .summary{display:grid;grid-template-columns:repeat(4,1fr);gap:var(--px16);padding:var(--px16) var(--px24) var(--px8)}
+    .stat{display:flex;flex-direction:column;gap:2px}
+    .stat .big{font-size:var(--fz-h4);font-weight:var(--w-normal);line-height:1;font-variant-numeric:tabular-nums}
+    .stat .lbl{font-size:var(--fz-caption);color:var(--on-surface-medium);text-transform:uppercase;letter-spacing:.4px}
+    .stat .sub{font-size:var(--fz-caption);color:var(--on-surface-medium)}
+
+    /* Fuentes de financiamiento */
+    .fin{display:flex;gap:var(--px8);align-items:stretch;margin:var(--px8) var(--px24) 0;font-size:var(--fz-caption)}
+    .fin .src{flex:none;padding:var(--px8) var(--px12);border-radius:var(--radius);color:#fff}
+    .fin .src b{display:block;font-size:var(--fz-body2);font-variant-numeric:tabular-nums}
+    .f-focine{background:#1565c0}.f-centro{background:#37474f}.f-aport{background:#6a1b9a}.f-crowd{background:#2e7d32}
+
+    .table-wrap{flex:1;overflow:auto;padding:var(--px8) var(--px24) 96px}
+    table.budget{width:100%;border-collapse:collapse;font-size:var(--fz-body2)}
+    table.budget th{text-align:left;font-size:var(--fz-caption);text-transform:uppercase;letter-spacing:.4px;
+      color:var(--on-surface-medium);padding:var(--px8);border-bottom:1px solid var(--divider)}
+    table.budget td{padding:6px var(--px8);border-bottom:1px solid var(--divider)}
+    .num{text-align:right;font-variant-numeric:tabular-nums}
+    .cta{color:var(--on-surface-medium);font-variant-numeric:tabular-nums;width:54px}
+    .blockrow td{background:var(--primary);color:var(--on-primary);font-weight:var(--w-medium);text-transform:uppercase;letter-spacing:.5px;font-size:var(--fz-caption)}
+    .subrow td{background:#fafbfc;color:var(--on-surface-medium);font-size:var(--fz-caption);border-bottom:1px dashed var(--divider)}
+    .subrow td:first-child{padding-left:var(--px24)}
+    .tot td{font-weight:var(--w-medium);background:#eef0f4}
+
+    .totalbar{position:fixed;bottom:0;left:252px;right:0;display:flex;align-items:center;gap:var(--px24);
+      background:var(--primary);color:var(--on-primary);padding:var(--px12) var(--px24);box-shadow:var(--shadow-2)}
+    .totalbar .spacer{flex:1}
+    .totalbar .grand{font-size:var(--fz-h5);font-weight:var(--w-medium);font-variant-numeric:tabular-nums}
+    .totalbar .foc{color:#90caf9;font-variant-numeric:tabular-nums}
+  </style>
+</head>
+<body>
+  <div class="a122-shell">
+
+    <!-- NAVEGACIÓN (iconos Material, sin emojis — #5 activo) -->
+    <nav class="a122-nav">
+      <div class="a122-nav__brand"><span class="mi" style="font-size:22px">movie</span> <b>Aula&nbsp;122</b></div>
+      <div class="muted" style="padding:0 var(--px16) var(--px8);font-size:var(--fz-caption)">El Encuentro de los Perdidos · 70 min · Guadalajara</div>
+      <div class="a122-nav__group">Proyecto</div>
+      <div class="a122-nav__item"><span class="ico mi">folder</span> Proyectos</div>
+      <div class="a122-nav__item"><span class="ico mi">save</span> Guardar / Exportar</div>
+      <div class="a122-nav__group">Pipeline de la película</div>
+      <div class="a122-nav__item"><span class="num">1</span><span class="ico mi">lightbulb</span> Idea <span class="st wip">en diseño</span></div>
+      <div class="a122-nav__item"><span class="num">2</span><span class="ico mi">edit_document</span> Guión <span class="st ok">existe</span></div>
+      <div class="a122-nav__item"><span class="num">3</span><span class="ico mi">checklist</span> Desglose <span class="st ok">existe</span></div>
+      <div class="a122-nav__item"><span class="num">4</span><span class="ico mi">groups</span> Crew / Equipo <span class="st wip">en diseño</span></div>
+      <div class="a122-nav__item is-active"><span class="num">5</span><span class="ico mi">payments</span> Presupuesto <span class="st wip">real</span></div>
+      <div class="a122-nav__item"><span class="num">6</span><span class="ico mi">theaters</span> Shot list / Storyboard <span class="st wip">en diseño</span></div>
+      <div class="a122-nav__item"><span class="num">7</span><span class="ico mi">location_on</span> Locaciones <span class="st wip">en diseño</span></div>
+      <div class="a122-nav__item"><span class="num">8</span><span class="ico mi">theater_comedy</span> Casting <span class="st wip">en diseño</span></div>
+      <div class="a122-nav__item"><span class="num">9</span><span class="ico mi">calendar_month</span> Plan de rodaje <span class="st ok">existe</span></div>
+      <div class="a122-nav__item"><span class="num">10</span><span class="ico mi">description</span> Call sheet <span class="st wip">diseñado</span></div>
+      <div class="a122-nav__group">&nbsp;</div>
+      <div class="a122-nav__item"><span class="ico mi">settings</span> Ajustes</div>
+    </nav>
+
+    <main class="a122-main">
+
+      <div class="a122-appbar">
+        <span class="title">Presupuesto</span>
+        <span class="muted t-body2">· MXN · IVA 16%</span>
+        <span class="spacer"></span>
+        <button class="a122-btn--text" title="Importado de 8. Presupuesto_EEDLP.pdf">Importado del PDF real</button>
+        <button class="a122-btn--outlined">Exportar (CSV / PDF)</button>
+        <button class="a122-btn">+ Añadir partida</button>
+      </div>
+
+      <!-- Resumen real -->
+      <div class="summary">
+        <div class="a122-card stat"><span class="big">$1,500,000</span><span class="lbl">Gran total</span></div>
+        <div class="a122-card stat"><span class="big">$1,162,129</span><span class="lbl">FOCINE solicitado</span><span class="sub">77.5% del total</span></div>
+        <div class="a122-card stat"><span class="big">$337,871</span><span class="lbl">Otras fuentes</span><span class="sub">Centro + aportaciones + crowdfunding</span></div>
+        <div class="a122-card stat"><span class="big">4</span><span class="lbl">Bloques · 31 cuentas</span></div>
+      </div>
+
+      <!-- Fuentes de financiamiento (las columnas de color del doc real) -->
+      <div class="fin">
+        <div class="src f-focine">FOCINE<b>$1,162,129</b></div>
+        <div class="src f-centro">Centro Diseño, Cine y TV<b>$223,484</b></div>
+        <div class="src f-aport">Aportaciones (propia + terceros)<b>$67,767</b></div>
+        <div class="src f-crowd">Crowdfunding<b>$46,620</b></div>
+      </div>
+
+      <!-- Top sheet real (cuentas 1000–4000) -->
+      <div class="table-wrap">
+        <table class="budget">
+          <thead><tr><th class="cta">Cta</th><th>Concepto</th><th style="width:140px" class="num">Total MXN</th><th style="width:140px" class="num">FOCINE</th><th style="width:160px">Origen</th></tr></thead>
+          <tbody>
+            <!-- ARRIBA DE LA LÍNEA -->
+            <tr class="blockrow"><td colspan="2">Arriba de la línea</td><td class="num">$253,779</td><td class="num">$238,376</td><td></td></tr>
+            <tr><td class="cta">1000</td><td>Desarrollo</td><td class="num">$5,104</td><td class="num">—</td><td class="muted">Manual</td></tr>
+            <tr><td class="cta">1100</td><td>Guión y derechos</td><td class="num">$10,299</td><td class="num">—</td><td class="muted">Manual</td></tr>
+            <tr><td class="cta">1200</td><td>Productores</td><td class="num">$60,000</td><td class="num">$60,000</td><td class="muted">Manual</td></tr>
+            <tr><td class="cta">1300</td><td>Directores</td><td class="num">$35,000</td><td class="num">$35,000</td><td class="muted">Manual</td></tr>
+            <tr><td class="cta">1400</td><td>▾ Cast</td><td class="num">$143,376</td><td class="num">$143,376</td><td><span class="a122-chip chip-auto">← Casting</span></td></tr>
+              <tr class="subrow"><td></td><td>Román (estelar)</td><td class="num">$20,000</td><td class="num">$20,000</td><td>← Casting</td></tr>
+              <tr class="subrow"><td></td><td>Magnolia (estelar)</td><td class="num">$17,000</td><td class="num">$17,000</td><td>← Casting</td></tr>
+              <tr class="subrow"><td></td><td>Román niño (2ª parte)</td><td class="num">$17,400</td><td class="num">$17,400</td><td>← Casting</td></tr>
+              <tr class="subrow"><td></td><td>Piero (1ª parte)</td><td class="num">$15,000</td><td class="num">$15,000</td><td>← Casting</td></tr>
+              <tr class="subrow"><td></td><td>Magnolia niña (2ª parte)</td><td class="num">$13,920</td><td class="num">$13,920</td><td>← Casting</td></tr>
+              <tr class="subrow"><td></td><td>Frutos (1ª parte)</td><td class="num">$11,000</td><td class="num">$11,000</td><td>← Casting</td></tr>
+              <tr class="subrow"><td></td><td>Vero · Aurora (2ª parte)</td><td class="num">$16,240</td><td class="num">$16,240</td><td>← Casting</td></tr>
+              <tr class="subrow"><td></td><td>Miss Gloria · Miguel (3ª parte)</td><td class="num">$6,540</td><td class="num">$6,540</td><td>← Casting</td></tr>
+              <tr class="subrow"><td></td><td>Dirección + proceso de casting</td><td class="num">$14,500</td><td class="num">$14,500</td><td>Manual</td></tr>
+
+            <!-- GASTOS DE PRODUCCIÓN -->
+            <tr class="blockrow"><td colspan="2">Gastos de producción</td><td class="num">$1,082,473</td><td class="num">$870,509</td><td></td></tr>
+            <tr><td class="cta">1500</td><td>Personal de producción</td><td class="num">$90,260</td><td class="num">$84,460</td><td><span class="a122-chip chip-auto">← Equipo</span></td></tr>
+            <tr><td class="cta">1600</td><td>Personal de dirección</td><td class="num">$36,540</td><td class="num">$36,540</td><td><span class="a122-chip chip-auto">← Equipo</span></td></tr>
+            <tr><td class="cta">1700</td><td>Extras</td><td class="num">$49,300</td><td class="num">$49,300</td><td class="muted">Manual</td></tr>
+            <tr><td class="cta">1800</td><td>Personal de arte y construcción</td><td class="num">$69,020</td><td class="num">$69,020</td><td><span class="a122-chip chip-auto">← Equipo</span></td></tr>
+            <tr><td class="cta">1900</td><td>Construcción y ambientación</td><td class="num">$35,032</td><td class="num">$35,032</td><td class="muted">Manual</td></tr>
+            <tr><td class="cta">2000</td><td>Utilería</td><td class="num">$25,031</td><td class="num">$25,031</td><td class="muted">← Desglose</td></tr>
+            <tr><td class="cta">2100</td><td>Carros de acción</td><td class="num">$19,314</td><td class="num">$19,314</td><td class="muted">Manual</td></tr>
+            <tr><td class="cta">2200</td><td>Personal de vestuario</td><td class="num">$29,812</td><td class="num">$29,812</td><td><span class="a122-chip chip-auto">← Equipo</span></td></tr>
+            <tr><td class="cta">2300</td><td>Gastos de vestuario</td><td class="num">$34,336</td><td class="num">$34,336</td><td class="muted">Manual</td></tr>
+            <tr><td class="cta">2400</td><td>Maquillaje y peinado</td><td class="num">$27,202</td><td class="num">$27,202</td><td class="muted">Manual</td></tr>
+            <tr><td class="cta">2500</td><td>Iluminación y tramoya</td><td class="num">$46,980</td><td class="num">$46,980</td><td class="muted">Manual</td></tr>
+            <tr><td class="cta">2600</td><td>Cámara</td><td class="num">$64,380</td><td class="num">$64,380</td><td class="muted">Manual</td></tr>
+            <tr><td class="cta">2700</td><td>Equipo de filmación</td><td class="num">$195,260</td><td class="num">$5,800</td><td class="muted">Manual · especie</td></tr>
+            <tr><td class="cta">2800</td><td>Sonido</td><td class="num">$46,168</td><td class="num">$46,168</td><td class="muted">Manual</td></tr>
+            <tr><td class="cta">2900</td><td>Transportación</td><td class="num">$34,278</td><td class="num">$34,278</td><td class="muted">Manual</td></tr>
+            <tr><td class="cta">3000</td><td>Locaciones</td><td class="num">$61,364</td><td class="num">$61,364</td><td><span class="a122-chip chip-auto">← Locaciones</span></td></tr>
+            <tr><td class="cta">3100</td><td>Efectos especiales</td><td class="num">$2,668</td><td class="num">$2,668</td><td class="muted">Manual</td></tr>
+            <tr><td class="cta">3200</td><td>Animales en set</td><td class="num">$2,088</td><td class="num">$2,088</td><td class="muted">Manual</td></tr>
+            <tr><td class="cta">3300</td><td>Set Operations</td><td class="num">$213,440</td><td class="num">$196,736</td><td class="muted">Manual</td></tr>
+
+            <!-- POST PRODUCCIÓN -->
+            <tr class="blockrow"><td colspan="2">Post producción</td><td class="num">$117,624</td><td class="num">$45,240</td><td></td></tr>
+            <tr><td class="cta">3400</td><td>Post producción edición e imagen</td><td class="num">$79,344</td><td class="num">$31,320</td><td class="muted">Manual</td></tr>
+            <tr><td class="cta">3500</td><td>Post producción de sonido</td><td class="num">$23,200</td><td class="num">$13,920</td><td class="muted">Manual</td></tr>
+            <tr><td class="cta">3600</td><td>Música original</td><td class="num">$8,120</td><td class="num">—</td><td class="muted">Manual</td></tr>
+            <tr><td class="cta">3700</td><td>Animación</td><td class="num">$6,960</td><td class="num">—</td><td class="muted">Manual</td></tr>
+
+            <!-- OTROS GASTOS -->
+            <tr class="blockrow"><td colspan="2">Otros gastos</td><td class="num">$46,124</td><td class="num">$8,004</td><td></td></tr>
+            <tr><td class="cta">3800</td><td>Seguro</td><td class="num">$30,000</td><td class="num">—</td><td class="muted">Manual</td></tr>
+            <tr><td class="cta">3900</td><td>Auditoría y legal</td><td class="num">$15,000</td><td class="num">$6,960</td><td class="muted">Manual</td></tr>
+            <tr><td class="cta">4000</td><td>Gastos financieros</td><td class="num">$1,044</td><td class="num">$1,044</td><td class="muted">Manual</td></tr>
+
+            <tr class="tot"><td></td><td>GRAN TOTAL</td><td class="num">$1,500,000</td><td class="num">$1,162,129</td><td></td></tr>
+          </tbody>
+        </table>
+        <p class="t-caption muted" style="margin-top:var(--px12)">Estructura y cifras importadas de <b>8. Presupuesto_EEDLP.pdf</b> (paquete Ópera Prima). Totales con IVA 16% incluido. Las partidas <b>Auto</b> (Cast, personal, locaciones) se recalculan desde Casting / Equipo / Locaciones; el reparto muestra las tarifas reales por personaje. La columna FOCINE marca qué cubre el fondo vs. otras fuentes.</p>
+      </div>
+
+      <div class="totalbar">
+        <span class="muted" style="color:#cfd2d6">31 cuentas · 4 bloques</span>
+        <span class="foc">FOCINE $1,162,129 (77.5%)</span>
+        <span class="spacer"></span>
+        <span>GRAN TOTAL</span>
+        <span class="grand">$1,500,000</span>
+      </div>
+    </main>
+  </div>
+</body>
+</html>

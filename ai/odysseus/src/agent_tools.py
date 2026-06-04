@@ -53,6 +53,13 @@ TOOL_TAGS = {"bash", "python", "web_search", "web_fetch", "read_file", "write_fi
              "search_hf_models", "list_cached_models",
              "list_serve_presets", "serve_preset", "adopt_served_model",
              "list_cookbook_servers",
+             # Memoria creativa (Rita): búsqueda + stewardship. SIN estas
+             # entradas, las llamadas nativas a buscar_memoria/leer_memoria/etc.
+             # se rechazan como "Unknown function call" ANTES de llegar al
+             # dispatcher — el modelo "dice" que busca pero la llamada nunca
+             # corre (causa de "no obtengo respuestas útiles").
+             "buscar_memoria", "leer_memoria", "proponer_cambio_memoria",
+             "auditar_memoria", "escribir_memoria", "editar_memoria",
              # Other tools the agent reaches for that were also missing.
              "edit_image", "trigger_research", "manage_research",
              # Generic loopback to any UI-button endpoint (cookbook,

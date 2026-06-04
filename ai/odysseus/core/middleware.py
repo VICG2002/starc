@@ -60,6 +60,9 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
         is_tool_render = path.startswith("/api/tools/") and path.endswith("/render")
         # Visual report pages are self-contained HTML — need inline scripts + external images
         is_report = path.startswith("/api/research/report/")
+        # Páginas de Aula 122 (Guion, etc.): se muestran en un iframe DENTRO del propio
+        # SPA, así que deben permitir framing por el MISMO origen (no DENY).
+        is_aula122 = path.startswith("/static/aula122/")
 
         response.headers["X-Content-Type-Options"] = "nosniff"
         response.headers["Referrer-Policy"] = "no-referrer"
@@ -79,6 +82,14 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
             # sandbox="allow-scripts" attribute provides isolation.
             # Don't overwrite the route's own restrictive CSP either.
             pass
+        elif is_aula122:
+            # Framable por el mismo origen (el SPA lo embebe); JS/CSS propios + API local.
+            response.headers["X-Frame-Options"] = "SAMEORIGIN"
+            response.headers["Content-Security-Policy"] = (
+                "default-src 'self'; script-src 'self'; "
+                "style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; "
+                "font-src 'self'; connect-src 'self'; frame-ancestors 'self'"
+            )
         else:
             response.headers["X-Frame-Options"] = "DENY"
             # NOTE: `style-src 'unsafe-inline'` is intentionally retained.

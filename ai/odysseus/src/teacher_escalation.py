@@ -229,15 +229,51 @@ portable across users / hosts.
 """
 
 
-async def _call_teacher(teacher_model_spec: str, prompt: str) -> Optional[str]:
-    """Call the configured teacher endpoint with the escalation prompt."""
-    from src.llm_core import llm_call_async
-    from src.ai_interaction import _resolve_model, _TEACHER_SYSTEM_PROMPT
+def _probe_served_model(chat_completions_url: str) -> str:
+    """Best-effort: ask an OpenAI-compatible endpoint which model it serves.
+
+    llama-server ignores the request `model` field (it serves the single
+    loaded model), but we still pass a real id for logging/metrics so the
+    self-teacher is robust whether the user is running the 7B or the 14B.
+    Returns "local" if the probe fails.
+    """
     try:
-        url, model, headers = _resolve_model(teacher_model_spec)
-    except Exception as e:
-        logger.warning(f"teacher endpoint not resolvable ({teacher_model_spec!r}): {e}")
-        return None
+        import httpx
+        base = (chat_completions_url or "").split("/chat/completions")[0].rstrip("/")
+        if not base:
+            return "local"
+        r = httpx.get(base + "/models", timeout=3.0)
+        if r.is_success:
+            data = (r.json() or {}).get("data") or []
+            if data and isinstance(data, list) and isinstance(data[0], dict) and data[0].get("id"):
+                return data[0]["id"]
+    except Exception:
+        pass
+    return "local"
+
+
+def _resolve_teacher(teacher_spec: str, student_endpoint_url: str = ""):
+    """Resolve the teacher to (url, model, headers).
+
+    SELF-TEACHER: when no separate `teacher_model` is configured, the student's
+    own LOCAL endpoint becomes the teacher — a second attempt with more
+    test-time compute plus skill capture. 100% local (no cloud, no Claude) and
+    robust to model switches (no pinned model name). Only reached when the
+    escalation loop is enabled and a turn was flagged as a failure.
+    """
+    teacher_spec = (teacher_spec or "").strip()
+    if not teacher_spec:
+        if not student_endpoint_url:
+            raise ValueError("self-teacher needs the student endpoint")
+        return student_endpoint_url, _probe_served_model(student_endpoint_url), {}
+    from src.ai_interaction import _resolve_model
+    return _resolve_model(teacher_spec)
+
+
+async def _call_teacher_resolved(url, model, headers, prompt) -> Optional[str]:
+    """Call an already-resolved teacher endpoint with the escalation prompt."""
+    from src.llm_core import llm_call_async
+    from src.ai_interaction import _TEACHER_SYSTEM_PROMPT
     try:
         return await llm_call_async(
             url, model,
@@ -245,12 +281,22 @@ async def _call_teacher(teacher_model_spec: str, prompt: str) -> Optional[str]:
                 {"role": "system", "content": _TEACHER_SYSTEM_PROMPT},
                 {"role": "user", "content": prompt},
             ],
-            headers=headers,
+            headers=headers or {},
             timeout=120,
         )
     except Exception as e:
         logger.warning(f"teacher call failed: {e}")
         return None
+
+
+async def _call_teacher(teacher_model_spec: str, prompt: str) -> Optional[str]:
+    """Call the configured teacher endpoint with the escalation prompt."""
+    try:
+        url, model, headers = _resolve_teacher(teacher_model_spec)
+    except Exception as e:
+        logger.warning(f"teacher endpoint not resolvable ({teacher_model_spec!r}): {e}")
+        return None
+    return await _call_teacher_resolved(url, model, headers, prompt)
 
 
 # Prompt used AFTER the teacher itself ran and succeeded — distill the
@@ -495,8 +541,8 @@ async def run_teacher_inline(
         if not get_setting("teacher_enabled", False):
             return
         teacher_spec = (get_setting("teacher_model", "") or "").strip()
-        if not teacher_spec:
-            return
+        # teacher_spec vacío ⇒ self-teacher: el propio endpoint local del
+        # estudiante hace de maestro (segundo intento + captura de skill).
     except Exception:
         return
 
@@ -520,10 +566,9 @@ async def run_teacher_inline(
             )
         break
 
-    # Resolve teacher endpoint
+    # Resolve teacher endpoint (self-teacher = student's own local endpoint)
     try:
-        from src.ai_interaction import _resolve_model
-        teacher_url, teacher_model, teacher_headers = _resolve_model(teacher_spec)
+        teacher_url, teacher_model, teacher_headers = _resolve_teacher(teacher_spec, student_endpoint_url)
     except Exception as e:
         logger.warning(f"teacher endpoint not resolvable ({teacher_spec!r}): {e}")
         yield (
@@ -538,7 +583,7 @@ async def run_teacher_inline(
     yield (
         'data: ' + json.dumps({
             "type": "teacher_takeover",
-            "teacher_model": teacher_spec,
+            "teacher_model": teacher_spec or f"modelo local · {teacher_model}",
             "student_failure": reason,
         }) + '\n\n'
     )
@@ -617,7 +662,7 @@ async def run_teacher_inline(
         untrusted_trace_guard=_UNTRUSTED_TRACE_GUARD,
         trace=_format_trace(captured_tool_events, teacher_text),
     )
-    skill_response = await _call_teacher(teacher_spec, prompt)
+    skill_response = await _call_teacher_resolved(teacher_url, teacher_model, teacher_headers, prompt)
     if skill_response and "NO_SKILL" in skill_response and not _extract_skill_json(skill_response):
         logger.info("teacher declined to write a skill (NO_SKILL)")
         yield (

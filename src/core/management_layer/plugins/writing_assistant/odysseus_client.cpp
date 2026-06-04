@@ -259,11 +259,22 @@ void OdysseusClient::postChatStream(const QString& _prompt)
     form.addQueryItem(QStringLiteral("message"), message);
     form.addQueryItem(QStringLiteral("session"), m_sessionId);
     form.addQueryItem(QStringLiteral("mode"), QStringLiteral("agent"));
-    // Sin shell: el agente sólo necesita las tools MCP de Aula 122.
+    // Sin shell: confunde al modelo local y no aporta al caso de uso.
     form.addQueryItem(QStringLiteral("allow_bash"), QStringLiteral("false"));
-    // Perfil "solo-MCP": odysseus desactiva las tools nativas y deja sólo las del
-    // servidor aula122-mcp, para que el modelo local elija de un menú chico y fiable.
+    // Scouting/referencias: habilita web_search/web_fetch (el preset de Rita los pide).
+    form.addQueryItem(QStringLiteral("allow_web_search"), QStringLiteral("true"));
+    // Perfil de proyecto: odysseus mantiene las tools MCP del .starc MÁS una lista
+    // blanca de ejecución mecánica (crear documentos, calendario, tareas, memoria,
+    // imágenes, web) — menú chico y fiable para el modelo local, con el que Odiseo
+    // PRODUCE entregables. Las acciones externas o irreversibles (enviar/borrar
+    // correo, servir modelos, escribir el .starc real) quedan FUERA de la lista.
     form.addQueryItem(QStringLiteral("mcp_only"), QStringLiteral("true"));
+    // Conocimiento de Rita (Fase 2): el preset "rita" inyecta en cada turno la
+    // identidad de Odiseo + la metodología de preproducción + el principio rector
+    // ("IA ejecuta, no decide"); el RAG (data/rag, embeddings locales) recupera el
+    // método del playbook como contexto. Ambos operan en modo agente + mcp_only.
+    form.addQueryItem(QStringLiteral("preset_id"), QStringLiteral("rita"));
+    form.addQueryItem(QStringLiteral("use_rag"), QStringLiteral("true"));
     const QByteArray body = form.toString(QUrl::FullyEncoded).toUtf8();
 
     QNetworkReply* reply = m_net->post(req, body);

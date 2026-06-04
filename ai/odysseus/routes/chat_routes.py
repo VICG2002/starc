@@ -385,37 +385,23 @@ def setup_chat_routes(
 
         # Build disabled-tools set from frontend toggles + user privileges
         disabled_tools = set()
-        # Aula 122: las tools internas de odysseus (llamar su propia REST API /
-        # gestionar modelos servidos) confunden la selección del modelo local en
-        # queries de proyecto (el 14b elegía `app_api` → 403 en vez de la MCP) y no
-        # aportan ni al caso de uso de Aula 122 ni al futuro asistente de código.
-        # Se desactivan para favorecer las tools MCP del servidor `aula122-mcp`.
-        disabled_tools.update({"app_api", "api_call", "list_served_models", "stop_served_model"})
+        # Aula 122 "config COMPLETAMENTE LIBRE" (decisión del usuario, 3-jun):
+        # NO recortamos las tools. Odiseo conserva TODAS sus capacidades
+        # (app_api, cookbook serve/stop, python, file ops, docs, imágenes, web,
+        # MCP del proyecto…). El agent loop ya elige las relevantes por tool-RAG y
+        # el contexto a 16384 da holgura, así que el menú grande no lo confunde.
+        # (Antes se desactivaban app_api/list_served_models/stop_served_model + un
+        # whitelist bajo mcp_only — ESO era lo que "quitaba características".)
         # Aula 122: perfil "solo-MCP" — el cliente pide que el agente use ÚNICAMENTE las
         # tools del servidor MCP (queries de proyecto), desactivando TODAS las nativas, para
         # que el modelo local elija de un menú chico y claro (mejora drástica de fiabilidad).
         # Otros perfiles (p.ej. el futuro asistente de código) NO mandan mcp_only y conservan
         # read_file/python/etc.
-        if str(form_data.get("mcp_only", "")).lower() == "true":
-            try:
-                from src.tool_schemas import FUNCTION_TOOL_SCHEMAS
-                disabled_tools.update(
-                    s["function"]["name"]
-                    for s in FUNCTION_TOOL_SCHEMAS
-                    if isinstance(s, dict) and s.get("function", {}).get("name")
-                )
-            except Exception:
-                pass
-            # Aula 122: las "agent-tools" (python/bash/file ops/navegador/docs/imágenes/
-            # memoria/web) NO están en FUNCTION_TOOL_SCHEMAS. Desactivarlas también para que
-            # el agente del proyecto SOLO vea las tools MCP: si tiene `python`, el modelo local
-            # la usa para "escribir" la llamada en texto en vez de invocar la tool nativamente.
-            disabled_tools.update({
-                "python", "read_file", "write_file", "builtin_browser",
-                "create_document", "edit_document", "update_document", "suggest_document",
-                "generate_image", "manage_memory", "manage_skills", "search_chats",
-                "manage_tasks", "web_search", "web_fetch",
-            })
+        # `mcp_only` se IGNORA a propósito (era el recorte que limitaba a Odiseo a un
+        # whitelist y "le quitaba características"). Con la config libre, Odiseo ve
+        # TODAS sus tools; el tool-RAG del agent loop ya prioriza las relevantes.
+        # Se deja leer la variable por compatibilidad con el cliente que aún la manda.
+        _ = form_data.get("mcp_only", "")
         if str(allow_bash).lower() != "true":
             disabled_tools.add("bash")
         if str(allow_web_search).lower() != "true":

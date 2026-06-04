@@ -106,6 +106,13 @@ QObject* loadApplicationManager()
 int main(int argc, char* argv[])
 {
     //
+    // QtWebEngine (el workspace de Odiseo embebido en Aula 122 — Fase 4) exige
+    // compartir los contextos OpenGL, y debe activarse ANTES de construir la
+    // QApplication. Inofensivo si el webview nunca se abre.
+    //
+    QApplication::setAttribute(Qt::AA_ShareOpenGLContexts);
+
+    //
     // Инициилизируем приложение
     //
     Application application(argc, argv);

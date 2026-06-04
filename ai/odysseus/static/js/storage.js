@@ -89,7 +89,20 @@ export function remove(key) {
 // ── Toggle state helpers ──
 
 export function loadToggleState() {
-  return getJSON(KEYS.TOGGLES, {});
+  // Aula 122: modo CHAT por defecto (3-jun). En Chat la memoria creativa se
+  // auto-inyecta y el chat responde rápido y fiable con el 14b local; el modo
+  // Agente con el 14b es lento (prefill ~50s en 18 GB) y a veces sale vacío.
+  // Las peticiones que SÍ necesitan herramientas (.starc, notas, tareas) se
+  // auto-escalan a Agente en el backend (_message_needs_tools). Si el usuario
+  // elige 'agent' explícito, se respeta.
+  const state = getJSON(KEYS.TOGGLES, {});
+  if (state.mode === undefined) state.mode = 'chat';
+  // Aula 122 "config libre": bash ON por defecto — Odiseo necesita shell/git/
+  // write_file para construir las páginas del propio Aula 122 y auto-aplicar el
+  // upstream. En el chat creativo normal no la usa (usa tools MCP/RAG). Si el
+  // usuario lo apaga explícitamente, se respeta.
+  if (state.bash === undefined) state.bash = true;
+  return state;
 }
 
 export function saveToggleState(state) {

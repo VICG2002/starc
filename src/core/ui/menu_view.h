@@ -78,6 +78,11 @@ public:
     void checkProduction();
 
     /**
+     * @brief Marcar el botón de Odiseo (workspace IA) como seleccionado (Aula 122 / Fase 4)
+     */
+    void checkOdysseus();
+
+    /**
      * @brief Установить состояние сохранённости изменений проекта
      */
     void markChangesSaved(bool _saved);
@@ -208,6 +213,11 @@ signals:
      * @brief Click en el botón "Plan de rodaje" del menú lateral (Aula 122 / Bloque 7)
      */
     void productionPressed();
+
+    /**
+     * @brief Click en el botón "Odiseo" del menú lateral (workspace IA, Aula 122 / Fase 4)
+     */
+    void odysseusPressed();
 
     /**
      * @brief Нажат пункт меню "Справка"

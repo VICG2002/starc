@@ -570,6 +570,11 @@ def llm_call(url: str, model: str, messages: List[Dict], temperature: float = LL
             "messages": messages_copy,
             "temperature": temperature,
         }
+        # llama.cpp local: reutiliza el prefijo ya procesado entre turnos y rondas
+        # del agente (prefill de ~22s a ~0.3s). Otros proveedores ignoran o rechazan
+        # campos extra, así que solo lo mandamos a endpoints locales.
+        if "127.0.0.1" in (target_url or "") or "localhost" in (target_url or ""):
+            payload["cache_prompt"] = True
         if max_tokens and max_tokens > 0:
             tok_key = "max_completion_tokens" if _uses_max_completion_tokens(model) else "max_tokens"
             payload[tok_key] = max_tokens
@@ -648,6 +653,8 @@ async def llm_call_async(
     """Asynchronous LLM call using httpx with connection pooling, timeout, retry logic, and performance logging."""
     provider = _detect_provider(url)
     messages_copy = _sanitize_llm_messages(messages)
+    if provider == "Google":
+        messages_copy = _google_flatten_tools(messages_copy)
 
     # Consolidate multiple system messages into one at the start.
     sys_parts = []
@@ -686,6 +693,9 @@ async def llm_call_async(
             "messages": messages_copy,
             "temperature": temperature,
         }
+        # llama.cpp local: cachea el prefijo del prompt entre llamadas.
+        if "127.0.0.1" in (target_url or "") or "localhost" in (target_url or ""):
+            payload["cache_prompt"] = True
         if max_tokens and max_tokens > 0:
             tok_key = "max_completion_tokens" if _uses_max_completion_tokens(model) else "max_tokens"
             payload[tok_key] = max_tokens
@@ -737,6 +747,38 @@ async def llm_call_async(
                 raise HTTPException(502, f"POST {target_url} failed after {max_retries} attempts: {e}")
             await asyncio.sleep(LLMConfig.RETRY_DELAY)
 
+
+def _google_flatten_tools(messages: List[Dict]) -> List[Dict]:
+    """Gemini (Google) OpenAI-compat rechaza tool_calls REENVIADOS sin un
+    `thought_signature` (que no podemos producir). Aplanamos el intercambio de
+    herramientas a TEXTO: el historial deja de llevar `function_call` nativos, así
+    que Gemini ya no exige la firma — pero puede seguir emitiendo un tool_call
+    NUEVO desde `tools`. Esto habilita al teacher/task gratis en Gemini con
+    herramientas (modo agente). Fusiona roles consecutivos para no chocar con la
+    validación de Gemini. Es idempotente si no hay tool_calls/tool roles."""
+    flat: List[Dict] = []
+    for m in messages:
+        role = m.get("role")
+        if role == "assistant" and m.get("tool_calls"):
+            parts = [str(m.get("content") or "")]
+            for tc in m["tool_calls"]:
+                fn = tc.get("function") or {}
+                parts.append(f"[Llamé a la herramienta {fn.get('name','?')}({fn.get('arguments','{}')})]")
+            flat.append({"role": "assistant", "content": "\n".join(p for p in parts if p)})
+        elif role == "tool":
+            flat.append({"role": "user", "content": f"[Resultado de herramienta]: {m.get('content','')}"})
+        else:
+            flat.append(dict(m))
+    # Fusiona mensajes consecutivos del mismo rol (no-sistema).
+    merged: List[Dict] = []
+    for m in flat:
+        if merged and merged[-1].get("role") == m.get("role") and m.get("role") != "system":
+            merged[-1]["content"] = (str(merged[-1].get("content") or "") + "\n" + str(m.get("content") or "")).strip()
+        else:
+            merged.append(m)
+    return merged
+
+
 async def stream_llm(url: str, model: str, messages: List[Dict], temperature: float = LLMConfig.DEFAULT_TEMPERATURE,
                      max_tokens: int = LLMConfig.DEFAULT_MAX_TOKENS, headers: Optional[Dict] = None,
                      timeout: int = LLMConfig.STREAM_TIMEOUT, prompt_type: Optional[str] = None,
@@ -751,6 +793,8 @@ async def stream_llm(url: str, model: str, messages: List[Dict], temperature: fl
     """
     provider = _detect_provider(url)
     messages_copy = _sanitize_llm_messages(messages)
+    if provider == "Google":
+        messages_copy = _google_flatten_tools(messages_copy)
 
     # Consolidate multiple system messages into one at the start.
     # Some models (e.g. Qwen3.5) reject system messages that aren't first.
@@ -784,6 +828,10 @@ async def stream_llm(url: str, model: str, messages: List[Dict], temperature: fl
             "temperature": temperature,
             "stream": True,
         }
+        # llama.cpp local: cachea el prefijo del prompt entre turnos y rondas del
+        # agente. Es EL arreglo de velocidad del dock (prefill ~22s → ~0.3s).
+        if "127.0.0.1" in (target_url or "") or "localhost" in (target_url or ""):
+            payload["cache_prompt"] = True
         if provider not in {"openrouter", "groq"}:
             payload["stream_options"] = {"include_usage": True}
         if max_tokens and max_tokens > 0:

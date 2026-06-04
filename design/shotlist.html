@@ -1,0 +1,180 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <title>Aula 122 — Shot list / Storyboard (datos reales de EDLP)</title>
+  <link rel="stylesheet" href="./aula122-tokens.css">
+  <style>
+    body{margin:0;background:var(--background)}
+    .muted{color:var(--on-surface-medium)}
+    .seg{display:inline-flex;border:1px solid var(--divider);border-radius:var(--radius);overflow:hidden}
+    .seg button{border:0;background:transparent;padding:6px 14px;cursor:pointer;font-size:var(--fz-caption);color:var(--on-surface-medium)}
+    .seg button.is-active{background:var(--selected);color:#2f6fd6;font-weight:var(--w-medium)}
+
+    .body{flex:1;display:flex;min-height:0}
+    .scenes{width:250px;flex:none;border-right:1px solid var(--divider);overflow:auto;padding:var(--px8) 0}
+    .scenes .grp{font-size:var(--fz-overline);text-transform:uppercase;letter-spacing:1.5px;color:var(--on-surface-medium);padding:var(--px12) var(--px16) var(--px4)}
+    .scenes .sc{padding:var(--px8) var(--px16);font-size:var(--fz-body2);cursor:pointer;border-left:3px solid transparent}
+    .scenes .sc:hover{background:var(--hover)}
+    .scenes .sc.is-active{background:var(--selected);color:#2f6fd6;border-left-color:var(--accent);font-weight:var(--w-medium)}
+    .scenes .sc small{display:block;color:var(--on-surface-medium);font-weight:var(--w-normal)}
+
+    .content{flex:1;overflow:auto;padding:var(--px24)}
+    .frombox{background:var(--selected);border-radius:var(--radius);padding:var(--px8) var(--px12);font-size:var(--fz-caption);color:#1c3d6e;margin-bottom:var(--px16)}
+
+    .sbthumb{width:104px;height:58px;border-radius:3px;background:#f0f0f0;border:1px solid var(--divider);display:block}
+    .sbthumb--empty{display:flex;align-items:center;justify-content:center;border:1px dashed var(--on-surface-disabled);color:var(--on-surface-disabled);background:transparent;cursor:pointer;font-size:var(--fz-caption)}
+
+    table.shots{width:100%;border-collapse:collapse;font-size:var(--fz-body2)}
+    table.shots th{text-align:left;font-size:var(--fz-caption);text-transform:uppercase;letter-spacing:.4px;color:var(--on-surface-medium);padding:var(--px8);border-bottom:1px solid var(--divider)}
+    table.shots td{padding:var(--px8);border-bottom:1px solid var(--divider);vertical-align:middle}
+    .acts{display:flex;gap:2px}
+
+    .board{display:grid;grid-template-columns:repeat(3,1fr);gap:var(--px16)}
+    .sbcard{border:1px solid var(--divider);border-radius:var(--radius);overflow:hidden;background:var(--surface)}
+    .sbcard .frame{width:100%;height:150px;background:#f0f0f0;display:block}
+    .sbcard .cap{padding:var(--px8)}
+    .sbcard .cap b{font-size:var(--fz-body2)}
+    .sbcard .cap div{font-size:var(--fz-caption);color:var(--on-surface-medium)}
+  </style>
+</head>
+<body>
+  <div class="a122-shell">
+
+    <!-- NAVEGACIÓN (orden de Victor — #6 activo) -->
+    <nav class="a122-nav">
+      <div class="a122-nav__brand"><span class="mi">movie</span> <b>Aula&nbsp;122</b></div>
+      <div class="muted" style="padding:0 var(--px16) var(--px8);font-size:var(--fz-caption)">El Encuentro de los Perdidos · 98 escenas</div>
+      <div class="a122-nav__group">Proyecto</div>
+      <div class="a122-nav__item"><span class="ico"><span class="mi">folder</span></span> Proyectos</div>
+      <div class="a122-nav__item"><span class="ico"><span class="mi">save</span></span> Guardar / Exportar</div>
+      <div class="a122-nav__item"><span class="ico"><span class="mi">psychology</span></span> Personajes</div>
+      <div class="a122-nav__group">Pipeline de la película</div>
+      <div class="a122-nav__item is-soon"><span class="num">1</span><span class="ico"><span class="mi">lightbulb</span></span> Idea <span class="st soon">próximo</span></div>
+      <div class="a122-nav__item"><span class="num">2</span><span class="ico"><span class="mi">edit_document</span></span> Guión <span class="st ok">existe</span></div>
+      <div class="a122-nav__item"><span class="num">3</span><span class="ico"><span class="mi">checklist</span></span> Desglose <span class="st ok">existe</span></div>
+      <div class="a122-nav__item"><span class="num">4</span><span class="ico"><span class="mi">groups</span></span> Crew / Equipo <span class="st wip">en diseño</span></div>
+      <div class="a122-nav__item"><span class="num">5</span><span class="ico"><span class="mi">payments</span></span> Presupuesto <span class="st wip">pendiente</span></div>
+      <div class="a122-nav__item is-active"><span class="num">6</span><span class="ico"><span class="mi">theaters</span></span> Shot list / Storyboard <span class="st wip">en diseño</span></div>
+      <div class="a122-nav__item is-soon"><span class="num">7</span><span class="ico"><span class="mi">location_on</span></span> Locaciones <span class="st soon">próximo</span></div>
+      <div class="a122-nav__item is-soon"><span class="num">8</span><span class="ico"><span class="mi">theater_comedy</span></span> Casting <span class="st soon">próximo</span></div>
+      <div class="a122-nav__item"><span class="num">9</span><span class="ico"><span class="mi">calendar_month</span></span> Plan de rodaje <span class="st ok">existe</span></div>
+      <div class="a122-nav__item"><span class="num">10</span><span class="ico"><span class="mi">description</span></span> Call sheet <span class="st wip">diseñado</span></div>
+      <div class="a122-nav__group">&nbsp;</div>
+      <div class="a122-nav__item"><span class="ico"><span class="mi">settings</span></span> Ajustes</div>
+    </nav>
+
+    <main class="a122-main">
+
+      <div class="a122-appbar">
+        <span class="title">Shot list / Storyboard</span>
+        <span class="spacer"></span>
+        <span class="seg">
+          <button id="v-list" class="is-active" onclick="setView('list')">Lista</button>
+          <button id="v-board" onclick="setView('board')">Tablero</button>
+        </span>
+        <span class="a122-chip chip-auto" title="Planos con viñeta de storyboard">3 / 8 con viñeta</span>
+        <button class="a122-btn--text" title="Claude lee la acción de la escena y propone planos"><span class="mi">auto_awesome</span> Sugerir planos (IA)</button>
+        <button class="a122-btn--outlined" title="Exporta la escena a Storyboarder y reimporta las viñetas">Abrir en Storyboarder</button>
+        <button class="a122-btn">+ Añadir plano</button>
+      </div>
+
+      <div class="body">
+
+        <!-- Escenas REALES del guión EDLP -->
+        <aside class="scenes">
+          <div class="grp">El Encuentro de los Perdidos</div>
+          <div class="sc">1 · INT./EXT. Puesto de periódicos — Día <small>flashback · 0/2</small></div>
+          <div class="sc">2 · INT. Salón de primaria — Día <small>1 plano · 1/1 ✓</small></div>
+          <div class="sc is-active">3 · INT. Salón primaria — Otro día <small>8 planos · 3/8 con viñeta</small></div>
+          <div class="sc">4 · INT./EXT. Línea 3 del metro — Noche <small>presente · 0/4</small></div>
+          <div class="sc">5 · EXT. Calle — Noche <small>MiniDV · 0/2</small></div>
+          <div class="sc">6 · EXT. Portón Inst. M.A. Pro — Continuo <small>0/3</small></div>
+        </aside>
+
+        <!-- VISTA LISTA -->
+        <div class="content" data-view="list">
+          <h2 class="t-h6" style="margin:0 0 var(--px8)">Escena 3 — INT. SALÓN PRIMARIA - OTRO DÍA</h2>
+          <div class="frombox"><span class="mi">article</span> Leído de tu guión (EDLP, <code>.starc</code>). Personajes identificados en la escena: <b>Miss Gloria</b>, <b>Román</b>. Los planos se proponen a partir de la acción real (el ventilador en el techo, el cristo que se balancea, el reporte, el cuaderno).</div>
+          <table class="shots">
+            <thead><tr><th style="width:40px">#</th><th style="width:118px">Viñeta</th><th style="width:210px">Plano</th><th style="width:120px">Ángulo</th><th style="width:120px">Movimiento</th><th style="width:74px">Lente</th><th style="width:64px">Sonido</th><th>Notas</th><th style="width:48px"></th></tr></thead>
+            <tbody>
+              <tr>
+                <td>3A</td>
+                <td><svg class="sbthumb" viewBox="0 0 104 58"><rect width="104" height="58" fill="#f0f0f0"/><circle cx="52" cy="14" r="10" fill="none" stroke="#999"/><line x1="42" y1="14" x2="62" y2="14" stroke="#999"/><line x1="52" y1="6" x2="52" y2="22" stroke="#999"/><rect x="38" y="34" width="28" height="18" fill="none" stroke="#999"/></svg></td>
+                <td>PG — a través del ventilador</td><td>Picado</td><td>Fijo</td><td>24 mm</td><td>Sí</td><td>Estab.: Román frente al escritorio (POV aspas)</td>
+                <td class="acts"><button class="a122-iconbtn" title="Editar"><span class="mi">edit</span></button></td>
+              </tr>
+              <tr>
+                <td>3B</td>
+                <td><svg class="sbthumb" viewBox="0 0 104 58"><rect width="104" height="58" fill="#f0f0f0"/><line x1="52" y1="10" x2="52" y2="34" stroke="#999"/><line x1="46" y1="22" x2="58" y2="22" stroke="#999"/></svg></td>
+                <td>PD — el cristo en su pecho</td><td>Normal</td><td>Fijo</td><td>100 mm</td><td>No</td><td>Se balancea al escribir</td>
+                <td class="acts"><button class="a122-iconbtn" title="Editar"><span class="mi">edit</span></button></td>
+              </tr>
+              <tr>
+                <td>3C</td>
+                <td><div class="sbthumb sbthumb--empty" title="Dibujar / importar viñeta">＋ viñeta</div></td>
+                <td>PD — el reporte se desliza</td><td>Normal</td><td>Fijo</td><td>50 mm</td><td>Sí</td><td>Insert del papel sobre el escritorio</td>
+                <td class="acts"><button class="a122-iconbtn" title="Editar"><span class="mi">edit</span></button></td>
+              </tr>
+              <tr>
+                <td>3D</td>
+                <td><svg class="sbthumb" viewBox="0 0 104 58"><rect width="104" height="58" fill="#f0f0f0"/><circle cx="36" cy="32" r="14" fill="none" stroke="#999"/><circle cx="74" cy="30" r="10" fill="none" stroke="#bbb"/></svg></td>
+                <td>PM (OTS) — sobre Román → Miss Gloria</td><td>Normal</td><td>Fijo</td><td>50 mm</td><td>Sí</td><td>«Lo quiero firmado por tus papás mañana.»</td>
+                <td class="acts"><button class="a122-iconbtn" title="Editar"><span class="mi">edit</span></button></td>
+              </tr>
+              <tr>
+                <td>3E</td>
+                <td><div class="sbthumb sbthumb--empty" title="Dibujar / importar viñeta">＋ viñeta</div></td>
+                <td>PP — Miss Gloria sobre sus lentes</td><td>Contrapicado</td><td>Fijo</td><td>85 mm</td><td>Sí</td><td>«…sólo las hace una persona perturbada.»</td>
+                <td class="acts"><button class="a122-iconbtn" title="Editar"><span class="mi">edit</span></button></td>
+              </tr>
+              <tr>
+                <td>3F</td>
+                <td><div class="sbthumb sbthumb--empty" title="Dibujar / importar viñeta">＋ viñeta</div></td>
+                <td>PP — Román, mirada retadora</td><td>Picado</td><td>Fijo</td><td>85 mm</td><td>Sí</td><td>Reacción (no responde)</td>
+                <td class="acts"><button class="a122-iconbtn" title="Editar"><span class="mi">edit</span></button></td>
+              </tr>
+              <tr>
+                <td>3G</td>
+                <td><div class="sbthumb sbthumb--empty" title="Dibujar / importar viñeta">＋ viñeta</div></td>
+                <td>PD — el cuaderno con los dibujos</td><td>Normal</td><td>Fijo</td><td>50 mm</td><td>No</td><td>El detonante del conflicto</td>
+                <td class="acts"><button class="a122-iconbtn" title="Editar"><span class="mi">edit</span></button></td>
+              </tr>
+              <tr>
+                <td>3H</td>
+                <td><div class="sbthumb sbthumb--empty" title="Dibujar / importar viñeta">＋ viñeta</div></td>
+                <td>PA — Román camina a la puerta</td><td>Normal</td><td>Paneo</td><td>35 mm</td><td>Sí</td><td>Salida de la escena</td>
+                <td class="acts"><button class="a122-iconbtn" title="Editar"><span class="mi">edit</span></button></td>
+              </tr>
+            </tbody>
+          </table>
+          <p class="t-caption muted" style="margin-top:var(--px12)">Las escenas y personajes se leen del <b>Guión</b> (tu <code>.starc</code> real). Tamaño de plano, ángulo y movimiento son menús. “<span class="mi">auto_awesome</span> Sugerir planos (IA)” deja que Claude lea la acción y proponga el desglose de planos; tú apruebas/editas.</p>
+        </div>
+
+        <!-- VISTA TABLERO -->
+        <div class="content" data-view="board" hidden>
+          <h2 class="t-h6" style="margin:0 0 var(--px12)">Escena 3 — storyboard</h2>
+          <div class="board">
+            <div class="sbcard"><svg class="frame" viewBox="0 0 200 150"><rect width="200" height="150" fill="#f0f0f0"/><circle cx="100" cy="34" r="20" fill="none" stroke="#999"/><line x1="80" y1="34" x2="120" y2="34" stroke="#999"/><line x1="100" y1="14" x2="100" y2="54" stroke="#999"/><rect x="74" y="92" width="52" height="34" fill="none" stroke="#999"/></svg><div class="cap"><b>3A · PG</b><div>A través del ventilador · 24mm</div></div></div>
+            <div class="sbcard"><svg class="frame" viewBox="0 0 200 150"><rect width="200" height="150" fill="#f0f0f0"/><line x1="100" y1="30" x2="100" y2="90" stroke="#999"/><line x1="86" y1="58" x2="114" y2="58" stroke="#999"/></svg><div class="cap"><b>3B · PD</b><div>El cristo · 100mm</div></div></div>
+            <div class="sbcard"><svg class="frame" viewBox="0 0 200 150"><rect width="200" height="150" fill="#f0f0f0"/><circle cx="72" cy="84" r="30" fill="none" stroke="#999"/><circle cx="144" cy="78" r="22" fill="none" stroke="#bbb"/></svg><div class="cap"><b>3D · PM (OTS)</b><div>Román → Miss Gloria · 50mm</div></div></div>
+            <div class="sbcard"><div class="frame" style="display:flex;align-items:center;justify-content:center;color:var(--on-surface-disabled);border:1px dashed var(--on-surface-disabled)">＋ viñeta</div><div class="cap"><b>3E · PP</b><div>Miss Gloria · 85mm</div></div></div>
+            <div class="sbcard"><div class="frame" style="display:flex;align-items:center;justify-content:center;color:var(--on-surface-disabled);border:1px dashed var(--on-surface-disabled)">＋ viñeta</div><div class="cap"><b>3F · PP</b><div>Román retador · 85mm</div></div></div>
+            <div class="sbcard"><div class="frame" style="display:flex;align-items:center;justify-content:center;color:var(--on-surface-disabled);border:1px dashed var(--on-surface-disabled)">＋ viñeta</div><div class="cap"><b>3G · PD</b><div>El cuaderno · 50mm</div></div></div>
+          </div>
+        </div>
+
+      </div>
+    </main>
+  </div>
+
+  <script>
+    function setView(v){
+      document.querySelectorAll('[data-view]').forEach(function(el){el.hidden=(el.dataset.view!==v)});
+      document.getElementById('v-list').classList.toggle('is-active', v==='list');
+      document.getElementById('v-board').classList.toggle('is-active', v==='board');
+    }
+  </script>
+</body>
+</html>

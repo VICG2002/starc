@@ -41,6 +41,24 @@ rsync -a --delete \
 echo "  · aula122-mcp (servidor MCP del proyecto, lee el .starc)"
 rsync -a --delete --exclude='__pycache__/' --exclude='*.pyc' "$HERE/aula122-mcp/" "$BRAIN/aula122-mcp/"
 
+echo "  · seed/ (conocimiento de Rita, Fase 2: índice RAG embebido + modelo de embeddings)"
+# El index RAG (ChromaDB embebido) y el modelo de embeddings local NO son parte del
+# código (viven en data/, excluido arriba). Viajan en seed/ y BrainProcessManager los
+# siembra en la data mutable al primer arranque (copia-si-falta). Así el .app conoce a
+# Rita sin descargar nada ni depender de un servidor chroma externo.
+SEED="$BRAIN/seed"
+mkdir -p "$SEED"
+if [ -f "$HERE/odysseus/data/chroma/chroma.sqlite3" ]; then
+  rsync -a --delete "$HERE/odysseus/data/chroma/" "$SEED/chroma/"
+else
+  echo "    ⚠ falta ai/odysseus/data/chroma/chroma.sqlite3 — corre la ingesta de Rita antes (RAG quedará vacío)."
+fi
+if [ -d "$HERE/odysseus/data/fastembed_cache" ]; then
+  rsync -a --delete "$HERE/odysseus/data/fastembed_cache/" "$SEED/fastembed_cache/"
+else
+  echo "    ⚠ falta ai/odysseus/data/fastembed_cache — el retrieval intentaría descargar el modelo."
+fi
+
 echo "==> Cerebro ensamblado:"
 du -sh "$BRAIN"/python "$BRAIN"/llama "$BRAIN"/odysseus 2>/dev/null
 echo "==> .app total:"; du -sh "$APP"

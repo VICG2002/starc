@@ -23,6 +23,8 @@ import galleryModule from './js/gallery.js';
 import tasksModule from './js/tasks.js';
 import calendarModule from './js/calendar.js';
 import notesModule from './js/notes.js';
+import bovedaModule from './js/boveda.js';
+import guionModule from './js/guion.js';
 import adminModule from './js/admin.js';
 import settingsModule from './js/settings.js';
 // Eagerly bind unified minimize/restore behavior across all tool modals.
@@ -877,6 +879,32 @@ function initializeEventListeners() {
     notesModule.refreshDueBadge();
     setInterval(() => notesModule.refreshDueBadge(), 5 * 60 * 1000);
   }
+
+  // ── Aula 122: pipeline de producción nativo ──
+  // Las etapas construidas navegan a un host-puente que la OdysseusPage del shell
+  // (Aula 122) intercepta en acceptNavigationRequest para cambiar a la vista Qt.
+  // El nonce evita que clics repetidos a la misma etapa se ignoren. En un navegador
+  // normal (sin el shell) la navegación simplemente falla — inofensivo.
+  // 'guion' ya no usa el bridge: abre el visor web de Guion (modal, abajo).
+  ['proyectos', 'desglose', 'plan-rodaje'].forEach((key) => {
+    const b = el('aula122-' + key + '-btn');
+    if (b) b.addEventListener('click', () => {
+      try { window.location.href = 'http://aula122.bridge/open/' + key + '?t=' + Date.now(); }
+      catch (e) { /* no-op fuera del shell nativo */ }
+    });
+  });
+
+  // ── Bóveda: visor/editor de la memoria creativa (modal web, no navega) ──
+  const bovedaBtn = el('boveda-open-btn');
+  if (bovedaBtn) bovedaBtn.addEventListener('click', () => {
+    try { bovedaModule.open(); } catch (e) { console.error('boveda open failed', e); }
+  });
+
+  // ── Guion: visor del .starc (escenas, página, stats, personajes) — modal web ──
+  const guionBtn = el('aula122-guion-btn');
+  if (guionBtn) guionBtn.addEventListener('click', () => {
+    try { guionModule.open(); } catch (e) { console.error('guion open failed', e); }
+  });
 
   // URL-based panel routing — bookmark /calendar, /notes, /cookbook etc
   // and the matching tool opens automatically on page load.

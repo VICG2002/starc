@@ -52,7 +52,23 @@ public:
     /**
      * @brief Показать заданный контент
      */
-    void showContent(QWidget* _toolbar, QWidget* _navigator, QWidget* _view);
+    void showContent(QWidget* _toolbar, QWidget* _navigator, QWidget* _view,
+                     bool _showNavigation = true);
+
+    /**
+     * @brief Aula 122: instalar la vista de Odiseo en su panel anfitrión (una sola vez)
+     */
+    void setOdiseoWidget(QWidget* _odiseo);
+
+    /**
+     * @brief Aula 122: Odiseo como anfitrión a pantalla completa (oculta el ensamblaje nativo)
+     */
+    void showOdiseoFull();
+
+    /**
+     * @brief Aula 122: Odiseo + el contenido nativo (editor) lado a lado, en la misma ventana
+     */
+    void showOdiseoBeside();
 
     /**
      * @brief Включить/отключить полноэкранный режим

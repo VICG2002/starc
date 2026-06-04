@@ -439,8 +439,21 @@ async def build_chat_context(
     if norm:
         sess.model = norm
 
-    # Build messages
-    messages = preface + sess.get_context_messages()
+    # Build messages — orden optimizado para el caché de prompt de llama.cpp.
+    # Los mensajes de SISTEMA (preset + política) van al frente; el contexto
+    # inyectado VOLÁTIL (RAG/recall/web/skills — cambia por consulta) va JUSTO
+    # ANTES del último turno del usuario, no al principio. Así [sistema +
+    # historial previo] queda como prefijo ESTABLE que el caché reutiliza entre
+    # turnos (deja de reprocesar el historial entero cada vez) y el contexto
+    # recuperado queda más cerca de la pregunta (ayuda a modelos pequeños).
+    # El primer turno produce el mismo orden que antes (no hay historial previo).
+    _hist = sess.get_context_messages()
+    _pf_sys = [m for m in preface if m.get("role") == "system"]
+    _pf_ctx = [m for m in preface if m.get("role") != "system"]
+    if _hist:
+        messages = _pf_sys + _hist[:-1] + _pf_ctx + [_hist[-1]]
+    else:
+        messages = _pf_sys + _pf_ctx
 
     # Auto-compact
     messages, context_length, was_compacted = await maybe_compact(
