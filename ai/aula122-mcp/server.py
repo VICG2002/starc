@@ -981,9 +981,12 @@ def t_respaldar_aula122() -> str:
     return _run_update(["backup"], timeout=180)
 
 
-def t_redesplegar_aula122(confirmar: bool = False) -> str:
+def t_redesplegar_aula122(confirmar: bool = False, token: str = "") -> str:
     if confirmar is True:
-        return _run_update(["rebuild", "--confirm"], timeout=300)
+        args = ["rebuild", "--confirm"]
+        if token:
+            args += ["--token", str(token)]
+        return _run_update(args, timeout=300)
     return "DRY-RUN (no se aplico nada; falta confirmacion humana).\n" + \
         _run_update(["rebuild"], timeout=60)
 
@@ -1076,8 +1079,8 @@ async def list_tools() -> list[Tool]:
         ),
         Tool(
             name="redesplegar_aula122",
-            description="Mantenimiento de Aula 122: APLICA los cambios pendientes (recompila el núcleo + sincroniza Odiseo + reinicia la app). DESTRUCTIVO y te reinicia a ti. PROTOCOLO OBLIGATORIO: 1) revisar_actualizacion, 2) respaldar_aula122, 3) PIDE CONFIRMACIÓN EXPLÍCITA al humano en el chat, 4) solo si confirma, llama con confirmar=true. Sin confirmar=true hace DRY-RUN (no toca nada). NUNCA pongas confirmar=true sin que el humano lo haya dicho explícitamente.",
-            inputSchema={"type": "object", "properties": {"confirmar": {"type": "boolean", "description": "true SOLO tras confirmación humana explícita en el chat. Default false = dry-run."}}},
+            description="Mantenimiento de Aula 122: APLICA los cambios pendientes (recompila núcleo + sincroniza MCP + reinicia la app). DESTRUCTIVO y te reinicia a ti. GATE DE CONFIRMACIÓN DURA en 2 pasos: 1) revisar_actualizacion → 2) respaldar_aula122 → 3) llama con confirmar=true SIN token: NO aplica, genera un token de un solo uso en un archivo que SOLO el humano debe abrir → 4) PÍDELE al humano que abra ese archivo y te dicte el token (NUNCA lo leas tú) → 5) vuelve a llamar con confirmar=true y token=<lo que diga el humano>. Sin confirmar=true = dry-run. El token caduca en 10 min.",
+            inputSchema={"type": "object", "properties": {"confirmar": {"type": "boolean", "description": "true para intentar aplicar. Sin token, solo genera la confirmación pendiente."}, "token": {"type": "string", "description": "El token de un solo uso que el HUMANO te dictó del archivo. NUNCA lo leas tú; debe venir del humano."}}},
         ),
     ]
 
@@ -1097,7 +1100,7 @@ _DISPATCH = {
     "generar_plan_rodaje": lambda a: t_generar_plan_rodaje(a.get("paginas_por_dia", 5)),
     "revisar_actualizacion": lambda a: t_revisar_actualizacion(),
     "respaldar_aula122": lambda a: t_respaldar_aula122(),
-    "redesplegar_aula122": lambda a: t_redesplegar_aula122(a.get("confirmar", False) is True),
+    "redesplegar_aula122": lambda a: t_redesplegar_aula122(a.get("confirmar", False) is True, a.get("token", "")),
 }
 
 

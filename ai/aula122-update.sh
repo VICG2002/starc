@@ -110,14 +110,20 @@ cmd_backup() {
 
 cmd_rebuild() {
   _guard_paths
-  local confirm="no"
-  [ "${1:-}" = "--confirm" ] && confirm="yes"
+  local confirm="no" token=""
+  while [ $# -gt 0 ]; do
+    case "$1" in
+      --confirm) confirm="yes"; shift ;;
+      --token)   token="${2:-}"; shift 2 ;;
+      *)         shift ;;
+    esac
+  done
 
   say "== rebuild (redeploy de cambios del árbol) =="
   say "Plan:"
   say "  1) backup del estado no regenerable del cerebro"
   say "  2) make -C $REPO/src/core   (recompila el núcleo C++)"
-  say "  3) rsync de ai/odysseus → bundle (código de Odiseo/rutas/SPA)"
+  say "  3) rsync de ai/odysseus + servidores MCP → bundle"
   say "  4) relanzar Aula_122.app"
   say "GUARDRAILS: sin git push, sin re-vendorizado upstream."
 
@@ -128,7 +134,43 @@ cmd_rebuild() {
     return 0
   fi
 
-  say ""; say "Aplicando (--confirm):"
+  # ── GATE DE CONFIRMACIÓN DURA (out-of-band) ──────────────────────────────
+  # Aplicar exige un token de un solo uso que NO se imprime: se escribe a un
+  # archivo que el HUMANO debe abrir y dictar. Así un agente no puede aplicar
+  # solo por decidir pasar --confirm; necesita un dato que solo el humano ve.
+  # (Honesto: un agente con terminal PODRÍA leer el archivo; esto frena errores
+  # del modelo, no a un agente decidido — para eso, UI nativa o quitarle terminal.)
+  local tokfile="$DATA/update-confirm-token.txt"
+  if [ -z "$token" ]; then
+    local newtok; newtok=$(openssl rand -hex 4 | tr '[:lower:]' '[:upper:]')
+    printf '%s\n' "$newtok" > "$tokfile"; chmod 600 "$tokfile"
+    err "CONFIRMACIÓN REQUERIDA — gate duro."
+    say "Token de un solo uso escrito en (NO se imprime aquí a propósito):"
+    say "  $tokfile"
+    say "El HUMANO debe abrir ese archivo y dictar el token; luego reintenta:"
+    say "  rebuild --confirm --token <TOKEN>"
+    say "Caduca en 10 min. NO leas el archivo tú: el token debe venir del humano."
+    return 10
+  fi
+  if [ ! -f "$tokfile" ]; then
+    err "No hay confirmación pendiente. Reintenta SIN --token para generar una."
+    return 11
+  fi
+  local stored age
+  stored=$(tr -d '[:space:]' < "$tokfile" 2>/dev/null)
+  age=$(( $(date +%s) - $(stat -f %m "$tokfile" 2>/dev/null || echo 0) ))
+  if [ "$token" != "$stored" ]; then
+    err "Token inválido. Pídele al humano el token vigente del archivo."
+    return 12
+  fi
+  if [ "$age" -gt 600 ]; then
+    rm -f "$tokfile"
+    err "Token expirado (>10 min). Reintenta sin --token para generar uno nuevo."
+    return 13
+  fi
+  rm -f "$tokfile"  # un solo uso
+
+  say ""; say "Token válido. Aplicando:"
   cmd_backup
   say "→ make (C++ core)…"
   ( cd "$REPO/src/core" && make -j"$(sysctl -n hw.ncpu)" >/tmp/aula122-make.log 2>&1 ) \
