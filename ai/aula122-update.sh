@@ -22,6 +22,10 @@
 #   - rebuild respalda antes de tocar nada y exige --confirm explícito.
 set -euo pipefail
 
+# PATH defensivo: cuando lo invoca Hermes (vía MCP), el entorno llega filtrado y
+# podría no traer make/git/rsync/qmake. Aseguramos las rutas habituales.
+export PATH="/opt/homebrew/bin:/usr/bin:/bin:/usr/sbin:/sbin:${PATH:-}"
+
 REPO="${AULA122_REPO:-$HOME/Developer/starc-fork}"
 APP="$REPO/src/_build/Aula_122.app"
 APP_BIN="$APP/Contents/MacOS/Aula_122"
@@ -130,17 +134,27 @@ cmd_rebuild() {
   ( cd "$REPO/src/core" && make -j"$(sysctl -n hw.ncpu)" >/tmp/aula122-make.log 2>&1 ) \
     || { err "make falló. Revisa /tmp/aula122-make.log. NO se relanzó la app."; exit 3; }
   ok "  · núcleo recompilado"
-  say "→ sync de Odiseo al bundle…"
+  say "→ sync de Odiseo + servidores MCP al bundle…"
   rsync -a --delete \
     --exclude='/runtime-python' --exclude='/data' --exclude='/venv' --exclude='/.venv' \
     --exclude='__pycache__/' --exclude='*.pyc' --exclude='/.git' --exclude='.DS_Store' --exclude='*.gguf' \
     "$REPO/ai/odysseus/" "$BRAIN_BUNDLE/odysseus/" \
-    && ok "  · Odiseo sincronizado al bundle"
-  say "→ relanzando la app…"
-  osascript -e 'tell application "Aula_122" to quit' >/dev/null 2>&1 || true
-  for _ in $(seq 1 12); do pgrep -f "MacOS/Aula_122" >/dev/null 2>&1 && sleep 1 || break; done
-  open "$APP"
-  ok "Redeploy completo. (La app se está reiniciando; tú —Hermes— también.)"
+    && ok "  · Odiseo (rutas/SPA) sincronizado"
+  # Los servidores MCP (las "manos/ojos" del cerebro) también viven en el bundle.
+  for mcp in aula122-mcp memoria-mcp; do
+    if [ -d "$REPO/ai/$mcp" ]; then
+      rsync -a --delete --exclude='__pycache__/' --exclude='*.pyc' \
+        "$REPO/ai/$mcp/" "$BRAIN_BUNDLE/$mcp/" && ok "  · $mcp sincronizado"
+    fi
+  done
+  say "→ programando reinicio DESACOPLADO…"
+  # El reinicio (quit+open) va en un proceso detached: al salir este script queda
+  # reparentado a launchd, así que matar la app —y con ella Hermes y este propio
+  # script, si lo invocó Hermes— NO interrumpe el relanzamiento. El sleep da tiempo a
+  # que el tool/respuesta de Hermes terminen antes de tumbar la app.
+  nohup bash -c "sleep 8; osascript -e 'tell application \"Aula_122\" to quit' >/dev/null 2>&1; for _ in \$(seq 1 15); do pgrep -f 'MacOS/Aula_122' >/dev/null 2>&1 && sleep 1 || break; done; open '$APP'" >/dev/null 2>&1 &
+  disown 2>/dev/null || true
+  ok "Redeploy aplicado (núcleo + Odiseo). La app se reiniciará sola en unos segundos."
 }
 
 main() {

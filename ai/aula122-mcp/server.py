@@ -21,6 +21,7 @@ import asyncio
 import os
 import re
 import sqlite3
+import subprocess
 import sys
 import xml.etree.ElementTree as ET
 from pathlib import Path
@@ -942,6 +943,51 @@ def t_generar_plan_rodaje(paginas_por_dia=5):
 server = Server("aula122")
 
 
+# ── Mantenimiento / actualizaciones de Aula 122 (semi-auto, CON confirmacion) ──
+# Envuelven la utilidad GUARDADA ai/aula122-update.sh como tools MCP — mucho mas
+# fiable de invocar para el modelo local que recordar un comando de shell. Los
+# guardrails DUROS (backup antes, sin git push, sin re-vendorizado upstream, dry-run
+# sin --confirm, solo dentro del arbol) viven en el SCRIPT, no aqui.
+
+def _update_script() -> str:
+    repo = os.environ.get("AULA122_REPO") or os.path.expanduser("~/Developer/starc-fork")
+    return os.path.join(repo, "ai", "aula122-update.sh")
+
+
+def _run_update(args: list, timeout: int) -> str:
+    script = _update_script()
+    if not os.path.isfile(script):
+        return (f"No encuentro la utilidad de actualizacion en {script}. Solo esta "
+                "disponible en el arbol de desarrollo (define AULA122_REPO si esta en otra ruta).")
+    try:
+        p = subprocess.run(["bash", script, *args],
+                           capture_output=True, text=True, timeout=timeout)
+    except subprocess.TimeoutExpired:
+        return f"La operacion excedio {timeout}s y se aborto."
+    except Exception as exc:  # noqa: BLE001
+        return f"Error ejecutando la utilidad: {exc}"
+    out = (p.stdout or "")
+    if p.stderr and p.stderr.strip():
+        out += "\n[stderr]\n" + p.stderr
+    out = re.sub(r"\x1b\[[0-9;]*m", "", out)  # quita color ANSI
+    return out.strip() or "(sin salida)"
+
+
+def t_revisar_actualizacion() -> str:
+    return _run_update(["status"], timeout=60)
+
+
+def t_respaldar_aula122() -> str:
+    return _run_update(["backup"], timeout=180)
+
+
+def t_redesplegar_aula122(confirmar: bool = False) -> str:
+    if confirmar is True:
+        return _run_update(["rebuild", "--confirm"], timeout=300)
+    return "DRY-RUN (no se aplico nada; falta confirmacion humana).\n" + \
+        _run_update(["rebuild"], timeout=60)
+
+
 @server.list_tools()
 async def list_tools() -> list[Tool]:
     return [
@@ -1018,6 +1064,21 @@ async def list_tools() -> list[Tool]:
             description="Genera un BORRADOR de plan de rodaje (strip board) + Day-Out-of-Days desde el guion: agrupa las escenas por locación, las ordena INT→EXT/DÍA→NOCHE y las empaca en días de ~N páginas. Borrador determinista; el 1er AD lo ajusta por disponibilidad. Tras generarlo, guárdalo con create_document.",
             inputSchema={"type": "object", "properties": {"paginas_por_dia": {"type": "number", "description": "Páginas objetivo por día de rodaje (default 5)."}}},
         ),
+        Tool(
+            name="revisar_actualizacion",
+            description="Mantenimiento de Aula 122: revisa si hay cambios del software (Odiseo + el cerebro) pendientes de REDESPLEGAR. SOLO LECTURA, seguro. Devuelve rama git, qué falta construir, versión de Hermes y plugins. Úsala cuando te pregunten por actualizaciones o estado del software.",
+            inputSchema={"type": "object", "properties": {}},
+        ),
+        Tool(
+            name="respaldar_aula122",
+            description="Mantenimiento de Aula 122: crea un RESPALDO reversible del estado no regenerable del cerebro (config, ajustes, índice de memoria, sesiones). Seguro. Hazlo SIEMPRE antes de redesplegar.",
+            inputSchema={"type": "object", "properties": {}},
+        ),
+        Tool(
+            name="redesplegar_aula122",
+            description="Mantenimiento de Aula 122: APLICA los cambios pendientes (recompila el núcleo + sincroniza Odiseo + reinicia la app). DESTRUCTIVO y te reinicia a ti. PROTOCOLO OBLIGATORIO: 1) revisar_actualizacion, 2) respaldar_aula122, 3) PIDE CONFIRMACIÓN EXPLÍCITA al humano en el chat, 4) solo si confirma, llama con confirmar=true. Sin confirmar=true hace DRY-RUN (no toca nada). NUNCA pongas confirmar=true sin que el humano lo haya dicho explícitamente.",
+            inputSchema={"type": "object", "properties": {"confirmar": {"type": "boolean", "description": "true SOLO tras confirmación humana explícita en el chat. Default false = dry-run."}}},
+        ),
     ]
 
 
@@ -1034,6 +1095,9 @@ _DISPATCH = {
     "escenas_por_locacion": lambda a: t_escenas_por_locacion(),
     "generar_desglose": lambda a: t_generar_desglose(),
     "generar_plan_rodaje": lambda a: t_generar_plan_rodaje(a.get("paginas_por_dia", 5)),
+    "revisar_actualizacion": lambda a: t_revisar_actualizacion(),
+    "respaldar_aula122": lambda a: t_respaldar_aula122(),
+    "redesplegar_aula122": lambda a: t_redesplegar_aula122(a.get("confirmar", False) is True),
 }
 
 
