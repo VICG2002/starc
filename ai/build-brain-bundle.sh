@@ -41,6 +41,9 @@ rsync -a --delete \
 echo "  · aula122-mcp (servidor MCP del proyecto, lee el .starc)"
 rsync -a --delete --exclude='__pycache__/' --exclude='*.pyc' "$HERE/aula122-mcp/" "$BRAIN/aula122-mcp/"
 
+echo "  · memoria-mcp (servidor MCP de la bóveda: lee/escribe/valida fichas)"
+rsync -a --delete --exclude='__pycache__/' --exclude='*.pyc' "$HERE/memoria-mcp/" "$BRAIN/memoria-mcp/"
+
 echo "  · seed/ (conocimiento de Rita, Fase 2: índice RAG embebido + modelo de embeddings)"
 # El index RAG (ChromaDB embebido) y el modelo de embeddings local NO son parte del
 # código (viven en data/, excluido arriba). Viajan en seed/ y BrainProcessManager los

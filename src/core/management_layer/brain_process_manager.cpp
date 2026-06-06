@@ -373,6 +373,10 @@ struct BrainProcessManager::Implementation {
         // python del bundle (mismo que usa odysseus).
         const QString serverPy
             = QDir(brainRoot()).absoluteFilePath(QStringLiteral("aula122-mcp/server.py"));
+        // D-1 (Fase D): Hermes recibe memoria-mcp → lee/escribe/valida la bóveda
+        // (sobre la copia de trabajo bajo git; reusa el motor steward de odysseus).
+        const QString serverPyMem
+            = QDir(brainRoot()).absoluteFilePath(QStringLiteral("memoria-mcp/server.py"));
         const QString cfg
             = QStringLiteral("model:\n"
                              "  default: \"%1\"\n"
@@ -388,11 +392,17 @@ struct BrainProcessManager::Implementation {
                              "    command: \"%3\"\n"
                              "    args:\n"
                              "    - \"%4\"\n"
+                             "    enabled: true\n"
+                             "  memoria-mcp:\n"
+                             "    command: \"%3\"\n"
+                             "    args:\n"
+                             "    - \"%5\"\n"
                              "    enabled: true\n")
                   .arg(model)
                   .arg(kLlamaPort)
                   .arg(pythonBin)
-                  .arg(serverPy);
+                  .arg(serverPy)
+                  .arg(serverPyMem);
         QFile f(QDir(home).absoluteFilePath(QStringLiteral("config.yaml")));
         if (f.open(QIODevice::WriteOnly | QIODevice::Truncate)) {
             f.write(cfg.toUtf8());
