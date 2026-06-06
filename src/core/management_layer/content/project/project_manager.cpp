@@ -2232,17 +2232,27 @@ void ProjectManager::Implementation::updateViewsEditingMode()
 {
     if (auto activeView = activeDocumentView(); activeView != nullptr) {
         auto item = projectStructureModel->itemForIndex(view.activeIndex);
-        if (view.active->currentDraft() > 0) {
-            const auto draftIndex = view.active->currentDraft() - 1;
-            item = item->drafts().at(draftIndex);
+        if (item != nullptr && view.active->currentDraft() > 0) {
+            // Aula 122 (fix de crash): .value() en vez de .at() — devuelve nullptr fuera
+            // de rango (negativo O sobre el tamaño) en vez de reventar. El item SIN
+            // resolver (itemForIndex) puede tener menos drafts que el resuelto que pobló
+            // las pestañas (alias de tratamiento/outline) → el índice podía pasarse.
+            if (auto draft = item->drafts().value(view.active->currentDraft() - 1)) {
+                item = draft;
+            }
         }
         activeView->setEditingMode(documentEditingMode(item));
     }
     if (auto inactiveView = inactiveDocumentView(); inactiveView != nullptr) {
         auto item = projectStructureModel->itemForIndex(view.inactiveIndex);
-        if (view.active->currentDraft() > 0) {
-            const auto draftIndex = view.inactive->currentDraft() - 1;
-            item = item->drafts().at(draftIndex);
+        // Aula 122 (fix de crash): la guarda usaba view.active (copy-paste) mientras el
+        // índice venía de view.inactive → con la vista activa en un draft y la inactiva
+        // en la pestaña 0, daba drafts().at(-1). Ahora guarda+indexa la MISMA vista y usa
+        // .value() (las dos vistas tienen su propia barra de borradores, independientes).
+        if (item != nullptr && view.inactive->currentDraft() > 0) {
+            if (auto draft = item->drafts().value(view.inactive->currentDraft() - 1)) {
+                item = draft;
+            }
         }
         inactiveView->setEditingMode(documentEditingMode(item));
     }
