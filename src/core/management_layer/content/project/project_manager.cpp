@@ -2826,9 +2826,23 @@ ProjectManager::ProjectManager(QObject* _parent, QWidget* _parentWidget,
             showViewForDraft(currentItem->drafts().at(_draftIndex - 1));
         });
         connect(view, &Ui::ProjectView::showDraftContextMenuPressed, this, [this](int _draftIndex) {
+            //
+            // Aula 122 (fix de crash): un menú contextual sobre la barra de borradores
+            // en una zona SIN pestaña (p.ej. doble clic / clic-derecho en el área vacía)
+            // llega con _draftIndex == -1 (QTabBar::tabAt → -1). El resto del handler
+            // asume un índice válido (realDraftIndex = _draftIndex - 1) y dereferenciaba
+            // item->drafts().at(-2) → EXC_BAD_ACCESS. Sin draft bajo el cursor no hay
+            // menú que construir.
+            //
+            if (_draftIndex < 0) {
+                return;
+            }
             const auto currentItemIndex
                 = d->projectStructureProxyModel->mapToSource(d->navigator->currentIndex());
             const auto item = d->projectStructureModel->itemForIndex(currentItemIndex);
+            if (item == nullptr) {
+                return;
+            }
             const auto isCurrentDraft = _draftIndex == 0;
             const auto realDraftIndex = _draftIndex - 1;
             const auto hasActualDrafts

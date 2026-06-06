@@ -157,7 +157,16 @@ ProjectView::ProjectView(QWidget* _parent)
     connect(d->documentDrafts, &TabBar::currentIndexChanged, this, &ProjectView::showDraftPressed);
     connect(d->documentDrafts, &TabBar::customContextMenuRequested, this,
             [this](const QPoint _position) {
-                emit showDraftContextMenuPressed(d->documentDrafts->tabAt(_position));
+                //
+                // Aula 122 (fix de crash): solo pedir el menú si el clic cae SOBRE una
+                // pestaña de borrador. tabAt() devuelve -1 fuera de toda pestaña (área
+                // vacía de la barra, doble clic, etc.) y aguas abajo eso reventaba.
+                //
+                const int draftIndex = d->documentDrafts->tabAt(_position);
+                if (draftIndex < 0) {
+                    return;
+                }
+                emit showDraftContextMenuPressed(draftIndex);
             });
     connect(&d->documentDraftsHeightAnimation, &QVariantAnimation::valueChanged, this,
             [this](const QVariant& _value) { d->documentDrafts->setFixedHeight(_value.toInt()); });
