@@ -217,6 +217,9 @@ function _anchorLeftDock(content) {
 }
 
 function _collapseSidebarToRail() {
+  // Aula 122 (opción A): en el shell embebido el MENÚ completo SIEMPRE se queda → nunca colapsar a
+  // la barra de iconos al abrir/acoplar una herramienta (la herramienta cubre el editor, no el menú).
+  if (document.documentElement.classList.contains('aula122-embedded')) return;
   const sidebar = document.getElementById('sidebar');
   const rail = document.getElementById('icon-rail');
   if (!sidebar || !rail) return;

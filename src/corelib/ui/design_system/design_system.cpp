@@ -324,9 +324,18 @@ public:
     QFont brandsBig = QFont("Font Awesome 6 Brands");
 };
 
+// Aula 122: familia de fuente de la UI nativa, sincronizable con Odiseo en vivo (setUiFontFamily()).
+// Por defecto Fira Code (la fuente de Odiseo). El texto de GUION/SINOPSIS NO usa esta familia (usa su
+// plantilla Courier Prime), así que cambiar esto NO afecta el guion.
+static QString s_uiFontFamily = QStringLiteral("Fira Code");
+
 DesignSystem::Font::Implementation::Implementation(qreal _scaleFactor)
 {
-    QStringList fontFamilies = { QLatin1String("Roboto") };
+    // Aula 122: la UI nativa usa la familia sincronizada con Odiseo (Fira Code por defecto), con
+    // Roboto de respaldo para los glifos que falten.
+    QStringList fontFamilies = { s_uiFontFamily.trimmed().isEmpty() ? QStringLiteral("Fira Code")
+                                                                    : s_uiFontFamily.trimmed(),
+                                 QStringLiteral("Roboto") };
     switch (QLocale().language()) {
     case QLocale::Arabic:
     case QLocale::Persian: {
@@ -725,7 +734,7 @@ public:
     QSizeF bigIconSize = { 40.0, 40.0 };
     qreal iconsSpacing = 24.0;
     qreal leftTitleMargin = 72.0;
-    qreal shadowRadius = 12.0;
+    qreal shadowRadius = 6.0; // Aula 122: barra superior más plana (Material 12 → 6), look Odiseo
     QPointF shadowOffset = { 0.0, 3.0 };
 };
 
@@ -894,7 +903,7 @@ public:
     qreal spacing = 16.0;
     QMarginsF shadowMargins = { 8.0, 8.0, 8.0, 10.0 };
     qreal minimumShadowBlurRadius = 8.0;
-    qreal maximumShadowBlurRadius = 22.0;
+    qreal maximumShadowBlurRadius = 12.0; // Aula 122: botón más plano (Material 22 → 12)
     qreal borderRadius = 4.0;
     QSizeF iconSize = { 22.0, 22.0 };
 };
@@ -1502,7 +1511,7 @@ public:
     QMarginsF margins = { 16.0, 16.0, 16.0, 16.0 };
     QMarginsF shadowMargins = { 14.0, 14.0, 14.0, 16.0 };
     qreal minimumShadowBlurRadius = 4.0;
-    qreal maximumShadowBlurRadius = 28.0;
+    qreal maximumShadowBlurRadius = 12.0; // Aula 122: barra flotante más plana (Material 28 → 12)
     qreal borderRadius = 4.0;
     qreal height = 56.0;
     QSizeF iconSize = { 24.0, 24.0 };
@@ -2027,7 +2036,7 @@ public:
     qreal borderRadius = 4.0;
     QMarginsF shadowMargins = { 14.0, 14.0, 14.0, 14.0 };
     qreal minimumShadowBlurRadius = 4.0;
-    qreal maximumShadowBlurRadius = 28.0;
+    qreal maximumShadowBlurRadius = 12.0; // Aula 122: tarjeta/panel más plano (Material 28 → 12)
 };
 
 DesignSystem::Card::Implementation::Implementation(qreal _scaleFactor)
@@ -2458,6 +2467,21 @@ void DesignSystem::updateLanguage()
 {
     //
     // Просто пересоздаём инстанс со стилями, а шрифты подхватятся при создании объекта Font
+    //
+    instance()->d.reset(new DesignSystemPrivate(theme(), scaleFactor(), density(), color()));
+}
+
+void DesignSystem::setUiFontFamily(const QString& _family)
+{
+    const QString family
+        = _family.trimmed().isEmpty() ? QStringLiteral("Fira Code") : _family.trimmed();
+    if (s_uiFontFamily == family) {
+        return;
+    }
+    s_uiFontFamily = family;
+    //
+    // Aula 122: reconstruye el DesignSystem (y con él las fuentes, que leen s_uiFontFamily)
+    // conservando tema/escala/densidad/color — mismo mecanismo que updateLanguage().
     //
     instance()->d.reset(new DesignSystemPrivate(theme(), scaleFactor(), density(), color()));
 }

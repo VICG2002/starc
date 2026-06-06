@@ -71,12 +71,15 @@
 #include <utils/validators/email_validator.h>
 
 #include <QApplication>
+#include <QDateTime>
 #include <QDesktopServices>
 #include <QDir>
 #include <QFileDialog>
 #include <QFileSystemWatcher>
 #include <QFontDatabase>
+#include <QJsonArray>
 #include <QJsonDocument>
+#include <QJsonObject>
 #include <QKeyEvent>
 #include <QLocale>
 #include <QLockFile>
@@ -210,6 +213,18 @@ public:
     void showOdysseus();
 
     /**
+     * @brief Aula 122 / UI unificada: aplica a la DesignSystem nativa un tema que vino de
+     *        Odiseo (web→nativo): arma el hash Custom de 14 colores y repinta toda la UI.
+     */
+    void applyThemeFromOdiseo(const QString& _bg, const QString& _fg, const QString& _panel,
+                              const QString& _accent, const QString& _error, const QString& _mode);
+
+    /**
+     * @brief Aula 122 / UI unificada: empuja el tema nativo ACTUAL a Odiseo (nativo→web).
+     */
+    void pushNativeThemeToOdiseo();
+
+    /**
      * @brief Показать страницу статистика работы с программой
      */
     void showSessionStatistics();
@@ -289,6 +304,14 @@ public:
      */
     void openProject();
     bool openProject(const QString& _path);
+
+    /**
+     * @brief Aula 122: ruta del proyecto LOCAL más recientemente editado (de la lista de
+     *        recientes en settings). Vacío si no hay ninguno válido. Se usa para que al picar
+     *        una etapa (Guion/Desglose/…) sin proyecto abierto, se abra directo el último
+     *        proyecto en vez del selector — "Guion abre mi último proyecto".
+     */
+    QString mostRecentProjectPath() const;
 
     /**
      * @brief Попробовать захватить владение файлом, заблокировав его изменение другими копиями
@@ -409,6 +432,17 @@ public:
      * @brief Состояние приложения в данный момент
      */
     ApplicationState state = ApplicationState::Initializing;
+
+    //
+    // Aula 122 / UI unificada: la vista de Odiseo (anfitrión). Se crea en showOdysseus()
+    // y vive en applicationView; guardamos el puntero para empujarle el tema (nativo→web).
+    //
+    Ui::OdysseusWorkspaceView* odysseusView = nullptr;
+    //
+    // Anti-eco del tema: no reenviar nativo→web mientras se aplica un tema que vino de
+    // Odiseo (web→nativo).
+    //
+    bool applyingExternalTheme = false;
 
 private:
     template<typename Manager>
@@ -980,6 +1014,10 @@ void ApplicationManager::Implementation::showMenu()
 void ApplicationManager::Implementation::showAccount()
 {
     Log::info("Show account screen");
+    //
+    // Aula 122: cuenta NO va con Odiseo al lado → permitimos su navegador nativo.
+    //
+    applicationView->allowNativeNavigator();
     showContent(accountManager.data());
 }
 
@@ -987,6 +1025,10 @@ void ApplicationManager::Implementation::showOnboarding()
 {
     Log::info("Show onboarding screen");
     onboardingManager->showWelcomePage();
+    //
+    // Aula 122: onboarding NO va con Odiseo al lado → permitimos su navegador nativo.
+    //
+    applicationView->allowNativeNavigator();
     showContent(onboardingManager.data());
 }
 
@@ -995,6 +1037,7 @@ void ApplicationManager::Implementation::showProjects()
     Log::info("Show projects screen");
     menuView->checkProjects();
     showContent(projectsManager.data());
+    applicationView->showOdiseoBeside();  // Aula 122 / M6: Proyectos al lado de Odiseo
     saveLastContent(projectsManager.data());
 
     projectsManager->view()->setFocus();
@@ -1004,11 +1047,13 @@ void ApplicationManager::Implementation::showProject()
 {
     Log::info("Show project screen");
     menuView->checkProject();
+    //
+    // Aula 122 / integración completa: el ÚNICO menú es el de Odiseo (web, FIJO a la izquierda). Desde
+    // ahí se manejan los DOCUMENTOS del .starc Y la PIPELINE (Desglose/Plan de rodaje/Bóveda/Ajustes)
+    // vía el puente. La barra de Odiseo queda SIEMPRE a la vista (no se despliega) y el editor nativo
+    // se muestra EMBEBIDO a su lado, ocultando el navegador nativo para que no compita.
+    //
     showContent(projectManager.data());
-    //
-    // Aula 122 / M2: el editor nativo se muestra EMBEBIDO al lado de Odiseo (misma ventana),
-    // no como pantalla aparte. Mientras editas, los chats de Odiseo quedan a la vista.
-    //
     applicationView->showOdiseoBeside();
     saveLastContent(projectManager.data());
 }
@@ -1016,7 +1061,14 @@ void ApplicationManager::Implementation::showProject()
 void ApplicationManager::Implementation::showSettings()
 {
     Log::info("Show settings screen");
+    //
+    // Aula 122: Ajustes conserva su navegador de SECCIONES (Aplicación/Componentes/Atajos/Avanzado);
+    // Odiseo no lo replica. Permitimos el navegador nativo ANTES de showContent (para que restaure su
+    // ancho aunque vengamos de un proyecto, donde estaba oculto) y mantenemos Odiseo al lado.
+    //
+    applicationView->allowNativeNavigator();
     showContent(settingsManager.data());
+    applicationView->showOdiseoBeside(/*hideNativeNavigator=*/false);
 }
 
 void ApplicationManager::Implementation::showAssistant()
@@ -1068,21 +1120,21 @@ void ApplicationManager::Implementation::showOdysseus()
     // QtWebEngine, apuntando al cerebro local (127.0.0.1:7860) con auto-login por
     // cookie. Se crea una vez y se reutiliza (conserva el estado de la sesión).
     //
-    static auto* odysseusView = [this] {
-        auto* v = new Ui::OdysseusWorkspaceView;
+    if (odysseusView == nullptr) {
+        odysseusView = new Ui::OdysseusWorkspaceView;
         //
         // Recargar cuando el cerebro quede listo: en el arranque, el server 7860
         // puede no estar arriba todavía cuando la vista carga por primera vez (o el
         // token de sesión aún no está cacheado). ready() llega tras el health-check.
         //
-        QObject::connect(brainProcessManager.data(), &BrainProcessManager::ready, v,
-                         [v] { v->reload(); });
+        QObject::connect(brainProcessManager.data(), &BrainProcessManager::ready, odysseusView,
+                         [this] { odysseusView->reload(); });
         //
         // Puente "Aula 122": la sidebar web pide una etapa del pipeline. Las 3
         // construidas cambian al módulo NATIVO; requieren un proyecto abierto (si no
         // hay, llevamos al selector). Las demás etapas son "próximamente".
         //
-        QObject::connect(v, &Ui::OdysseusWorkspaceView::navigateRequested, q,
+        QObject::connect(odysseusView, &Ui::OdysseusWorkspaceView::navigateRequested, q,
                          [this](const QString& _view) {
                              //
                              // "Proyectos" es la 1ª etapa del pipeline: siempre lleva
@@ -1092,20 +1144,195 @@ void ApplicationManager::Implementation::showOdysseus()
                                  showProjects();
                                  return;
                              }
+                             // Aula 122 / M6: Ajustes alcanzables desde Odiseo SIN proyecto abierto.
+                             if (_view == QLatin1String("ajustes")
+                                 || _view == QLatin1String("settings")) {
+                                 showSettings();
+                                 return;
+                             }
                              if (projectsManager->currentProject() == nullptr) {
-                                 showProjects();
+                                 //
+                                 // Aula 122: no hay proyecto abierto. En vez de mandar al
+                                 // selector, abrimos el ÚLTIMO proyecto (decisión del usuario:
+                                 // "Guion abre mi último proyecto") → openProject va directo a
+                                 // su guión. Si no hay ninguno válido, caemos al selector.
+                                 //
+                                 const QString lastPath = mostRecentProjectPath();
+                                 if (lastPath.isEmpty()) {
+                                     showProjects();
+                                     return;
+                                 }
+                                 openProject(lastPath);
+                                 //
+                                 // Tras abrir, guion/idea aterrizan en su documento nativo desde el
+                                 // primer clic (Desglose/Plan se quedan en el guión, sin cambio).
+                                 //
+                                 if (_view == QLatin1String("guion")) {
+                                     projectManager->showDocument(
+                                         Domain::DocumentObjectType::ScreenplayText);
+                                 } else if (_view == QLatin1String("idea")) {
+                                     if (!projectManager->showDocument(
+                                             Domain::DocumentObjectType::ScreenplaySynopsis)) {
+                                         projectManager->showDocument(
+                                             Domain::DocumentObjectType::ScreenplayTreatment);
+                                     }
+                                 } else if (_view == QLatin1String("personajes")) {
+                                     // Aula 122: la CARPETA → mapa de relaciones (grupo), no la 1ª ficha.
+                                     projectManager->showDocument(
+                                         Domain::DocumentObjectType::Characters);
+                                 } else if (_view == QLatin1String("locaciones")) {
+                                     projectManager->showDocument(
+                                         Domain::DocumentObjectType::Locations);
+                                 }
                                  return;
                              }
                              if (_view == QLatin1String("guion")) {
+                                 //
+                                 // Aula 122: "Guion" = el GUIÓN nativo (texto del screenplay). Lo
+                                 // seleccionamos explícitamente para que NO dependa del último
+                                 // documento visto (que tras "Idea" sería la Sinopsis).
+                                 //
                                  showProject();
+                                 projectManager->showDocument(
+                                     Domain::DocumentObjectType::ScreenplayText);
+                             } else if (_view == QLatin1String("idea")) {
+                                 //
+                                 // Aula 122: "Idea" = Sinopsis/Tratamiento NATIVOS de STARC,
+                                 // embebidos al lado de Odiseo (el navegador queda visible para
+                                 // saltar entre ambos). Reemplaza el visor web. Mostramos el
+                                 // proyecto y seleccionamos la Sinopsis; si el proyecto no tiene
+                                 // Sinopsis, probamos el Tratamiento.
+                                 //
+                                 showProject();
+                                 if (!projectManager->showDocument(
+                                         Domain::DocumentObjectType::ScreenplaySynopsis)) {
+                                     projectManager->showDocument(
+                                         Domain::DocumentObjectType::ScreenplayTreatment);
+                                 }
+                             } else if (_view == QLatin1String("personajes")) {
+                                 //
+                                 // Aula 122: clic en la CARPETA "Personajes" = el MAPA de relaciones
+                                 // nativo (como la app oficial de STARC), con su panel lateral de info
+                                 // por personaje (desbloqueado por pro). La lista individual vive
+                                 // desplegable en la barra de Odiseo; clic en un personaje abre su ficha.
+                                 //
+                                 showProject();
+                                 projectManager->showDocument(
+                                     Domain::DocumentObjectType::Characters);
+                             } else if (_view == QLatin1String("locaciones")) {
+                                 //
+                                 // Aula 122: clic en la CARPETA "Locaciones" = el MAPA de locaciones
+                                 // nativo (con su panel de info), igual que Personajes.
+                                 //
+                                 showProject();
+                                 projectManager->showDocument(
+                                     Domain::DocumentObjectType::Locations);
                              } else if (_view == QLatin1String("desglose")) {
                                  showBreakdown();
                              } else if (_view == QLatin1String("plan-rodaje")) {
                                  showProductionSchedule();
                              }
                          });
-        return v;
-    }();
+        //
+        // Aula 122: el SPA pidió abrir un DOCUMENTO concreto por uuid (clic en un personaje/
+        // locación/subdocumento del árbol reflejado en la barra de Odiseo). Si no hay proyecto
+        // abierto, abrimos el último; luego lo seleccionamos en el editor nativo. El navegador
+        // nativo está oculto, pero la selección del modelo igual conduce al editor.
+        //
+        QObject::connect(odysseusView, &Ui::OdysseusWorkspaceView::documentRequested, q,
+                         [this](const QString& _uuid) {
+                             if (projectsManager->currentProject() == nullptr) {
+                                 const QString lastPath = mostRecentProjectPath();
+                                 if (lastPath.isEmpty()) {
+                                     showProjects();
+                                     return;
+                                 }
+                                 openProject(lastPath);
+                             } else {
+                                 showProject();
+                             }
+                             projectManager->showDocumentByUuid(_uuid);
+                         });
+        //
+        // Aula 122: el SPA pidió "Añadir documento" → abrimos el diálogo nativo de alta (el menú
+        // de tipos de documento). Requiere proyecto: si no hay, abrimos el último primero.
+        //
+        QObject::connect(odysseusView, &Ui::OdysseusWorkspaceView::addDocumentRequested, q,
+                         [this] {
+                             if (projectsManager->currentProject() == nullptr) {
+                                 const QString lastPath = mostRecentProjectPath();
+                                 if (lastPath.isEmpty()) {
+                                     showProjects();
+                                     return;
+                                 }
+                                 openProject(lastPath);
+                             } else {
+                                 showProject();
+                             }
+                             projectManager->createNewDocument();
+                         });
+        //
+        // Aula 122: el usuario ocultó/mostró el CHAT de Odiseo desde su barra. El menú (barra) se
+        // queda; encogemos/restauramos el panel de Odiseo para que el editor nativo gane el espacio.
+        //
+        QObject::connect(odysseusView, &Ui::OdysseusWorkspaceView::chatCollapseRequested, q,
+                         [this](bool _collapsed) {
+                             applicationView->setOdiseoChatCollapsed(_collapsed);
+                         });
+        //
+        // Aula 122: el SPA abrió/cerró una HERRAMIENTA de Odiseo (Brain, Email, Calendario, Tasks,
+        // Gallery, Cookbook, Compare, Deep Research, Notas, Ajustes, Biblioteca…). on=1 → Odiseo a
+        // ancho completo (editor nativo oculto detrás), la herramienta cubre todo como en standalone;
+        // on=0 → restauramos el reparto previo.
+        //
+        QObject::connect(odysseusView, &Ui::OdysseusWorkspaceView::expandRequested, q,
+                         [this](bool _on) { applicationView->setOdiseoExpanded(_on); });
+        //
+        // Aula 122: guardar / exportar desde la barra de Odiseo (el menú nativo está oculto).
+        //
+        QObject::connect(odysseusView, &Ui::OdysseusWorkspaceView::saveProjectRequested, q,
+                         [this] { saveChanges(); });
+        QObject::connect(odysseusView, &Ui::OdysseusWorkspaceView::exportProjectRequested, q,
+                         [this] { exportCurrentDocument(); });
+        //
+        // Aula 122 / UI unificada: el SPA cambió de tema → sincronizamos la DesignSystem
+        // nativa (web→nativo). Odiseo es el maestro del tema.
+        //
+        QObject::connect(odysseusView, &Ui::OdysseusWorkspaceView::themeRequested, q,
+                         [this](const QString& _bg, const QString& _fg, const QString& _panel,
+                                const QString& _accent, const QString& _error,
+                                const QString& _mode) {
+                             applyThemeFromOdiseo(_bg, _fg, _panel, _accent, _error, _mode);
+                         });
+        //
+        // Aula 122: Odiseo también es maestro de la FUENTE de UI. Mapeamos su familia CSS (p. ej.
+        // "'Fira Code', monospace") a una familia Qt disponible y reconstruimos la DesignSystem en
+        // vivo. El guion/sinopsis NO se afectan (usan su plantilla Courier Prime).
+        //
+        QObject::connect(odysseusView, &Ui::OdysseusWorkspaceView::fontRequested, q,
+                         [this](const QString& _cssFamily) {
+                             QString first = _cssFamily.section(QLatin1Char(','), 0, 0).trimmed();
+                             first.remove(QLatin1Char('\'')).remove(QLatin1Char('"'));
+                             const QString low = first.toLower();
+                             QString qtFamily;
+                             if (first.isEmpty() || low == QLatin1String("system-ui")
+                                 || low == QLatin1String("-apple-system")
+                                 || low == QLatin1String("sans-serif")
+                                 || low == QLatin1String("ui-sans-serif")) {
+                                 qtFamily = QStringLiteral("Roboto");
+                             } else if (low == QLatin1String("serif")
+                                        || low == QLatin1String("ui-serif")) {
+                                 qtFamily = QStringLiteral("Times New Roman");
+                             } else if (low == QLatin1String("monospace")
+                                        || low == QLatin1String("ui-monospace")) {
+                                 qtFamily = QStringLiteral("Fira Code");
+                             } else {
+                                 qtFamily = first;
+                             }
+                             Ui::DesignSystem::setUiFontFamily(qtFamily);
+                             QApplication::postEvent(q, new DesignSystemChangeEvent);
+                         });
+    }
     //
     // Aula 122 / M2: Odiseo es el ANFITRIÓN. Vive permanente en su panel; aquí lo instalamos
     // (una sola vez) y lo mostramos a pantalla completa. El editor nativo se mostrará AL LADO
@@ -1145,6 +1372,7 @@ void ApplicationManager::Implementation::showBreakdown()
     static auto* emptyNavigator = new QWidget;
 
     applicationView->showContent(emptyToolbar, emptyNavigator, view->asQWidget());
+    applicationView->showOdiseoBeside();  // Aula 122 / M5: desglose embebido al lado de Odiseo
 }
 
 void ApplicationManager::Implementation::showProductionSchedule()
@@ -1173,6 +1401,7 @@ void ApplicationManager::Implementation::showProductionSchedule()
     static auto* emptyNavigator = new QWidget;
 
     applicationView->showContent(emptyToolbar, emptyNavigator, view->asQWidget());
+    applicationView->showOdiseoBeside();  // Aula 122 / M5: plan de rodaje embebido al lado de Odiseo
 }
 
 void ApplicationManager::Implementation::showSessionStatistics()
@@ -1473,6 +1702,67 @@ void ApplicationManager::Implementation::setDesignSystemCustomThemeColors(
     }
     Ui::DesignSystem::setColor(_color);
     QApplication::postEvent(q, new DesignSystemChangeEvent);
+}
+
+void ApplicationManager::Implementation::applyThemeFromOdiseo(const QString& _bg, const QString& _fg,
+                                                              const QString& _panel,
+                                                              const QString& _accent,
+                                                              const QString& _error,
+                                                              const QString& _mode)
+{
+    //
+    // Si algún color no es hex de 6 dígitos, no aplicamos (tema corrupto).
+    //
+    auto isHex6 = [](const QString& _c) {
+        if (_c.length() != 6) {
+            return false;
+        }
+        for (const QChar c : _c) {
+            const char l = c.toLatin1();
+            if (!((l >= '0' && l <= '9') || (l >= 'a' && l <= 'f') || (l >= 'A' && l <= 'F'))) {
+                return false;
+            }
+        }
+        return true;
+    };
+    if (!isHex6(_bg) || !isHex6(_fg) || !isHex6(_panel) || !isHex6(_accent) || !isHex6(_error)) {
+        return;
+    }
+
+    //
+    // Armamos el hash Custom de 14 colores en el orden de DesignSystem::Color::toString():
+    // primary,onPrimary,accent,onAccent,background,onBackground,surface,onSurface,error,
+    // onError,shadow,onShadow,textEditor,onTextEditor. Mapeamos los 6 de Odiseo y derivamos
+    // contraste + sombra por modo (Odiseo no los manda). textEditor/onTextEditor =
+    // background/onBackground para que el PAPEL del editor de guion también cambie de color.
+    //
+    const bool dark = (_mode != QLatin1String("light"));
+    const QString white = QStringLiteral("ffffff");
+    const QString shadow = dark ? QStringLiteral("000000") : QStringLiteral("9e9e9e");
+    const QString hash = _panel + _fg + _accent + white + _bg + _fg + _panel + _fg + _error + white
+        + shadow + white + _bg + _fg;
+
+    //
+    // Orden obligatorio: Custom antes de setColor (el 2º hace early-return si el tema no es
+    // Custom). Flag anti-eco para no rebotar el cambio a Odiseo. No persistimos: Odiseo es
+    // el maestro y re-empuja su tema en cada arranque/recarga.
+    //
+    applyingExternalTheme = true;
+    setDesignSystemTheme(Ui::ApplicationTheme::Custom);
+    setDesignSystemCustomThemeColors(Ui::DesignSystem::Color(hash));
+    applyingExternalTheme = false;
+}
+
+void ApplicationManager::Implementation::pushNativeThemeToOdiseo()
+{
+    if (applyingExternalTheme || odysseusView == nullptr) {
+        return;
+    }
+    const auto& c = Ui::DesignSystem::color();
+    const bool dark = c.background().lightness() < 128;
+    odysseusView->applyThemeFromNative(c.background().name(), c.onBackground().name(),
+                                       c.surface().name(), c.accent().name(), c.error().name(),
+                                       dark ? QStringLiteral("dark") : QStringLiteral("light"));
 }
 
 void ApplicationManager::Implementation::setDesignSystemScaleFactor(qreal _scaleFactor)
@@ -2014,7 +2304,7 @@ bool ApplicationManager::Implementation::openProject(const QString& _path)
 
     if (projectsManager->currentProject() != nullptr
         && projectsManager->currentProject()->path() == _path) {
-        showOdysseus();  // Aula 122: aterrizar en Odiseo (anfitrión), no en el editor
+        showProject();  // Aula 122: abrir proyecto → desplegar el guión (editor) al lado de Odiseo
         return false;
     }
 
@@ -2064,6 +2354,62 @@ bool ApplicationManager::Implementation::openProject(const QString& _path)
     goToEditCurrentProject(afterProjectCreation, importFilePath);
 
     return true;
+}
+
+QString ApplicationManager::Implementation::mostRecentProjectPath() const
+{
+    //
+    // Aula 122: leemos la lista de proyectos recientes (la misma que pinta el selector) y
+    // devolvemos el proyecto LOCAL existente con last_edit_time más reciente. Solo locales:
+    // los de nube requieren conexión/login, así que no los auto-abrimos.
+    //
+    const auto projectsData = settingsValue(DataStorageLayer::kApplicationProjectsKey);
+    const auto projectsJson
+        = QJsonDocument::fromJson(QByteArray::fromHex(projectsData.toByteArray()));
+
+    QString bestPath;
+    QDateTime bestTime;
+    const auto consider = [&bestPath, &bestTime](const QJsonObject& _project) {
+        //
+        // "id" presente ⇒ proyecto de nube; lo saltamos (solo auto-abrimos locales).
+        //
+        if (_project.contains(QLatin1String("id"))) {
+            return;
+        }
+        const auto path = _project[QLatin1String("path")].toString();
+        const QFileInfo info(path);
+        if (path.isEmpty() || !info.exists()) {
+            return;
+        }
+        //
+        // Usamos la fecha REAL del archivo .starc (lastModified), NO el "last_edit_time" de la
+        // lista de recientes: esa lista no se actualiza al abrir un proyecto existente (queda
+        // empatada). El mtime del archivo sí refleja en cuál trabajaste de último.
+        //
+        const auto time = info.lastModified();
+        if (bestPath.isEmpty() || time > bestTime) {
+            bestPath = path;
+            bestTime = time;
+        }
+    };
+
+    for (const auto& itemValue : projectsJson.array()) {
+        const auto itemJson = itemValue.toObject();
+        //
+        // Equipo (carpeta de nube): recorremos sus proyectos. Proyecto suelto: directo.
+        //
+        if (itemJson.contains(QLatin1String("is_team"))
+            && itemJson[QLatin1String("is_team")].toBool()) {
+            const auto projectsArray = itemJson[QLatin1String("projects")].toArray();
+            for (const auto& projectValue : projectsArray) {
+                consider(projectValue.toObject());
+            }
+        } else {
+            consider(itemJson);
+        }
+    }
+
+    return bestPath;
 }
 
 bool ApplicationManager::Implementation::tryLockProject(const QString& _path)
@@ -2182,11 +2528,21 @@ void ApplicationManager::Implementation::goToEditCurrentProject(bool _afterProje
     }
 
     //
-    // Aula 122: tras abrir el proyecto, aterrizamos en ODISEO (el anfitrión), no en
-    // el editor nativo. El editor (y el resto de vistas de STARC) se alcanzan desde el
-    // dropdown "Aula 122" / "Editar" → showProject() vía el puente. (Antes: showProject().)
+    // Aula 122: tras abrir el proyecto, mostramos el editor nativo embebido al lado de Odiseo.
+    // loadCurrentProject() aterriza en la Información del proyecto (título + sinopsis + portada),
+    // que es lo que el usuario espera al abrir un proyecto. El boot SIN proyecto aterriza en
+    // Odiseo (anfitrión); abrir un proyecto muestra su editor nativo.
     //
-    showOdysseus();
+    showProject();
+
+    //
+    // Aula 122: avisamos a la barra de Odiseo qué proyecto se abrió, para que refleje SU árbol de
+    // documentos (Personajes/Locaciones/Guion del proyecto correcto). Sin esto, al cambiar de
+    // proyecto (p. ej. abrir Tales) la barra seguía mostrando el anterior (el más reciente por fecha).
+    //
+    if (odysseusView != nullptr && currentProject != nullptr) {
+        odysseusView->setActiveProject(currentProject->path());
+    }
 
     state = ApplicationState::Working;
 
@@ -2634,6 +2990,11 @@ ApplicationManager::ApplicationManager(QObject* _parent)
     QFontDatabase::addApplicationFont(":/fonts/roboto-light");
     QFontDatabase::addApplicationFont(":/fonts/roboto-medium");
     QFontDatabase::addApplicationFont(":/fonts/roboto-regular");
+    // Aula 122: Fira Code (la fuente de Odiseo) para que la UI nativa se vea igual que Odiseo.
+    QFontDatabase::addApplicationFont(":/fonts/fira-code");
+    QFontDatabase::addApplicationFont(":/fonts/fira-code-light");
+    QFontDatabase::addApplicationFont(":/fonts/fira-code-medium");
+    QFontDatabase::addApplicationFont(":/fonts/fira-code-bold");
     QFontDatabase::addApplicationFont(":/fonts/noto-sans");
     QFontDatabase::addApplicationFont(":/fonts/noto-sans-light");
     QFontDatabase::addApplicationFont(":/fonts/noto-sans-medium");
@@ -3118,7 +3479,7 @@ void ApplicationManager::initConnections()
             [this](const QString& _path) {
                 if (d->projectsManager->currentProject() != nullptr
                     && d->projectsManager->currentProject()->path() == _path) {
-                    d->showOdysseus();  // Aula 122: aterrizar en Odiseo (anfitrión), no en el editor
+                    d->showProject();  // Aula 122: abrir proyecto → desplegar el guión al lado de Odiseo
                     return;
                 }
 
@@ -3141,6 +3502,27 @@ void ApplicationManager::initConnections()
             d->accountManager.data(), &AccountManager::buyCredits);
     connect(d->projectManager.data(), &ProjectManager::contentsChanged, this,
             [this] { d->markChangesSaved(false); });
+    //
+    // Aula 122: tras añadir un documento, refrescamos la barra de Odiseo para que aparezca (al
+    // nivel superior, junto al Guion). OJO: el endpoint de la barra lee la ESTRUCTURA del .starc EN
+    // DISCO, pero el alta vive solo en el modelo en memoria hasta el autosave. Por eso persistimos
+    // la estructura ANTES de refrescar (si no, la barra leería la versión vieja y no se vería).
+    //
+    connect(d->projectManager.data(), &ProjectManager::aula122DocumentAdded, this, [this] {
+        //
+        // OJO con el timing: AbstractModel regenera el contenido (el XML de la estructura) con un
+        // DEBOUNCE de 300ms tras insertar la fila. Si persistiéramos ya, guardaríamos la estructura
+        // VIEJA (sin el documento nuevo) y la barra —que lee el .starc en disco— no lo vería.
+        // Esperamos a que pase el debounce, persistimos el contenido fresco y recién entonces
+        // refrescamos la barra.
+        //
+        QTimer::singleShot(600, this, [this] {
+            d->projectManager->saveChanges();
+            if (d->odysseusView != nullptr) {
+                d->odysseusView->refreshProjectTree();
+            }
+        });
+    });
     connect(d->projectManager.data(), &ProjectManager::projectUuidChanged,
             d->projectsManager.data(), &ProjectsManager::setCurrentProjectUuid);
     connect(d->projectManager.data(), &ProjectManager::projectNameChanged, this,
@@ -3224,10 +3606,15 @@ void ApplicationManager::initConnections()
                 d->setDesignSystemCustomThemeColors(Ui::DesignSystem::Color(
                     settingsValue(DataStorageLayer::kApplicationCustomThemeColorsKey).toString()));
             }
+            //
+            // Aula 122 / UI unificada: empujar el tema nativo a Odiseo (nativo→web).
+            //
+            d->pushNativeThemeToOdiseo();
         });
     connect(d->settingsManager.data(), &SettingsManager::applicationCustomThemeColorsChanged, this,
             [this](const Ui::DesignSystem::Color& _color) {
                 d->setDesignSystemCustomThemeColors(_color);
+                d->pushNativeThemeToOdiseo();
             });
     connect(d->settingsManager.data(), &SettingsManager::applicationScaleFactorChanged, this,
             [this](qreal _scaleFactor) { d->setDesignSystemScaleFactor(_scaleFactor); });

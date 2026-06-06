@@ -3,6 +3,8 @@
 #include <QWebEnginePage>
 #include <QWidget>
 
+class QTimer;
+class QPushButton;
 class QWebEngineView;
 
 
@@ -24,6 +26,48 @@ public:
 
 signals:
     void pipelineRequested(const QString& _view);
+    void themeRequested(const QString& _bg, const QString& _fg, const QString& _panel,
+                        const QString& _accent, const QString& _error, const QString& _mode);
+    /**
+     * @brief Aula 122: el SPA cambió su FUENTE de UI; la sincronizamos al nativo (web→nativo).
+     *        Verbo de puente: param "font" del /theme (familia CSS).
+     */
+    void fontRequested(const QString& _family);
+    /**
+     * @brief El SPA pidió abrir un DOCUMENTO concreto del proyecto por su uuid
+     *        (clic en un personaje/locación/subdocumento del árbol de la barra).
+     *        Verbo de puente /open/doc/<uuid>.
+     */
+    void documentRequested(const QString& _uuid);
+    /**
+     * @brief El SPA pidió añadir un documento al proyecto (verbo /open/add-document):
+     *        el shell abre el diálogo nativo "Añadir documento".
+     */
+    void addDocumentRequested();
+    /**
+     * @brief El usuario ocultó/mostró el CHAT de Odiseo (verbo /odiseo/chat). true = oculto;
+     *        el menú (barra) se queda y el editor nativo gana el espacio.
+     */
+    void chatCollapseRequested(bool _collapsed);
+    /**
+     * @brief El SPA abrió/cerró una HERRAMIENTA de Odiseo (verbo /odiseo/expand). on=true → el panel
+     *        de Odiseo ocupa TODO el ancho (editor nativo oculto detrás); on=false → no queda ninguna
+     *        herramienta → se restaura el reparto previo.
+     */
+    void expandRequested(bool _on);
+    /**
+     * @brief Guardar el proyecto (verbo /project/save).
+     */
+    void saveProjectRequested();
+    /**
+     * @brief Exportar el documento actual (verbo /project/export).
+     */
+    void exportProjectRequested();
+    /**
+     * @brief Aula 122 (B): el usuario picó la tuerca/X del menú → mostrar/ocultar el MENÚ en una
+     *        ventana FLOTANTE encima del editor (verbo /odiseo/floatmenu).
+     */
+    void floatMenuToggleRequested();
 
 protected:
     bool acceptNavigationRequest(const QUrl& _url, NavigationType _type,
@@ -61,6 +105,53 @@ public:
      */
     void reload();
 
+    /**
+     * @brief Aula 122 / UI unificada: aplica al SPA de Odiseo un tema que viene de los
+     *        Ajustes nativos (canal nativo→web). Los colores llegan con '#'.
+     */
+    void applyThemeFromNative(const QString& _bg, const QString& _fg, const QString& _panel,
+                              const QString& _accent, const QString& _error, const QString& _mode);
+
+    /**
+     * @brief Aula 122: avisar al SPA qué proyecto (.starc) está abierto en el editor nativo, para
+     *        que la barra de Odiseo refleje SU árbol de documentos (y no el más reciente por fecha).
+     *        Se llama al abrir/cambiar de proyecto. Canal nativo→web vía runJavaScript.
+     */
+    void setActiveProject(const QString& _path);
+
+    /**
+     * @brief Aula 122: pedir a la barra de Odiseo que recargue su árbol de documentos (p. ej. tras
+     *        añadir un documento). Canal nativo→web vía runJavaScript (window.aula122RefreshTree).
+     */
+    void refreshProjectTree();
+
+    /**
+     * @brief Aula 122 / menú nativo: ocultar la barra/menú WEB de Odiseo dejando solo el chat (el
+     *        menú pasa a ser el navegador nativo de STARC). Canal nativo→web.
+     */
+    void setMenuCollapsed(bool _collapsed);
+
+    /**
+     * @brief Aula 122: colapsar/mostrar el CHAT web de Odiseo dejando su MENÚ (canal nativo→web). En
+     *        la vista de proyecto el chat arranca colapsado → el editor tiene aire; vuelve con el FAB.
+     */
+    void setChatCollapsed(bool _collapsed);
+
+    /**
+     * @brief Aula 122 (B): muestra/oculta el MENÚ de Odiseo en una VENTANA FLOTANTE propia, ENCIMA
+     *        del editor de STARC (segunda vista web con la misma sesión). El menú flotante controla
+     *        el editor (abrir documentos/secciones) y se oculta al navegar.
+     */
+    void toggleMenuOverlay();
+
+    /**
+     * @brief Aula 122 (B): muestra/oculta la TUERCA (botón nativo, abajo-izquierda sobre el editor)
+     *        que invoca el menú flotante. showMenuGear se usa en la vista de PROYECTO; hideMenuGear
+     *        en cuenta/onboarding/ajustes.
+     */
+    void showMenuGear();
+    void hideMenuGear();
+
 signals:
     /**
      * @brief El SPA pidió abrir una etapa del pipeline nativo
@@ -68,9 +159,64 @@ signals:
      */
     void navigateRequested(const QString& _view);
 
+    /**
+     * @brief El SPA pidió abrir un DOCUMENTO concreto del proyecto por uuid
+     *        (clic en un personaje/locación/subdocumento del árbol de la barra).
+     */
+    void documentRequested(const QString& _uuid);
+
+    /**
+     * @brief El SPA pidió añadir un documento (abre el diálogo nativo de alta).
+     */
+    void addDocumentRequested();
+
+    /**
+     * @brief El usuario ocultó/mostró el chat de Odiseo (el menú se queda).
+     */
+    void chatCollapseRequested(bool _collapsed);
+
+    /**
+     * @brief El SPA abrió/cerró una herramienta de Odiseo: el panel debe ir a pantalla completa y
+     *        luego restaurarse. Reenvío de OdysseusPage::expandRequested.
+     */
+    void expandRequested(bool _on);
+
+    /**
+     * @brief El usuario pidió GUARDAR el proyecto desde la barra de Odiseo (verbo /project/save).
+     */
+    void saveProjectRequested();
+
+    /**
+     * @brief El usuario pidió EXPORTAR el documento actual desde la barra (verbo /project/export).
+     */
+    void exportProjectRequested();
+
+    /**
+     * @brief Aula 122 / UI unificada: el SPA cambió de tema; se reenvía al shell para
+     *        sincronizar la DesignSystem nativa (canal web→nativo). Hex sin '#'.
+     */
+    void themeRequested(const QString& _bg, const QString& _fg, const QString& _panel,
+                        const QString& _accent, const QString& _error, const QString& _mode);
+
+    /**
+     * @brief Aula 122 / UI unificada: el SPA cambió su FUENTE de UI; se reenvía al shell para
+     *        sincronizar la fuente de la DesignSystem nativa (web→nativo).
+     */
+    void fontRequested(const QString& _family);
+
 private:
+    /**
+     * @brief Aula 122: pinta el logo de Aula 122 + "Cargando Odiseo…" DENTRO del webview como HTML
+     *        local (PNG embebido), mientras Odiseo arranca — en vez del error del webview.
+     */
+    void showSplash();
+
     QWebEngineView* m_web = nullptr;
+    QWidget* m_menuOverlay = nullptr; // Aula 122 (B): ventana flotante del menú, encima del editor.
+    QPushButton* m_menuGear = nullptr; // Aula 122 (B): tuerca para invocar el menú flotante.
+    QTimer* m_pollTimer = nullptr;
     bool m_loaded = false;
+    bool m_spaLoaded = false;
 };
 
 } // namespace Ui

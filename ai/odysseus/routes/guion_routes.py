@@ -13,6 +13,7 @@ Endpoints:
   GET  /api/guion/escena/{numero}    → {numero, bloques:[[tipo,texto],...]}
   GET  /api/guion/personajes         → {proyecto, n, personajes:[...]}
   GET  /api/guion/personaje/{nombre} → ficha + relaciones resueltas + escenas
+  GET  /api/guion/estructura         → {proyecto, path, arbol:[{uuid,kind,name,visible,children}]}
 
 La lógica de agregación (stats, presencia de personajes) replica exactamente la
 de las tools `estadisticas_guion` / `listar_personajes` para que coincidan los
@@ -23,6 +24,7 @@ import importlib.util
 import logging
 import os
 import sys
+import xml.etree.ElementTree as ET
 from pathlib import Path
 
 from fastapi import APIRouter, HTTPException, Form
@@ -325,6 +327,70 @@ def get_personaje(nombre, proyecto=None):
 
 
 # ---------------------------------------------------------------------------
+# Estructura del proyecto (el árbol que pinta el navegador nativo de STARC)
+# ---------------------------------------------------------------------------
+
+# El documento de ESTRUCTURA del .starc (mime "application/x-starc/document/structure")
+# es el tipo 1 en la tabla `documents`. Contiene el árbol completo de documentos como
+# <item uuid type name visible> anidados — exactamente lo que el navegador nativo muestra.
+TYPE_STRUCTURE = 1
+_MIME_PREFIX = "application/x-starc/document/"
+
+
+def _estructura_item(el):
+    """Convierte un <item> del árbol de estructura a {uuid,kind,name,visible,children}.
+
+    `kind` es el sufijo del mime tras "application/x-starc/document/" (p. ej.
+    "characters", "character", "locations", "location", "screenplay",
+    "screenplay/text", "screenplay/synopsis", "project", "text", "recycle-bin").
+    """
+    raw_type = el.get("type", "")
+    kind = raw_type[len(_MIME_PREFIX):] if raw_type.startswith(_MIME_PREFIX) else raw_type
+    node = {
+        "uuid": (el.get("uuid") or "").strip("{}"),
+        "kind": kind,
+        "name": el.get("name", ""),
+        "visible": (el.get("visible", "true") == "true"),
+        "children": [_estructura_item(c) for c in el.findall("item")],
+    }
+    return node
+
+
+def get_estructura(proyecto=None):
+    """Árbol de documentos REAL del proyecto (el mismo que pinta el navegador nativo).
+
+    Lee el documento de estructura (tipo 1) del .starc en modo read-only y lo devuelve
+    como JSON anidado para que la barra de Odiseo refleje los documentos reales:
+    Personajes → cada personaje, Locaciones → cada locación, el guion y sus
+    subdocumentos. Excluye la papelera (recycle-bin), que no es navegación normal.
+    """
+    S = _parser()
+    proj = _resolve_project(S, proyecto)
+    if not proj:
+        raise KeyError("No hay ningún proyecto .starc cargado ni encontrado.")
+    conn = S._connect(proj)
+    try:
+        row = conn.execute(
+            "SELECT CAST(content AS TEXT) FROM documents WHERE type=? LIMIT 1",
+            (TYPE_STRUCTURE,),
+        ).fetchone()
+    finally:
+        conn.close()
+    arbol = []
+    if row and row[0]:
+        try:
+            root = ET.fromstring(row[0])
+        except ET.ParseError as e:
+            raise RuntimeError(f"No pude leer la estructura del proyecto: {e}")
+        for el in root.findall("item"):
+            node = _estructura_item(el)
+            if node["kind"] == "recycle-bin":
+                continue
+            arbol.append(node)
+    return {"proyecto": proj.stem, "path": str(proj), "arbol": arbol}
+
+
+# ---------------------------------------------------------------------------
 # Router
 # ---------------------------------------------------------------------------
 
@@ -368,5 +434,9 @@ def setup_guion_routes() -> APIRouter:
     @router.get("/personaje/{nombre}")
     async def personaje(nombre: str, proyecto: str | None = None):
         return _guard(get_personaje, nombre, proyecto)
+
+    @router.get("/estructura")
+    async def estructura(proyecto: str | None = None):
+        return _guard(get_estructura, proyecto)
 
     return router

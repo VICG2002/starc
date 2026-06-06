@@ -3,6 +3,10 @@
         <file alias="materialdesignicons">fonts/materialdesignicons-webfont.ttf</file>
         <file alias="roboto-medium">fonts/roboto-medium.ttf</file>
         <file alias="roboto-regular">fonts/roboto-regular.ttf</file>
+        <file alias="fira-code">fonts/FiraCode-Regular.ttf</file>
+        <file alias="fira-code-light">fonts/FiraCode-Light.ttf</file>
+        <file alias="fira-code-medium">fonts/FiraCode-Medium.ttf</file>
+        <file alias="fira-code-bold">fonts/FiraCode-Bold.ttf</file>
         <file alias="courier-prime-bold-italic">fonts/courier-prime-bold-italic.ttf</file>
         <file alias="courier-prime-bold">fonts/courier-prime-bold.ttf</file>
         <file alias="courier-prime-italic">fonts/courier-prime-italic.ttf</file>

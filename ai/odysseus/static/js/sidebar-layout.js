@@ -119,7 +119,7 @@ export function initSidebarLayout(Storage, opts) {
     // own the screen and stray gestures (swipe, dragging a dock chip to the X)
     // were popping it open. Blocking the open helper covers every path.
     const cc = document.getElementById('chat-container');
-    if (window.innerWidth < 768 && cc && cc.classList.contains('compare-active')) return;
+    if (window.innerWidth < 460 && cc && cc.classList.contains('compare-active')) return;
     _userToggledSidebar = true;
     // Optionally place the sidebar on a specific edge (the swipe gesture passes
     // the direction). Persist it + re-anchor the doc panel, same as a
@@ -133,9 +133,9 @@ export function initSidebarLayout(Storage, opts) {
       }
     }
     const backdrop = document.getElementById('sidebar-backdrop');
-    if (window.innerWidth < 768 && iconRail) { iconRail.classList.remove('mobile-mini'); iconRail.style.cssText = ''; }
+    if (window.innerWidth < 460 && iconRail) { iconRail.classList.remove('mobile-mini'); iconRail.style.cssText = ''; }
     sidebar.classList.remove('hidden');
-    if (backdrop && window.innerWidth < 768) backdrop.classList.add('visible');
+    if (backdrop && window.innerWidth < 460) backdrop.classList.add('visible');
     syncRailSide();
   };
 
@@ -154,7 +154,7 @@ export function initSidebarLayout(Storage, opts) {
       _userToggledSidebar = true;
       const isSidebarVisible = !sidebar.classList.contains('hidden');
 
-      if (window.innerWidth < 768) {
+      if (window.innerWidth < 460) {
         // Mobile: full sidebar ↔ hidden — simple toggle, no mini rail
         const backdrop = document.getElementById('sidebar-backdrop');
         if (iconRail) { iconRail.classList.remove('mobile-mini'); iconRail.style.cssText = ''; }
@@ -220,11 +220,21 @@ export function initSidebarLayout(Storage, opts) {
   }
 
   // Auto-collapse sidebar when window gets small or chat area is squeezed
-  const AUTO_COLLAPSE_WIDTH = 700;
-  const MIN_CHAT_WIDTH = 380; // collapse sidebar if chat gets narrower than this
+  const AUTO_COLLAPSE_WIDTH = 440;
+  const MIN_CHAT_WIDTH = 240; // collapse sidebar if chat gets narrower than this
 
   function checkSidebarAutoCollapse() {
     if (_userToggledSidebar) return;
+    // Aula 122: en modo "chat oculto" el panel de Odiseo se encoge al ancho de su barra (~260px,
+    // por debajo de AUTO_COLLAPSE_WIDTH) a propósito; el MENÚ debe quedarse. No auto-colapsar aquí
+    // o se esconde la navegación (justo lo que el usuario NO quiere).
+    if (document.documentElement.classList.contains('aula122-chat-collapsed')) return;
+    // Aula 122: en modo "menú nativo" la barra web se oculta a propósito (el menú es el navegador
+    // nativo). No la auto-gestionamos aquí.
+    if (document.documentElement.classList.contains('aula122-menu-collapsed')) return;
+    // Aula 122 (opción A): en el shell embebido el MENÚ está SIEMPRE visible → nunca auto-colapsar
+    // la barra por ancho, en ninguna pestaña.
+    if (document.documentElement.classList.contains('aula122-embedded')) return;
     const sidebar = document.getElementById('sidebar');
     if (!sidebar) return;
     const isHidden = sidebar.classList.contains('hidden');
@@ -280,7 +290,7 @@ export function initSidebarLayout(Storage, opts) {
   document.body.appendChild(mobileBackdrop);
 
   function updateMobileBackdrop() {
-    if (window.innerWidth >= 768) { mobileBackdrop.classList.remove('visible'); return; }
+    if (window.innerWidth >= 460) { mobileBackdrop.classList.remove('visible'); return; }
     const sb = document.getElementById('sidebar');
     const rail = document.getElementById('icon-rail');
     const sidebarOpen = sb && !sb.classList.contains('hidden');
@@ -346,7 +356,7 @@ export function initSidebarLayout(Storage, opts) {
 
   // ── Click outside sidebar / icon rail to close (mobile only) ──
   document.addEventListener('click', (e) => {
-    if (window.innerWidth >= 700) return; // desktop keeps sidebar open
+    if (window.innerWidth >= 440) return; // desktop keeps sidebar open
     const sb = document.getElementById('sidebar');
     const rail = document.getElementById('icon-rail');
     // Ignore clicks on elements removed from DOM (e.g. session list re-render during folder toggle)
@@ -388,7 +398,7 @@ export function initSidebarLayout(Storage, opts) {
   let _sidebarWasOpenBeforeTool = false;
   let _railWasOpenBeforeTool = false;
   document.addEventListener('click', (e) => {
-    if (window.innerWidth >= 700) return;
+    if (window.innerWidth >= 440) return;
     const btn = e.target.closest('[id^="tool-"], [id^="rail-"]');
     if (!btn) return;
     setTimeout(() => {
@@ -426,7 +436,7 @@ export function initSidebarLayout(Storage, opts) {
   // whatever state it was in before the tool was opened. ──
   // We watch every .modal for the .hidden class going on, and if our
   // remembered "sidebar-was-open" flag is set, undo the auto-close.
-  if (window.innerWidth < 700) {
+  if (window.innerWidth < 440) {
     const _restoreSidebar = () => {
       const sb = document.getElementById('sidebar');
       const rail = document.getElementById('icon-rail');
@@ -504,7 +514,7 @@ function _initChatSwipeToOpenSidebar() {
 
   document.addEventListener('touchstart', (e) => {
     reset();
-    if (window.innerWidth >= 768) return;
+    if (window.innerWidth >= 460) return;
     if (!e.touches || e.touches.length !== 1) return;
     if (window._chipDragging) return;
     const sb = document.getElementById('sidebar');

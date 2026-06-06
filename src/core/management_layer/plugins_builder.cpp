@@ -371,7 +371,12 @@ public:
     /**
      * @brief Находится ли текущий проект в команде
      */
-    bool isProjectInTeam = false;
+    //
+    // Aula 122: las features "de pago" de STARC (ficha COMPLETA de personaje, mapa de relaciones,
+    // mapa de locaciones…) se gatean con este flag — originalmente "el proyecto está en un equipo"
+    // de la nube. En el fork libre lo forzamos a true → todo desbloqueado, sin barras "UNLOCK".
+    //
+    bool isProjectInTeam = true;
 
     /**
      * @brief Права доступа к конкретным документам
@@ -1117,7 +1122,9 @@ void PluginsBuilder::reconfigureNovelNavigator() const
 
 void PluginsBuilder::checkAvailabilityToEdit(bool _projectInTeam) const
 {
-    d->isProjectInTeam = _projectInTeam;
+    // Aula 122: ignoramos _projectInTeam → siempre disponible (desbloqueo de plugins de pago).
+    Q_UNUSED(_projectInTeam)
+    d->isProjectInTeam = true;
     for (auto plugin : std::as_const(d->plugins)) {
         plugin->checkAvailabilityToEdit(d->isProjectInTeam);
     }

@@ -3,8 +3,10 @@
 #include <QDir>
 #include <QFile>
 #include <QNetworkCookie>
+#include <QPushButton>
 #include <QTimer>
 #include <QUrl>
+#include <QUrlQuery>
 #include <QVBoxLayout>
 #include <QWebEngineCookieStore>
 #include <QWebEnginePage>
@@ -41,14 +43,109 @@ bool OdysseusPage::acceptNavigationRequest(const QUrl& _url, NavigationType _typ
     Q_UNUSED(_type)
     Q_UNUSED(_isMainFrame)
     //
-    // Puente "Aula 122" (JS->C++): el SPA navega a http://aula122.bridge/open/<etapa>
-    // cuando el usuario hace clic en una etapa del pipeline. Lo interceptamos,
-    // reemitimos la etapa y CANCELAMOS la navegación (return false) — esa URL nunca
-    // se carga; solo sirve de canal de mensajes hacia el shell nativo. El resto de
+    // Puente "Aula 122" (JS->C++): el SPA navega a http://aula122.bridge/<verbo>...
+    // Lo interceptamos y CANCELAMOS la navegación (return false) — esa URL nunca se
+    // carga; solo sirve de canal de mensajes hacia el shell nativo. El resto de
     // navegaciones (127.0.0.1, enlaces internos del SPA) se permiten normalmente.
     //
     if (_url.host() == QLatin1String("aula122.bridge")) {
-        const QString view = _url.path().section(QLatin1Char('/'), -1);
+        //
+        // Verbo "/theme": el SPA cambió de tema y manda los colores para sincronizar
+        // la DesignSystem nativa (web→nativo). Hex de 6 dígitos sin '#'.
+        //
+        if (_url.path().startsWith(QLatin1String("/theme"))) {
+            const QUrlQuery query(_url);
+            emit themeRequested(query.queryItemValue(QStringLiteral("bg")),
+                                query.queryItemValue(QStringLiteral("fg")),
+                                query.queryItemValue(QStringLiteral("panel")),
+                                query.queryItemValue(QStringLiteral("accent")),
+                                query.queryItemValue(QStringLiteral("error")),
+                                query.queryItemValue(QStringLiteral("mode")));
+            //
+            // Aula 122: el tema también puede traer la FUENTE de UI de Odiseo (param "font", una
+            // familia CSS). La sincronizamos al nativo para que menús/paneles usen la misma fuente.
+            //
+            const QString font = query.queryItemValue(QStringLiteral("font"), QUrl::FullyDecoded);
+            if (!font.isEmpty()) {
+                emit fontRequested(font);
+            }
+            return false;
+        }
+        //
+        // Verbo "/odiseo/chat?collapsed=0|1": el usuario ocultó/mostró el CHAT desde la barra de
+        // Odiseo. El menú (barra) se queda; aquí encogemos/restauramos el panel de Odiseo para que
+        // el editor nativo gane el espacio del chat.
+        //
+        if (_url.path().startsWith(QLatin1String("/odiseo/chat"))) {
+            const QUrlQuery query(_url);
+            emit chatCollapseRequested(query.queryItemValue(QStringLiteral("collapsed"))
+                                       == QLatin1String("1"));
+            return false;
+        }
+        //
+        // Verbo "/odiseo/expand?on=0|1": el usuario abrió/cerró una HERRAMIENTA de Odiseo (Brain,
+        // Email, Calendario, Tasks, Gallery, Cookbook, Compare, Deep Research, Notas, Ajustes,
+        // Biblioteca…). on=1 → el panel de Odiseo ocupa TODO el ancho (el editor nativo se oculta
+        // detrás, como en las pestañas propias de Odiseo, con la barra/menú visible). on=0 → se
+        // cerró la última → restauramos el reparto anterior.
+        //
+        if (_url.path().startsWith(QLatin1String("/odiseo/expand"))) {
+            const QUrlQuery query(_url);
+            emit expandRequested(query.queryItemValue(QStringLiteral("on")) == QLatin1String("1"));
+            return false;
+        }
+        //
+        // Verbo "/odiseo/floatmenu": mostrar/ocultar el MENÚ en una ventana FLOTANTE encima del
+        // editor (la tuerca del menú / la X del flotante).
+        //
+        if (_url.path().startsWith(QLatin1String("/odiseo/floatmenu"))) {
+            emit floatMenuToggleRequested();
+            return false;
+        }
+        //
+        // Verbos de proyecto: guardar / exportar el documento actual.
+        //
+        if (_url.path().startsWith(QLatin1String("/project/save"))) {
+            emit saveProjectRequested();
+            return false;
+        }
+        if (_url.path().startsWith(QLatin1String("/project/export"))) {
+            emit exportProjectRequested();
+            return false;
+        }
+        const QString path = _url.path();
+        //
+        // Verbo "/open/doc/<uuid>": abrir un DOCUMENTO concreto del proyecto (clic en un
+        // personaje/locación/subdocumento del árbol de la barra de Odiseo). El uuid puede
+        // contiener guiones, así que tomamos TODO lo que sigue al prefijo (no solo el último
+        // segmento). Cierra overlays web y emite documentRequested(uuid).
+        //
+        if (path.startsWith(QLatin1String("/open/doc/"))) {
+            runJavaScript(
+                QStringLiteral("window.aula122CloseOverlays && window.aula122CloseOverlays()"));
+            const QString uuid = path.mid(QStringLiteral("/open/doc/").length());
+            if (!uuid.isEmpty()) {
+                emit documentRequested(uuid);
+            }
+            return false;
+        }
+        //
+        // Verbo "/open/add-document": abrir el diálogo nativo "Añadir documento".
+        //
+        if (path.startsWith(QLatin1String("/open/add-document"))) {
+            runJavaScript(
+                QStringLiteral("window.aula122CloseOverlays && window.aula122CloseOverlays()"));
+            emit addDocumentRequested();
+            return false;
+        }
+        //
+        // Verbo "/open/<etapa>": cambiar a una vista NATIVA del pipeline. Antes de
+        // mostrarla, cerramos cualquier overlay web (Guion/Idea/Bóveda) para no dejar
+        // "dos cosas" a la vez (fix del bug de "dos pestañas").
+        //
+        runJavaScript(
+            QStringLiteral("window.aula122CloseOverlays && window.aula122CloseOverlays()"));
+        const QString view = path.section(QLatin1Char('/'), -1);
         if (!view.isEmpty()) {
             emit pipelineRequested(view);
         }
@@ -77,9 +174,105 @@ OdysseusWorkspaceView::OdysseusWorkspaceView(QWidget* _parent)
     auto* page = new OdysseusPage(m_web->page()->profile(), this);
     connect(page, &OdysseusPage::pipelineRequested, this,
             &OdysseusWorkspaceView::navigateRequested);
+    connect(page, &OdysseusPage::documentRequested, this,
+            &OdysseusWorkspaceView::documentRequested);
+    connect(page, &OdysseusPage::addDocumentRequested, this,
+            &OdysseusWorkspaceView::addDocumentRequested);
+    connect(page, &OdysseusPage::chatCollapseRequested, this,
+            &OdysseusWorkspaceView::chatCollapseRequested);
+    connect(page, &OdysseusPage::expandRequested, this, &OdysseusWorkspaceView::expandRequested);
+    connect(page, &OdysseusPage::floatMenuToggleRequested, this,
+            &OdysseusWorkspaceView::toggleMenuOverlay);
+    connect(page, &OdysseusPage::saveProjectRequested, this,
+            &OdysseusWorkspaceView::saveProjectRequested);
+    connect(page, &OdysseusPage::exportProjectRequested, this,
+            &OdysseusWorkspaceView::exportProjectRequested);
+    connect(page, &OdysseusPage::themeRequested, this, &OdysseusWorkspaceView::themeRequested);
+    connect(page, &OdysseusPage::fontRequested, this, &OdysseusWorkspaceView::fontRequested);
+    //
+    // Aula 122 / UI unificada: al terminar cada carga (incluido el reload() tras ready()),
+    // pedimos al SPA que reenvíe su tema actual → el nativo se alinea con Odiseo (maestro).
+    //
+    connect(page, &OdysseusPage::loadFinished, this, [this](bool _ok) {
+        //
+        // Aula 122 / UI unificada: al terminar la carga REAL del SPA le pedimos que reenvíe su tema.
+        //
+        if (_ok) {
+            if (m_web->url().host() == QLatin1String("127.0.0.1")) {
+                m_spaLoaded = true;
+            }
+            if (m_web->page() != nullptr) {
+                m_web->page()->runJavaScript(
+                    QStringLiteral("window.__aula122PushTheme && window.__aula122PushTheme()"));
+            }
+            return;
+        }
+        //
+        // _ok == false. OJO: una navegación-puente CANCELADA (el push de tema a aula122.bridge, o
+        // un /open de etapa) TAMBIÉN dispara loadFinished(false). Si el SPA YA cargó, eso NO es un
+        // error → lo ignoramos (si no, mataríamos el SPA volviendo al splash en bucle). Solo si el
+        // SPA aún no cargó (server abajo en el arranque) mostramos el splash y reanudamos el sondeo.
+        //
+        if (m_spaLoaded) {
+            return;
+        }
+        showSplash();
+        if (m_pollTimer != nullptr && !m_pollTimer->isActive()) {
+            m_pollTimer->start();
+        }
+    });
     m_web->setPage(page);
 
-    loadWorkspace();
+    //
+    // Aula 122: SPLASH. El server local de Odiseo (7860) tarda ~12 s en arrancar; si cargáramos la
+    // URL antes, el webview mostraría su error de "página no encontrada". En vez de eso pintamos el
+    // LOGO de Aula 122 DENTRO del propio webview (siempre visible: una vista oculta se suspende y no
+    // termina de cargar). Cuando el token de sesión ya está cacheado (⇒ odysseus arriba + login admin
+    // hecho) navegamos al SPA con auto-login. Sondeamos cada segundo; el reload() tras ready() es el
+    // respaldo final.
+    //
+    m_pollTimer = new QTimer(this);
+    m_pollTimer->setInterval(1000);
+    connect(m_pollTimer, &QTimer::timeout, this, [this]() {
+        if (!readSessionToken().isEmpty()) {
+            m_pollTimer->stop();
+            reload();
+        }
+    });
+    if (readSessionToken().isEmpty()) {
+        showSplash();
+        m_pollTimer->start();
+    } else {
+        reload();
+    }
+}
+
+void OdysseusWorkspaceView::showSplash()
+{
+    //
+    // Aula 122: pinta el logo de Aula 122 + "Cargando Odiseo…" DENTRO del webview, como HTML local.
+    // El PNG va embebido en base64 desde el recurso :/images/logo, así NO depende de ningún server
+    // (la gracia es justo que se vea antes de que Odiseo responda).
+    //
+    QString logoSrc;
+    QFile logoFile(QStringLiteral(":/images/logo"));
+    if (logoFile.open(QIODevice::ReadOnly)) {
+        logoSrc = QStringLiteral("data:image/png;base64,")
+            + QString::fromLatin1(logoFile.readAll().toBase64());
+    }
+    const QString html
+        = QStringLiteral(
+              "<!doctype html><html><head><meta charset='utf-8'></head>"
+              "<body style='margin:0;height:100vh;display:flex;flex-direction:column;"
+              "align-items:center;justify-content:center;background:#0d1117;"
+              "font-family:-apple-system,BlinkMacSystemFont,\"Segoe UI\",sans-serif;'>"
+              "<img src='%1' style='width:240px;height:240px;' alt='Aula 122'>"
+              "<div style='color:#9aa0a6;font-size:15px;margin-top:18px;'>Cargando Odiseo…</div>"
+              "</body></html>")
+              .arg(logoSrc);
+    if (m_web != nullptr) {
+        m_web->setHtml(html);
+    }
 }
 
 OdysseusWorkspaceView::~OdysseusWorkspaceView() = default;
@@ -93,6 +286,106 @@ void OdysseusWorkspaceView::reload()
     //
     m_loaded = false;
     loadWorkspace();
+}
+
+void OdysseusWorkspaceView::toggleMenuOverlay()
+{
+    //
+    // Aula 122 (B): el MENÚ de Odiseo en su PROPIA ventana flotante (frameless, top-level), ENCIMA
+    // del editor de STARC. Es una SEGUNDA vista web que comparte el perfil (misma sesión) → muestra
+    // el SPA autenticado. Su puente se conecta a las MISMAS señales → controla el editor (abrir
+    // documentos/secciones). Al navegar, se oculta y se ve el editor.
+    //
+    if (m_menuOverlay != nullptr && m_menuOverlay->isVisible()) {
+        m_menuOverlay->hide();
+        return;
+    }
+    if (m_menuOverlay == nullptr) {
+        m_menuOverlay = new QWidget(window(), Qt::Window | Qt::FramelessWindowHint
+                                        | Qt::WindowStaysOnTopHint);
+        auto* l = new QVBoxLayout(m_menuOverlay);
+        l->setContentsMargins(0, 0, 0, 0);
+        l->setSpacing(0);
+        auto* web = new QWebEngineView(m_menuOverlay);
+        auto* page = new OdysseusPage(m_web->page()->profile(), web);
+        web->setPage(page);
+        l->addWidget(web);
+        //
+        // El menú flotante CONTROLA el editor: su puente → las MISMAS señales que la vista principal.
+        //
+        connect(page, &OdysseusPage::pipelineRequested, this,
+                &OdysseusWorkspaceView::navigateRequested);
+        connect(page, &OdysseusPage::documentRequested, this,
+                &OdysseusWorkspaceView::documentRequested);
+        connect(page, &OdysseusPage::addDocumentRequested, this,
+                &OdysseusWorkspaceView::addDocumentRequested);
+        connect(page, &OdysseusPage::saveProjectRequested, this,
+                &OdysseusWorkspaceView::saveProjectRequested);
+        connect(page, &OdysseusPage::exportProjectRequested, this,
+                &OdysseusWorkspaceView::exportProjectRequested);
+        //
+        // Al abrir un documento/sección desde el flotante, lo ocultamos → se ve el editor.
+        //
+        const auto hideOverlay = [this] {
+            if (m_menuOverlay != nullptr) {
+                m_menuOverlay->hide();
+            }
+        };
+        connect(page, &OdysseusPage::documentRequested, this, hideOverlay);
+        connect(page, &OdysseusPage::pipelineRequested, this, hideOverlay);
+        connect(page, &OdysseusPage::addDocumentRequested, this, hideOverlay);
+        // La tuerca/X DENTRO del menú flotante también lo cierra (mismo verbo /odiseo/floatmenu).
+        connect(page, &OdysseusPage::floatMenuToggleRequested, this,
+                &OdysseusWorkspaceView::toggleMenuOverlay);
+        // ?aula122float=1 → el SPA muestra la X (cerrar) en vez de la tuerca, y se enfoca en el menú.
+        web->load(QUrl(kOdysseusUrl + QStringLiteral("?aula122float=1")));
+    }
+    //
+    // Posicionar sobre el BORDE IZQUIERDO de la ventana principal (donde el menú debe flotar), de
+    // arriba abajo. Panel angosto; el editor queda visible a su derecha.
+    //
+    if (auto* w = window()) {
+        const QRect g = w->frameGeometry();
+        m_menuOverlay->setGeometry(g.x(), g.y() + 28, 320, g.height() - 28);
+    }
+    m_menuOverlay->show();
+    m_menuOverlay->raise();
+    m_menuOverlay->activateWindow();
+}
+
+void OdysseusWorkspaceView::showMenuGear()
+{
+    //
+    // Aula 122 (B): la TUERCA (botón nativo) abajo-izquierda sobre el editor a pantalla completa.
+    // Al picarla aparece/oculta el menú de Odiseo como ventana flotante encima del editor.
+    //
+    if (m_menuGear == nullptr) {
+        m_menuGear = new QPushButton(QString::fromUtf8("\xE2\x9A\x99  Men\xC3\xBA"), window());
+        m_menuGear->setCursor(Qt::PointingHandCursor);
+        m_menuGear->setToolTip(tr("Mostrar el menú de Odiseo encima del editor"));
+        m_menuGear->setStyleSheet(QStringLiteral(
+            "QPushButton{background:rgba(26,26,32,0.92);color:#e6e6e6;"
+            "border:1px solid rgba(255,255,255,0.14);border-radius:19px;padding:7px 16px;"
+            "font-size:13px;font-weight:600;} QPushButton:hover{background:rgba(42,42,52,0.96);}"));
+        m_menuGear->adjustSize();
+        connect(m_menuGear, &QPushButton::clicked, this, &OdysseusWorkspaceView::toggleMenuOverlay);
+    }
+    if (auto* w = window()) {
+        m_menuGear->move(16, w->height() - m_menuGear->height() - 16);
+    }
+    m_menuGear->show();
+    m_menuGear->raise();
+}
+
+void OdysseusWorkspaceView::hideMenuGear()
+{
+    if (m_menuGear != nullptr) {
+        m_menuGear->hide();
+    }
+    // Al salir de la vista de proyecto, también ocultamos el menú flotante si estaba abierto.
+    if (m_menuOverlay != nullptr) {
+        m_menuOverlay->hide();
+    }
 }
 
 void OdysseusWorkspaceView::loadWorkspace()
@@ -139,6 +432,72 @@ void OdysseusWorkspaceView::loadWorkspace()
             m_web->load(url);
         }
     });
+}
+
+void OdysseusWorkspaceView::applyThemeFromNative(const QString& _bg, const QString& _fg,
+                                                 const QString& _panel, const QString& _accent,
+                                                 const QString& _error, const QString& _mode)
+{
+    if (m_web == nullptr || m_web->page() == nullptr) {
+        return;
+    }
+    //
+    // Empuja el tema nativo al SPA (nativo→web). Los colores llegan con '#'.
+    //
+    const QString js
+        = QStringLiteral("window.__aula122ApplyExternalTheme && window.__aula122ApplyExternalTheme("
+                         "{bg:'%1',fg:'%2',panel:'%3',accent:'%4',error:'%5',mode:'%6'})")
+              .arg(_bg, _fg, _panel, _accent, _error, _mode);
+    m_web->page()->runJavaScript(js);
+}
+
+void OdysseusWorkspaceView::setActiveProject(const QString& _path)
+{
+    if (m_web == nullptr || m_web->page() == nullptr) {
+        return;
+    }
+    //
+    // Escapamos la ruta para incrustarla como string JS (puede tener espacios, p. ej.
+    // "Aula 122"; protegemos también '\' y '"').
+    //
+    QString escaped = _path;
+    escaped.replace(QLatin1Char('\\'), QLatin1String("\\\\"));
+    escaped.replace(QLatin1Char('"'), QLatin1String("\\\""));
+    m_web->page()->runJavaScript(
+        QStringLiteral("window.aula122SetProject && window.aula122SetProject(\"%1\")").arg(escaped));
+}
+
+void OdysseusWorkspaceView::refreshProjectTree()
+{
+    if (m_web == nullptr || m_web->page() == nullptr) {
+        return;
+    }
+    m_web->page()->runJavaScript(
+        QStringLiteral("window.aula122RefreshTree && window.aula122RefreshTree()"));
+}
+
+void OdysseusWorkspaceView::setMenuCollapsed(bool _collapsed)
+{
+    if (m_web == nullptr || m_web->page() == nullptr) {
+        return;
+    }
+    //
+    // Aula 122 / menú nativo: pedimos al SPA que OCULTE su barra/menú web y deje SOLO el chat (el
+    // menú ahora es el navegador NATIVO de STARC). Canal nativo→web (window.aula122SetMenuCollapsed).
+    //
+    m_web->page()->runJavaScript(
+        QStringLiteral("window.aula122SetMenuCollapsed && window.aula122SetMenuCollapsed(%1)")
+            .arg(_collapsed ? 1 : 0));
+}
+
+void OdysseusWorkspaceView::setChatCollapsed(bool _collapsed)
+{
+    if (m_web == nullptr || m_web->page() == nullptr) {
+        return;
+    }
+    m_web->page()->runJavaScript(
+        QStringLiteral("window.aula122SetChatCollapsed && window.aula122SetChatCollapsed(%1)")
+            .arg(_collapsed ? 1 : 0));
 }
 
 } // namespace Ui

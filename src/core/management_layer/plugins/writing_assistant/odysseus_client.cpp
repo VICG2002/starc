@@ -263,12 +263,11 @@ void OdysseusClient::postChatStream(const QString& _prompt)
     form.addQueryItem(QStringLiteral("allow_bash"), QStringLiteral("false"));
     // Scouting/referencias: habilita web_search/web_fetch (el preset de Rita los pide).
     form.addQueryItem(QStringLiteral("allow_web_search"), QStringLiteral("true"));
-    // Perfil de proyecto: odysseus mantiene las tools MCP del .starc MÁS una lista
-    // blanca de ejecución mecánica (crear documentos, calendario, tareas, memoria,
-    // imágenes, web) — menú chico y fiable para el modelo local, con el que Odiseo
-    // PRODUCE entregables. Las acciones externas o irreversibles (enviar/borrar
-    // correo, servir modelos, escribir el .starc real) quedan FUERA de la lista.
-    form.addQueryItem(QStringLiteral("mcp_only"), QStringLiteral("true"));
+    // Aula 122 / M2: Odiseo opera con tools COMPLETAS, SIN whitelist (cero limitaciones).
+    // El recorte 'mcp_only' quedó neutralizado (el server lo ignora) y aquí ya NO lo
+    // enviamos: el cerebro produce entregables Y comanda el ecosistema. Las acciones
+    // irreversibles (escribir el .starc real, enviar/borrar correo) siguen siendo del
+    // MOTOR nativo —por soberanía/seguridad de datos, no por límite de tools.
     // Conocimiento de Rita (Fase 2): el preset "rita" inyecta en cada turno la
     // identidad de Odiseo + la metodología de preproducción + el principio rector
     // ("IA ejecuta, no decide"); el RAG (data/rag, embeddings locales) recupera el

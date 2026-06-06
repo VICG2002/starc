@@ -250,6 +250,44 @@ function generateHarmonyColors(accentHex, harmonyType, mode) {
   };
 }
 
+// ── Aula 122 bridge: web → native theme push ──
+// Reenvía el tema actual al shell Qt (Aula 122) navegando a un host-puente que
+// el C++ intercepta y cancela. En un navegador normal new Image().src falla en
+// silencio (sin log de error, a diferencia de fetch o window.location), así que
+// es inofensivo fuera del shell. Anti-eco: si el cambio de tema vino del propio
+// nativo (__aula122ApplyingTheme === true) no lo reenviamos.
+let _a122ThemeNavTimer = null;
+function _pushThemeToShell(colors) {
+  if (window.__aula122ApplyingTheme) return;
+  try {
+    if (!colors || !colors.bg) return;
+    const [, , bgL] = hexToHSL(colors.bg);
+    const mode = bgL < 50 ? 'dark' : 'light';
+    const accent = (colors.advanced && colors.advanced.brandColor) || colors.red || '#e06c75';
+    const hex = (c) => String(c || '').replace('#', '');
+    // Aula 122: incluimos la FUENTE de UI actual para que el nativo la sincronice (web→nativo).
+    const fontFam = (getComputedStyle(document.documentElement)
+      .getPropertyValue('--font-family') || '').trim();
+    const u = 'http://aula122.bridge/theme'
+      + '?bg=' + hex(colors.bg)
+      + '&fg=' + hex(colors.fg)
+      + '&panel=' + hex(colors.panel)
+      + '&accent=' + hex(accent)
+      + '&error=' + hex(colors.red || accent)
+      + '&mode=' + mode
+      + (fontFam ? '&font=' + encodeURIComponent(fontFam) : '')
+      + '&t=' + Date.now();
+    // El shell nativo intercepta esta NAVEGACIÓN (host aula122.bridge) en
+    // acceptNavigationRequest y la CANCELA — igual que /open. (Un `new Image().src`
+    // NO se intercepta: las cargas de recursos no pasan por acceptNavigationRequest.)
+    // Debounce para no spamear navegaciones al arrastrar el color picker.
+    if (_a122ThemeNavTimer) clearTimeout(_a122ThemeNavTimer);
+    _a122ThemeNavTimer = setTimeout(function () {
+      try { window.location.href = u; } catch (_e) {}
+    }, 120);
+  } catch (_e) { /* fuera del shell o hex inválido — inofensivo */ }
+}
+
 export function applyColors(colors) {
   const s = document.documentElement.style;
   s.setProperty('--bg', colors.bg);
@@ -285,7 +323,68 @@ export function applyColors(colors) {
 
   // Update favicon to match theme accent color
   _updateFavicon(colors.red || '#e06c75');
+
+  // Aula 122 bridge: reenviar el tema recién aplicado al shell nativo.
+  // No-op fuera del shell y silenciado durante un push entrante (anti-eco).
+  _pushThemeToShell(colors);
 }
+
+// ── Aula 122 bridge: native → web theme apply + boot pull ──
+// El C++ (shell Aula 122) llama estas globales. La primera aplica un tema que
+// el usuario eligió en los Ajustes NATIVOS; la segunda es el "pull" de arranque
+// que el shell dispara cuando está listo, para que el web reenvíe su tema actual.
+
+// El shell entrega { bg, fg, panel, accent, error, mode } con '#'. Lo mapeamos a
+// la forma que applyColors espera ({ bg, fg, panel, border, red, advanced }),
+// reusando del tema vigente lo que el nativo no manda (p.ej. `border`).
+window.__aula122ApplyExternalTheme = function (c) {
+  if (!c) return;
+  // Flag anti-eco: evita que el applyColors de abajo reenvíe el tema al shell.
+  window.__aula122ApplyingTheme = true;
+  try {
+    const prev = getSaved();
+    const prevColors = (prev && prev.colors) || THEMES[DEFAULT_THEME] || {};
+    const mapped = {
+      ...prevColors,
+      bg: c.bg || prevColors.bg,
+      fg: c.fg || prevColors.fg,
+      panel: c.panel || prevColors.panel,
+      // El nativo no envía `border`: reusamos el del tema actual.
+      border: prevColors.border,
+      red: c.error || c.accent || prevColors.red,
+      advanced: { ...(prevColors.advanced || {}), brandColor: c.accent || (prevColors.advanced && prevColors.advanced.brandColor) },
+    };
+    applyColors(mapped);
+    // Persistir con el mismo save() del módulo, conservando nombre y opts del
+    // tema vigente para no pisar fuente/densidad/patrón. El tema pasa a 'custom'
+    // sólo si no había uno guardado. Va ANTES de syncPickers porque éste lanza
+    // si el modal de Ajustes web aún no está en el DOM, y no queremos que un
+    // fallo de UI bloquee la persistencia.
+    const name = (prev && prev.name) || 'custom';
+    save(name, mapped, prev ? {
+      font: prev.font, density: prev.density, bgPattern: prev.bgPattern,
+      bgEffectColor: prev.bgEffectColor, bgEffectIntensity: prev.bgEffectIntensity,
+      bgEffectSize: prev.bgEffectSize, frosted: prev.frosted,
+    } : undefined);
+    // Sincronizar los color-pickers del panel de tema si está montado.
+    try { syncPickers(mapped); } catch (_p) {}
+  } catch (_e) { /* no romper el shell */ }
+  finally {
+    // Bajar el flag fuera del stack actual: applyColors ya corrió, pero algún
+    // efecto async (favicon, etc.) podría re-disparar — 0ms basta como cortafuego.
+    setTimeout(() => { window.__aula122ApplyingTheme = false; }, 0);
+  }
+};
+
+// Pull de arranque: el shell llama esto cuando está listo. Reenviamos el tema
+// ACTUAL por el mismo Image-push (NO bajo el flag anti-eco — es un push real).
+window.__aula122PushTheme = function () {
+  try {
+    const saved = getSaved();
+    const colors = (saved && saved.colors) || THEMES[DEFAULT_THEME];
+    _pushThemeToShell(colors);
+  } catch (_e) { /* inofensivo */ }
+};
 
 // Per-route SVG shape registry — kept in sync with the inline favicon
 // script in index.html so a theme change keeps the route icon, not the
@@ -380,6 +479,9 @@ export function applyFontDensity(font, density) {
   }
   if (!family) family = FONT_MAP[DEFAULT_FONT];
   document.documentElement.style.setProperty('--font-family', family);
+  // Aula 122: re-empujar el tema al shell nativo (lleva &font=) para que la UI nativa siga la fuente
+  // de Odiseo EN VIVO al cambiarla aquí.
+  try { if (globalThis.__aula122PushTheme) globalThis.__aula122PushTheme(); } catch (_e) { /* fuera del shell */ }
   document.documentElement.classList.remove('density-compact', 'density-spacious');
   if (d !== 'comfortable') document.documentElement.classList.add('density-' + d);
 }

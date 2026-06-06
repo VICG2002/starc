@@ -1,0 +1,53 @@
+/* idea.css — área principal de la etapa «Idea» (Sinopsis + Tratamiento),
+   CALCADA de design/idea.html (<style>). Los tokens y la fuente Material Symbols
+   vienen de aula122-tokens.css. Esta hoja solo define el área de documentos de
+   desarrollo (appbar + pestañas + página de prosa + sidebar de metadatos).
+   Igual que guion.css, NO incluye la nav lateral: la aporta el SPA anfitrión. */
+
+html, body { height: 100%; margin: 0; background: var(--background); }
+.muted { color: var(--on-surface-medium); }
+
+/* Contenedor = .a122-main del diseño (columna que llena la ventana) */
+.i-main { height: 100vh; min-width: 0; display: flex; flex-direction: column; background: var(--background); }
+
+/* ---- App bar (de aula122-tokens.css .a122-appbar, replicada para autonomía) ---- */
+.i-appbar{display:flex;align-items:center;gap:var(--px16);height:56px;padding:0 var(--px24);
+  background:var(--background);color:var(--on-background);box-shadow:var(--shadow-1);position:relative;z-index:2;flex:none}
+.i-appbar .title{font-size:var(--fz-h6);font-weight:var(--w-medium)}
+.i-appbar .spacer{flex:1}
+
+/* ---- Pestañas de documentos de desarrollo (calcadas del diseño) ---- */
+.dev-tabs{display:flex;gap:var(--px8);align-items:center;padding:var(--px8) var(--px24);
+  border-bottom:1px solid var(--divider);flex:none}
+.dev-tab{border:0;background:transparent;cursor:pointer;font-size:var(--fz-body2);color:var(--on-surface-medium);
+  padding:var(--px8) var(--px12);border-radius:var(--radius) var(--radius) 0 0;border-bottom:2px solid transparent}
+.dev-tab.is-active{color:#2f6fd6;border-bottom-color:var(--accent);font-weight:var(--w-medium)}
+.dev-tab:hover{background:var(--hover)}
+
+/* ---- Cuerpo: página de prosa | sidebar de metadatos ---- */
+.dev-body{flex:1;display:flex;min-height:0}
+.doc-area{flex:1;overflow:auto;background:#e7e7e7;padding:var(--px24);display:flex;justify-content:center}
+
+/* Página de prosa para el argumento / tratamiento (papel) */
+.prose{width:680px;min-height:840px;height:max-content;background:#fff;color:#000;box-shadow:var(--shadow-2);
+  padding:56px 64px;font-size:15px;line-height:1.7;font-family:Georgia,"Times New Roman",serif}
+.prose h1{font-size:22px;font-family:var(--font);font-weight:var(--w-medium);margin:0 0 4px}
+.prose .srcnote{font-family:var(--font);font-size:var(--fz-caption);color:var(--on-surface-medium);
+  display:flex;align-items:center;gap:var(--px4);
+  margin-bottom:var(--px24);padding-bottom:var(--px8);border-bottom:1px solid var(--divider)}
+.prose p{margin:0 0 14px}
+.prose h2.seq{font-family:var(--font);font-size:12px;letter-spacing:.5px;color:var(--on-surface-medium);
+  text-transform:uppercase;font-weight:var(--w-medium);margin:0 0 14px}
+.prose .fb{color:#5b4a8a}            /* texto marcado como flashback {…} */
+.prose .empty{color:var(--on-surface-disabled);font-style:italic;font-family:var(--font);font-size:var(--fz-body2)}
+
+/* ---- Sidebar de metadatos (calcado del diseño) ---- */
+.meta{width:300px;flex:none;border-left:1px solid var(--divider);background:var(--surface);
+  overflow:auto;padding:var(--px16);display:flex;flex-direction:column;gap:var(--px12)}
+.meta .a122-card{background:var(--background)}
+.meta label{display:block;font-size:var(--fz-caption);color:var(--on-surface-medium);
+  text-transform:uppercase;letter-spacing:.4px;margin-bottom:2px}
+.meta .val{font-size:var(--fz-body2)}
+.mood{display:grid;grid-template-columns:repeat(2,1fr);gap:var(--px8)}
+.mood div{height:52px;border:1px dashed var(--on-surface-disabled);border-radius:var(--radius);
+  display:flex;align-items:center;justify-content:center;color:var(--on-surface-disabled);font-size:var(--fz-caption)}

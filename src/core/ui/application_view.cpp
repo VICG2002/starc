@@ -54,6 +54,18 @@ public:
     // (full-bleed) sin perder el ancho que dejó el usuario.
     bool navHiddenForView = false;
     QByteArray splitterStateBeforeView;
+    // Aula 122: el usuario ocultó el CHAT de Odiseo desde su barra (el MENÚ se queda). Cuando es
+    // true, el panel de Odiseo se encoge al ancho de su barra y el editor nativo gana el espacio.
+    bool odiseoChatCollapsed = false;
+    // Aula 122: mientras es true, una HERRAMIENTA de Odiseo ocupa TODO el ancho (editor nativo
+    // oculto detrás). El reparto normal (chat 240 / 52-48) queda en pausa; al volver a false se
+    // reaplica el modo recordado del chat.
+    bool odiseoExpanded = false;
+    // Aula 122: mientras es true, showContent() FUERZA oculto el navegador nativo (árbol de
+    // documentos + barra de proyecto) → el menú de Odiseo es el único en esa pestaña. Lo activan las
+    // vistas cuyo navegador es REDUNDANTE con la barra de Odiseo (proyecto, proyectos). Ajustes lo
+    // deja en false (su navegador de secciones SÍ hace falta); cuenta/onboarding también (false).
+    bool forceHideNativeNav = false;
 
     ThemeSetupView* themeSetupView = nullptr;
 
@@ -275,7 +287,7 @@ void ApplicationView::showContent(QWidget* _toolbar, QWidget* _navigator, QWidge
     // columna vacía a su lado. Guardamos el ancho antes de ocultar y lo restauramos
     // al volver a cualquier otra pantalla (_showNavigation = true por defecto).
     //
-    if (!_showNavigation) {
+    if (!_showNavigation || d->forceHideNativeNav) {
         if (!d->navHiddenForView) {
             d->splitterStateBeforeView = d->splitter->saveState();
             d->navHiddenForView = true;
@@ -321,9 +333,14 @@ void ApplicationView::showOdiseoFull()
     //
     d->odiseoHost->setVisible(true);
     d->splitter->setVisible(false);
+    d->forceHideNativeNav = true;
+    //
+    // Aula 122: a pantalla completa de Odiseo no hay nada que revelar al lado → sin botón de colapso.
+    //
+    d->outerSplitter->setHidePanelButtonAvailable(false, /*forLeftPanel=*/true);
 }
 
-void ApplicationView::showOdiseoBeside()
+void ApplicationView::showOdiseoBeside(bool _hideNativeNavigator)
 {
     //
     // Odiseo + el editor nativo lado a lado, en la MISMA ventana. Odiseo (chats) a la izquierda,
@@ -331,7 +348,144 @@ void ApplicationView::showOdiseoBeside()
     //
     d->odiseoHost->setVisible(true);
     d->splitter->setVisible(true);
-    d->outerSplitter->setSizes({ 38, 62 });
+    //
+    // Aula 122: si el navegador nativo es REDUNDANTE con la barra de Odiseo (proyecto/proyectos),
+    // lo ocultamos y showContent() lo mantiene oculto en toda sub-navegación → el menú de Odiseo es
+    // el único. Ajustes pasa false: su navegador de secciones (Aplicación/Componentes/Atajos/
+    // Avanzado) NO lo replica Odiseo, así que se conserva (se reestiliza en vez de esconderse).
+    //
+    d->forceHideNativeNav = _hideNativeNavigator;
+    if (_hideNativeNavigator) {
+        d->navigationWidget->setVisible(false);
+    }
+    //
+    // Aula 122: el botón "‹" del splitter escondía TODO Odiseo (menú + chat) → el usuario perdía la
+    // navegación. Lo deshabilitamos: ahora el CHAT se oculta desde la propia barra de Odiseo
+    // (setOdiseoChatCollapsed) y el MENÚ SIEMPRE se queda. Aplicamos el reparto según el estado
+    // recordado (chat visible → 52/48; chat oculto → panel angosto = solo el menú).
+    //
+    d->outerSplitter->setHidePanelButtonAvailable(false, /*forLeftPanel=*/true);
+    setOdiseoChatCollapsed(d->odiseoChatCollapsed);
+}
+
+void ApplicationView::showEditorFullWidth()
+{
+    //
+    // Aula 122 (B): el menú LATERAL fijo de Odiseo desaparece y el ensamblaje nativo (editor) ocupa
+    // TODO el ancho. El menú de Odiseo se invoca aparte como VENTANA FLOTANTE encima del editor (la
+    // tuerca). Al ocultar odiseoHost (primer panel del outerSplitter), el Splitter da el 100% al
+    // editor; forceHideNativeNav mantiene oculto el navegador nativo → editor a pantalla completa.
+    //
+    d->odiseoHost->setVisible(false);
+    d->splitter->setVisible(true);
+    d->forceHideNativeNav = true;
+    d->outerSplitter->setHidePanelButtonAvailable(false, /*forLeftPanel=*/true);
+}
+
+void ApplicationView::setOdiseoChatCollapsed(bool _collapsed)
+{
+    d->odiseoChatCollapsed = _collapsed;
+    //
+    // Si Odiseo no está visible al lado (modo full o solo-nativo), solo recordamos el estado para
+    // aplicarlo cuando se muestre (showOdiseoBeside lo vuelve a llamar).
+    //
+    if (!d->odiseoHost->isVisible()) {
+        return;
+    }
+    if (_collapsed) {
+        //
+        // Encoge el panel de Odiseo al ancho de su barra. La barra del SPA mide 240 px CSS (=
+        // px lógicos en el webview); con un pelín de margen llena el panel (su CSS la fuerza a
+        // width:100% en este modo, así que el ancho exacto no es crítico). El editor nativo
+        // se queda con el resto.
+        //
+        // 240px = ancho exacto de la barra del SPA en escritorio, y queda por encima del breakpoint
+        // móvil (200px) → la barra se ve IDÉNTICA con el chat abierto o cerrado (sin adivinar nada).
+        const int total = d->outerSplitter->width();
+        constexpr int kSidebar = 240;
+        d->outerSplitter->setSizes(total > kSidebar ? QVector<int>{ kSidebar, total - kSidebar }
+                                                    : QVector<int>{ 52, 48 });
+    } else {
+        d->outerSplitter->setSizes({ 52, 48 });
+    }
+}
+
+void ApplicationView::setOdiseoExpanded(bool _on)
+{
+    //
+    // Igual que setOdiseoChatCollapsed: si Odiseo no está al lado (modo full o solo-nativo), solo
+    // recordamos la intención (showOdiseoBeside reaplica el reparto al volver).
+    //
+    if (!d->odiseoHost->isVisible()) {
+        d->odiseoExpanded = _on;
+        return;
+    }
+    d->odiseoExpanded = _on;
+    if (_on) {
+        //
+        // Ancho COMPLETO de Odiseo reusando el MISMO mecanismo del chat: setSizes sobre el
+        // outerSplitter, que REPINTA ambos paneles (sin región sin pintar). El editor va a 0 de
+        // ancho → la herramienta (position:fixed) cubre toda el área con la barra/menú visible, como
+        // en Odiseo standalone. NUNCA ocultamos el panel del editor: hacerlo deja el área sin repintar
+        // (ROJO), y además otros reajustes (setOdiseoChatCollapsed) lo reabrían a 52/48 con el panel
+        // oculto → rojo. NO tocamos d->odiseoChatCollapsed: se conserva para restaurarlo al cerrar.
+        //
+        const int total = d->outerSplitter->width();
+        d->outerSplitter->setSizes({ total, 0 });
+    } else {
+        //
+        // Se cerró la última herramienta: restauramos el reparto PREVIO reaplicando el modo recordado
+        // del chat (240px si compactado, 52/48 si visible). Reusar setOdiseoChatCollapsed evita
+        // duplicar aritmética.
+        //
+        setOdiseoChatCollapsed(d->odiseoChatCollapsed);
+    }
+}
+
+void ApplicationView::collapseNativeNavigator()
+{
+    //
+    // Aula 122: en la vista de PROYECTO la navegación vive en la barra de Odiseo (que refleja el
+    // árbol de documentos del .starc), así que ocultamos el navegador nativo (árbol + barra de
+    // proyecto) para que el editor ocupe TODO el ancho del panel nativo, al lado de Odiseo. Es el
+    // mismo mecanismo que usa la vista full-bleed de Odiseo: ocultar navigationWidget. Con el modo
+    // "Odiseo al lado" activo, showContent() ya lo mantiene oculto en CUALQUIER pestaña; este método
+    // deja el estado explícito en la vista de proyecto.
+    //
+    d->navigationWidget->setVisible(false);
+}
+
+void ApplicationView::allowNativeNavigator()
+{
+    //
+    // Aula 122: desactiva el force-hide para que la PRÓXIMA showContent() respete _showNavigation y
+    // muestre el navegador nativo (restaurando su ancho). Lo invocan ANTES de showContent las vistas
+    // cuyo navegador NO replica Odiseo: cuenta, onboarding y Ajustes (su navegador de secciones).
+    //
+    d->forceHideNativeNav = false;
+}
+
+void ApplicationView::applyNativeMenuLayout()
+{
+    //
+    // Aula 122 / menú nativo: reparto de la vista de proyecto. Diferimos al siguiente ciclo del bucle
+    // de eventos para que el splitter ya tenga su tamaño definitivo (showProject corre en transición).
+    // Odiseo (chat) angosto a la izquierda; el navegador NATIVO (menú) ~260px; el editor con el resto.
+    //
+    QTimer::singleShot(0, this, [this] {
+        const int outerTotal = d->outerSplitter->width();
+        if (outerTotal > 800) {
+            const int odiseoW = qBound(300, outerTotal * 22 / 100, 400);
+            d->outerSplitter->setSizes({ odiseoW, outerTotal - odiseoW });
+        }
+        QTimer::singleShot(0, this, [this] {
+            const int innerTotal = d->splitter->width();
+            if (innerTotal > 520) {
+                constexpr int kNavWidth = 260;
+                d->splitter->setSizes({ kNavWidth, innerTotal - kNavWidth });
+            }
+        });
+    });
 }
 
 void ApplicationView::toggleFullScreen(bool _isFullScreen)

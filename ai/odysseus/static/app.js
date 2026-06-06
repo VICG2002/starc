@@ -24,11 +24,14 @@ import tasksModule from './js/tasks.js';
 import calendarModule from './js/calendar.js';
 import notesModule from './js/notes.js';
 import bovedaModule from './js/boveda.js';
+import hermesModule from './js/hermes.js';
 import guionModule from './js/guion.js';
+import ideaModule from './js/idea.js';
+import aula122TreeModule from './js/aula122-tree.js';
 import adminModule from './js/admin.js';
 import settingsModule from './js/settings.js';
 // Eagerly bind unified minimize/restore behavior across all tool modals.
-import './js/modalManager.js';
+import modalManager from './js/modalManager.js';
 // Desktop window tiling — drag a modal near an edge/corner to snap.
 import './js/tileManager.js';
 import themeModule from './js/theme.js';
@@ -885,8 +888,10 @@ function initializeEventListeners() {
   // (Aula 122) intercepta en acceptNavigationRequest para cambiar a la vista Qt.
   // El nonce evita que clics repetidos a la misma etapa se ignoren. En un navegador
   // normal (sin el shell) la navegación simplemente falla — inofensivo.
-  // 'guion' ya no usa el bridge: abre el visor web de Guion (modal, abajo).
-  ['proyectos', 'desglose', 'plan-rodaje'].forEach((key) => {
+  // 'idea' y 'guion' usan el puente → editores NATIVOS de Story Architect (handlers
+  // propios, más abajo): Idea abre Sinopsis/Tratamiento; Guion abre el guión.
+  // 'ajustes' (M6) → Ajustes nativos embebidos al lado de Odiseo.
+  ['proyectos', 'desglose', 'plan-rodaje', 'ajustes', 'personajes', 'locaciones'].forEach((key) => {
     const b = el('aula122-' + key + '-btn');
     if (b) b.addEventListener('click', () => {
       try { window.location.href = 'http://aula122.bridge/open/' + key + '?t=' + Date.now(); }
@@ -900,11 +905,51 @@ function initializeEventListeners() {
     try { bovedaModule.open(); } catch (e) { console.error('boveda open failed', e); }
   });
 
-  // ── Guion: visor del .starc (escenas, página, stats, personajes) — modal web ──
+  // ── Hermes: panel de ajustes del 4º servicio (tools que puede tocar + comportamiento) ──
+  const hermesBtn = el('hermes-open-btn');
+  if (hermesBtn) hermesBtn.addEventListener('click', () => {
+    try { hermesModule.open(); } catch (e) { console.error('hermes open failed', e); }
+  });
+
+  // ── Guion: abre el EDITOR NATIVO de Story Architect (vía puente), embebido al lado
+  // de Odiseo — el MISMO que se despliega al abrir un proyecto, para que "Guión" sea
+  // consistente. (Antes abría el visor web `guionModule`; lo conservamos por si luego
+  // lo reincorporamos.) Si no hay proyecto abierto, el router nativo lleva al selector. ──
   const guionBtn = el('aula122-guion-btn');
   if (guionBtn) guionBtn.addEventListener('click', () => {
-    try { guionModule.open(); } catch (e) { console.error('guion open failed', e); }
+    try { window.location.href = 'http://aula122.bridge/open/guion?t=' + Date.now(); }
+    catch (e) { /* no-op fuera del shell nativo */ }
   });
+
+  // ── Árbol de documentos en la barra: convierte Guion/Personajes/Locaciones en
+  // desplegables con los documentos REALES del .starc + "Añadir documento". Cada
+  // documento abre su editor nativo vía puente /open/doc/<uuid>. Aislado en su
+  // módulo (no toca el arranque). ──
+  try { aula122TreeModule.init(); } catch (e) { console.error('aula122-tree init failed', e); }
+
+  // ── Puente: cerrar overlays web cuando el shell nativo (Aula 122) navega a
+  // una vista Qt. Los módulos son imports de este módulo (no globales), así que
+  // exponemos esta función para que el C++ pueda cerrarlos. Cada close() va en
+  // su propio try/catch para que un fallo no impida cerrar los demás.
+  window.aula122CloseOverlays = function () {
+    try { guionModule.close(); } catch (_) {}
+    try { ideaModule.close(); } catch (_) {}
+    try { bovedaModule.close(); } catch (_) {}
+    try { hermesModule.close(); } catch (_) {}
+    // Aula 122: al navegar a un DOCUMENTO/sección de STARC, cerrar también las HERRAMIENTAS de
+    // Odiseo (Settings, Calendar, etc.) que estuvieran CUBRIENDO el editor → se vuelve al editor
+    // limpio (el observer de aula122-tree detecta el cierre y des-cubre el panel).
+    ['settings-modal', 'calendar-modal', 'memory-modal', 'tasks-modal', 'gallery-modal',
+     'doclib-modal', 'email-lib-modal', 'research-overlay', 'theme-modal', 'compare-model-overlay',
+     'cookbook-modal'].forEach(function (id) {
+      const m = document.getElementById(id);
+      if (!m || m.classList.contains('hidden')) return;
+      try { modalManager.close(id); } catch (_) {}
+      // Fallback robusto para modales NO registrados en modalManager (p.ej. settings-modal):
+      // ocultarlos directamente. El observer de aula122-tree detecta el cierre y des-cubre.
+      m.classList.add('hidden');
+    });
+  };
 
   // URL-based panel routing — bookmark /calendar, /notes, /cookbook etc
   // and the matching tool opens automatically on page load.

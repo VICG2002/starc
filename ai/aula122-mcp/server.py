@@ -40,9 +40,21 @@ PROJECT_DIRS = [
 ]
 
 # Tipos de documento del .starc (enum DocumentObjectType de STARC)
+# Ver src/corelib/domain/document_object.h:
+#   ScreenplaySynopsis = 10102, ScreenplayTreatment = 10103, ScreenplayText = 10104.
+TYPE_SCREENPLAY_SYNOPSIS = 10102   # "Sinopsis" (argumento) — documento de texto simple
+TYPE_SCREENPLAY_TREATMENT = 10103  # "Tratamiento" — documento de texto simple
 TYPE_SCREENPLAY_TEXT = 10104
 TYPE_CHARACTER = 30001
 TYPE_LOCATION = 40001
+
+# Tags de bloque de encabezado en los documentos de TEXTO SIMPLE (sinopsis/tratamiento).
+# Ver src/corelib/business_layer/templates/text_template.cpp: los párrafos se serializan
+# como <heading_1..6> / <text> / <unformatted_text>, cada uno con un <v><![CDATA[…]]></v>.
+_SIMPLE_HEADING_TAGS = {
+    "heading_1", "heading_2", "heading_3",
+    "heading_4", "heading_5", "heading_6",
+}
 
 STORY_ROLE = {0: "Principal", 1: "Secundario", 2: "Terciario", 3: "Sin definir"}
 GENDER = {0: "M", 1: "F", 2: "Otro"}
@@ -287,6 +299,103 @@ def _parse_location(content):
         "one_sentence": g("one_sentence_description"),
         "long": g("long_description"),
     }
+
+
+# ---------------------------------------------------------------------------
+# Parseo de documentos de TEXTO SIMPLE (Sinopsis / Tratamiento)
+# ---------------------------------------------------------------------------
+#
+# Sinopsis (10102) y Tratamiento (10103) son SimpleTextModel: prosa libre, NO
+# guion estructurado. El XML los serializa como una secuencia de párrafos cuyo
+# tag es el tipo de párrafo (heading_1..6, text, unformatted_text), cada uno con
+# su texto en <v><![CDATA[…]]></v> — exactamente el patrón que ya lee `_text_of`.
+# Los párrafos pueden ir envueltos en <folder>/<chapter_N> con <content>, así que
+# recorremos recursivamente y recogemos CUALQUIER bloque que tenga un <v> hijo.
+#
+# SUPUESTO (verificado contra el código C++, no contra un .starc en vivo aquí):
+#   - root = <document mime-type="…" version="1.0">.
+#   - cada párrafo = <tag>…<v><![CDATA[texto]]></v>…</tag>, en orden de lectura.
+#   - <heading_1..6> ⇒ encabezado/sección; el resto ⇒ párrafo de cuerpo.
+# Si un proyecto guardara estos documentos con otra forma, esto extrae el texto
+# de todos los <v> disponibles igualmente (degradación elegante).
+
+# Tags que NO son párrafos de contenido (estructura/colofón) — se ignoran al
+# recolectar, pero sus descendientes sí se visitan.
+_SIMPLE_SKIP_TAGS = {"document", "content"}
+
+
+def _iter_simple_blocks(content):
+    """Itera (tag, texto) de los párrafos de un documento de texto simple, en orden.
+
+    Recorre el árbol en profundidad: un nodo se considera "párrafo" si tiene un
+    hijo directo <v>; su texto es el de ese <v>. Los contenedores (folder,
+    chapter_N, content, document) no aportan texto propio pero se descienden.
+    """
+    try:
+        root = ET.fromstring(content)
+    except ET.ParseError:
+        return
+    # DFS manual preservando el orden de los hijos (ET no da padres/orden global
+    # con iter()). Un nodo con hijo directo <v> es un párrafo; los contenedores
+    # (folder, chapter_N, content) no aportan texto propio pero se descienden.
+    def walk(el):
+        v = el.find("v")
+        if v is not None:
+            yield el.tag, (v.text or "").strip()
+            return  # su <v> ya se consumió; no recursar dentro del párrafo
+        for child in list(el):
+            yield from walk(child)
+
+    for child in list(root):  # se salta el propio <document>, recorre sus hijos
+        yield from walk(child)
+
+
+def _parse_simple_text(content):
+    """Convierte un documento de texto simple en {texto, palabras, parrafos:[…]}.
+
+    - `parrafos`: lista de {tipo: 'heading'|'body', nivel?: int, texto: str}.
+    - `texto`: el texto plano completo (párrafos unidos por doble salto de línea).
+    - `palabras`: conteo de palabras del texto plano.
+    """
+    parrafos = []
+    for tag, text in _iter_simple_blocks(content):
+        if tag in _SIMPLE_SKIP_TAGS:
+            continue
+        if not text:
+            continue
+        if tag in _SIMPLE_HEADING_TAGS:
+            try:
+                nivel = int(tag.rsplit("_", 1)[1])
+            except (IndexError, ValueError):
+                nivel = 1
+            parrafos.append({"tipo": "heading", "nivel": nivel, "texto": text})
+        else:
+            parrafos.append({"tipo": "body", "texto": text})
+    texto = "\n\n".join(p["texto"] for p in parrafos)
+    palabras = len(texto.split())
+    return {"texto": texto, "palabras": palabras, "parrafos": parrafos}
+
+
+def _simple_doc(conn, doctype):
+    """(id, uuid, content) del documento de texto simple más grande de un tipo, o None.
+
+    Igual criterio que `_screenplay_doc`: el de mayor contenido (hay proyectos con
+    documentos vacíos placeholder además del real).
+    """
+    rows = conn.execute(
+        "SELECT id, uuid, CAST(content AS TEXT) FROM documents "
+        "WHERE type=? AND content IS NOT NULL ORDER BY length(content) DESC",
+        (doctype,),
+    ).fetchall()
+    return rows[0] if rows else None
+
+
+def _simple_text_payload(conn, doctype):
+    """{texto, palabras, parrafos} del documento de `doctype`, o vacío si no existe."""
+    doc = _simple_doc(conn, doctype)
+    if not doc:
+        return {"texto": "", "palabras": 0, "parrafos": []}
+    return _parse_simple_text(doc[2])
 
 
 # ---------------------------------------------------------------------------

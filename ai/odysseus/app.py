@@ -510,6 +510,15 @@ app.include_router(setup_memoria_routes())
 # página de Guion de Aula 122. Reutiliza el parser de aula122-mcp.
 from routes.guion_routes import setup_guion_routes
 app.include_router(setup_guion_routes())
+# Idea: visor de solo-lectura del .starc (Sinopsis + Tratamiento) para la página
+# de Idea de Aula 122. Reutiliza el mismo parser de aula122-mcp que Guion.
+from routes.idea_routes import setup_idea_routes
+app.include_router(setup_idea_routes())
+# Hermes: ver/editar los ajustes de BAJO RIESGO del 4o servicio (tool_search,
+# tool_use_enforcement, toggles de MCP). El config.yaml lo hornea el shell nativo;
+# este panel solo escribe hermes-user-settings.json (overrides editables).
+from routes.hermes_routes import setup_hermes_routes
+app.include_router(setup_hermes_routes())
 
 # Chat
 from routes.chat_routes import setup_chat_routes

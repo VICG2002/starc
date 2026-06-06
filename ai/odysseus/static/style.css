@@ -347,7 +347,7 @@ body.bg-pattern-sparkles {
     /* On mobile the chat-header export dropdown was cramped — items
        were 11px font with 6px padding. Bump to readable touch targets:
        larger min-width, taller rows, bigger icons + text. */
-    @media (max-width: 768px) {
+    @media (max-width: 460px) {
       .export-dropdown-menu {
         min-width: 200px;
         padding: 6px;
@@ -770,7 +770,7 @@ body.bg-pattern-sparkles {
        button). Don't stack the tabbed-down pulse on top of it — the two
        dots overlap. Suppress the minimized dot while the status dot is up. */
     .list-item.rail-minimized.cookbook-notif-active::after { display: none; }
-    @media (max-width: 768px) {
+    @media (max-width: 460px) {
       /* On mobile the list-items are taller (touch-sized), so the tabbed-down
          pulsing dot reads a hair low and right. Email uses its own dot and is
          already aligned — only the tool list-item dots need the nudge:
@@ -870,7 +870,7 @@ body.bg-pattern-sparkles {
     /* Mobile: chips are icon-only round pills. Tap to restore, drag toward
        the trash zone at top-center to close. touch-action:none lets the
        pointermove listener claim the gesture instead of the page scroll. */
-    @media (max-width: 768px) {
+    @media (max-width: 460px) {
       .minimized-dock-chip {
         width: 40px; height: 40px;
         padding: 0 !important;
@@ -1175,7 +1175,7 @@ body.bg-pattern-sparkles {
     @media (prefers-reduced-motion: reduce) {
       #email-unread-dot.sidebar-notif-dot { animation: none; }
     }
-    @media (max-width: 768px) {
+    @media (max-width: 460px) {
       /* Nudge the sidebar notification dot up 1px on mobile so it lines
          up with the bigger section titles. vertical-align:middle drifts
          a hair low against the larger touch-friendly text. */
@@ -1784,7 +1784,7 @@ body.bg-pattern-sparkles {
       pointer-events: none;
       transform: translate(-50%, -50%) scale(0.95);
     }
-    @media (max-width: 768px) {
+    @media (max-width: 460px) {
       #welcome-screen { top: 42%; }
       #welcome-screen .welcome-name { margin-bottom: 2px; }
       #welcome-screen .welcome-sub { margin-bottom: 0; }
@@ -1876,7 +1876,7 @@ body.bg-pattern-sparkles {
       max-width: 800px;
       width: 100%;
     }
-    @media (max-width:768px) {
+    @media (max-width: 460px) {
       #welcome-screen .welcome-name { font-size:1.8rem; }
       #welcome-screen .welcome-sub { font-size:0.8rem; }
       .chat-container.welcome-active .chat-input-bar {
@@ -2275,7 +2275,7 @@ body.bg-pattern-sparkles {
       opacity: 1;
     }
     /* Character indicator — hide name text below 768px, icon always visible */
-    @media (max-width: 768px) {
+    @media (max-width: 460px) {
       #character-indicator-name { display: none !important; }
     }
 
@@ -2284,7 +2284,7 @@ body.bg-pattern-sparkles {
     #doc-indicator-btn.visible { display: inline-flex !important; }
     /* On mobile, the minimized-dock chip replaces this indicator — keep
        it hidden regardless of `.visible`. */
-    @media (max-width: 768px) {
+    @media (max-width: 460px) {
       #doc-indicator-btn,
       #doc-indicator-btn.visible { display: none !important; }
     }
@@ -3587,7 +3587,7 @@ body.bg-pattern-sparkles {
     }
     body:has(.notes-pane.modal-right-docked) .toast.show { transform: translateX(0); }
     body:has(.notes-pane.modal-right-docked) .toast.exiting { transform: translateX(120%); }
-    @media (max-width: 768px) {
+    @media (max-width: 460px) {
       .toast {
         top: 12px;
         right: 12px;
@@ -3683,7 +3683,12 @@ body.bg-pattern-sparkles {
       height: 24px;
       padding: 0 8px;
     }
-    @media (max-width:768px){
+    /* Aula 122: este bloque re-estiliza la BARRA a modo móvil (padding/altura grandes). En Aula 122
+       el panel de Odiseo se encoge a ~240px al ocultar el chat, lo que disparaba este modo móvil y
+       cambiaba las proporciones del menú. Bajamos el breakpoint a 200px: así a 240px la barra usa
+       SIEMPRE su layout de escritorio (sin adivinar valores). Aula 122 es de escritorio; el modo
+       móvil real (<200px) no aplica. */
+    @media (max-width: 200px){
       .box { max-height:none; }
       .chat-container { padding:10px; flex:1; margin-top:0; padding-top:42px; min-height:0; }
       .scroll-nav-btn { width:44px; height:44px; font-size:14px; margin-bottom:0; }
@@ -4543,7 +4548,7 @@ body.bg-pattern-sparkles {
        --sidebar-w / --icon-rail-w vars track collapse state live, so when a
        window (e.g. Cookbook) hides the sidebar this naturally re-centers.
        Desktop only — on mobile these are full-screen sheets. */
-    @media (min-width: 769px) {
+    @media (min-width: 461px) {
       #calendar-modal,
       #gallery-modal,
       #tasks-modal,
@@ -4667,7 +4672,7 @@ body.bg-pattern-sparkles {
       background:var(--fg);
       color:var(--bg);
     }
-    @media (max-width: 768px) {
+    @media (max-width: 460px) {
       .minimize-btn { display: none !important; }
       #modal-dock { display: none !important; }
     }
@@ -4756,7 +4761,7 @@ body.bg-pattern-sparkles {
       display:flex; justify-content:flex-end; gap:8px; padding-top:6px;
       border-top:1px solid var(--border); margin-top:4px;
     }
-    @media (max-width:768px) {
+    @media (max-width: 460px) {
       .styled-confirm-box {
         width: 85vw;
         padding: 12px 16px;
@@ -4831,7 +4836,7 @@ body.bg-pattern-sparkles {
       border-color: var(--accent-primary, var(--red, #4a9eff));
       box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent-primary, var(--red, #4a9eff)) 25%, transparent);
     }
-    @media (max-width:768px) {
+    @media (max-width: 460px) {
       .styled-prompt-box { width: 85vw; }
       .styled-prompt-input { font-size: 0.9rem; padding: 10px 12px; }
     }
@@ -5554,7 +5559,7 @@ body.bg-pattern-sparkles {
     }
     /* Keyboard shortcut hints (⌘+Alt+D etc.) are meaningless on touch —
        hide them in the per-chat actions menu on mobile. */
-    @media (max-width: 768px) {
+    @media (max-width: 460px) {
       .session-dropdown .dropdown-shortcut { display: none; }
     }
     .dropdown-item-danger {
@@ -5714,7 +5719,7 @@ body.bg-pattern-sparkles {
       margin-top: 4px;
     }
     
-    @media (max-width: 768px) {
+    @media (max-width: 460px) {
       #recording-indicator {
         margin: 8px;
         padding: 10px;
@@ -6076,7 +6081,7 @@ pre { background: var(--code-bg, var(--hl-bg, #282c34)) !important; }
 
 
     /* Mobile: bottom sheet modals — slide up from bottom */
-    @media (max-width: 768px) {
+    @media (max-width: 460px) {
       .modal {
         align-items: flex-end;
         background: rgba(0,0,0,0.4);
@@ -7139,7 +7144,7 @@ a.chat-link:hover {
 .text-ellipsis { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .session-menu-btn { padding: 0 2px !important; min-width: 20px; height: 20px; display: inline-flex !important; align-items: center; justify-content: center; background: none !important; border-color: transparent !important; }
 .session-menu-btn:hover { background: none !important; border-color: transparent !important; }
-@media (max-width: 768px) {
+@media (max-width: 460px) {
   .session-menu-btn { display: none !important; }
   .item-drag-handle { display: none !important; }
 }
@@ -7189,7 +7194,7 @@ a.chat-link:hover {
 /* Hide session menu button until hover — use width:0 so it doesn't steal space from text */
 .list-item .hamburger { opacity: 0; width: 0; min-width: 0; overflow: hidden; padding: 0 !important; transition: opacity 0.15s, width 0.15s, padding 0.15s; flex-shrink: 0; display: flex; align-items: center; justify-content: center; }
 .list-item:hover .hamburger { opacity: 1; width: 24px; min-width: 24px; padding: 0 4px !important; }
-@media (max-width: 768px) {
+@media (max-width: 460px) {
   .list-item .hamburger { opacity: 0.5; width: 28px; min-width: 28px; padding: 0 4px !important; }
   .list-item .hamburger:active { opacity: 1; }
 }
@@ -7820,7 +7825,7 @@ button.hamburger {
 .thumb.thumb-image button:active {
   transform: scale(0.96);
 }
-@media (max-width: 768px) {
+@media (max-width: 460px) {
   /* Collapsed "N files" badge: use the same corner-X accent badge as image thumbs. */
   .thumb-collapsed { position: relative; }
   .thumb-collapsed .thumb-collapsed-x {
@@ -8530,7 +8535,7 @@ body.hide-thinking .thinking-section { display: none !important; }
 }
 
 /* Mobile: constrain thread content */
-@media (max-width: 768px) {
+@media (max-width: 460px) {
   .agent-thread {
     margin-left: 16px;
     padding-left: 18px;
@@ -8632,7 +8637,7 @@ body.hide-thinking .thinking-section { display: none !important; }
 }
 
 /* Mobile responsive styles */
-@media (max-width: 768px) {
+@media (max-width: 460px) {
   #recording-indicator {
     margin: 8px;
     padding: 10px;
@@ -10271,7 +10276,7 @@ textarea.memory-add-input {
   display: flex;
   align-items: center;
 }
-@media (max-width: 768px) {
+@media (max-width: 460px) {
   /* Nudge the ••• menu button up on mobile so it visually aligns with the
      title row rather than sitting a hair below it. */
   .memory-item-actions .memory-item-btn { transform: translateY(-3px); }
@@ -10851,7 +10856,7 @@ textarea.memory-add-input {
 }
 /* Mobile swipe-down grab handle at the top of the doc sheet. */
 .doc-mobile-grabber { display: none; }
-@media (max-width: 768px) {
+@media (max-width: 460px) {
   body.doc-view .doc-mobile-grabber {
     display: block;
     flex-shrink: 0;
@@ -11377,7 +11382,7 @@ textarea.memory-add-input {
    menu) were slimmer than the Send button, so the row looked ragged. Bump them
    to match the Send button height (and give the export/overflow menu bigger,
    touch-friendly rows). */
-@media (max-width: 768px) {
+@media (max-width: 460px) {
   .md-view-toggle { height: 28px; }
   .md-view-toggle .md-view-opt { width: 38px; }
   .doc-action-icon-btn { padding: 6px; }
@@ -11526,7 +11531,7 @@ textarea.memory-add-input {
 .md-toolbar-items #doc-pdf-add-text-btn { order: -3; }
 .md-toolbar-items #doc-pdf-add-check-btn { order: -2; }
 .md-toolbar-items #doc-pdf-add-sign-btn { order: -1; }
-@media (min-width: 769px) {
+@media (min-width: 461px) {
   .md-toolbar-items #doc-pdf-add-text-btn {
     margin-left: 14px;
   }
@@ -11567,7 +11572,7 @@ textarea.memory-add-input {
 }
 .md-scroll-arrow svg { position: relative; top: 2px; opacity: 0.75; transition: opacity 0.1s; }
 .md-scroll-arrow:hover svg { opacity: 1; }
-@media (min-width: 769px) {
+@media (min-width: 461px) {
   /* On desktop the arrow rides 2px lower than the toolbar baseline. */
   .md-scroll-arrow svg { top: 0; }
 }
@@ -12318,7 +12323,7 @@ mark.doc-find-mark.current {
   to { opacity: 1; transform: translateX(0); }
 }
 /* Mobile: suggestion card overlays top of editor (no room on side) */
-@media (max-width: 768px) {
+@media (max-width: 460px) {
   .doc-suggestion-card {
     right: 8px;
     right: 8px;
@@ -12428,7 +12433,7 @@ mark.doc-find-mark.current {
 .doc-version-panel.hidden {
   display: none;
 }
-@media (max-width: 768px) {
+@media (max-width: 460px) {
   .doc-version-panel {
     left: 0;
     right: 0;
@@ -12551,7 +12556,7 @@ mark.doc-find-mark.current {
 .doc-version-diff .diff-add { color: #3fb950; }
 
 /* Mobile: doc editor takes over full screen as toggle */
-@media (max-width: 768px) {
+@media (max-width: 460px) {
   body.doc-view .doc-editor-pane {
     /* Force its own full-screen window on mobile. !important on these so an
        inline width/position left over from desktop drag-resize, or the base
@@ -12600,7 +12605,7 @@ body:has(.compare-active) .hamburger-btn { display: none !important; }
 /* Mobile: hide the sidebar hamburger when a document panel (or notes pane)
    is open — those sheets cover the whole screen on mobile, so a floating
    hamburger sticking out over them is just clutter / mis-tap bait. */
-@media (max-width: 768px) {
+@media (max-width: 460px) {
   body.doc-view .hamburger-btn,
   body:has(#notes-pane) .hamburger-btn { display: none !important; }
 }
@@ -13843,7 +13848,7 @@ body:has(.doc-version-panel:not(.hidden)) .hamburger-btn {
 .doclib-lang-chips:empty { display: none; }
 /* Mobile: keep tag chips on ONE row and scroll horizontally instead of wrapping
    into a tall multi-line block (Serve, library — anywhere .doclib-lang-chips is used). */
-@media (max-width: 768px) {
+@media (max-width: 460px) {
   .doclib-lang-chips {
     flex-wrap: nowrap;
     overflow-x: auto;
@@ -14004,7 +14009,7 @@ body:has(.doc-version-panel:not(.hidden)) .hamburger-btn {
    bottom-right that collapses to a circle while the list scrolls and springs
    back out to "New" when scrolling stops. Desktop is unchanged. */
 .email-lib-fab { display: none; }
-@media (max-width: 768px) {
+@media (max-width: 460px) {
   /* The absolute FAB anchors to the email panel card. */
   #email-lib-modal .admin-card { position: relative; }
   /* Hide the toolbar "New" button — the FAB is the mobile entry point. */
@@ -14203,7 +14208,7 @@ body:has(.doc-version-panel:not(.hidden)) .hamburger-btn {
   box-shadow: 4px 0 14px rgba(0, 0, 0, 0.18);
   border-radius: 0;
 }
-@media (min-width: 769px) {
+@media (min-width: 461px) {
   body.email-doc-split-active.doc-view #email-lib-modal,
   body.email-doc-split-active.doc-view.email-front #email-lib-modal,
   body.email-doc-split-active.doc-view .modal[id^="email-reader-"],
@@ -14475,7 +14480,7 @@ body.left-dock-active {
    row down 6px / right 2px, bolds the subject, hides the timestamp from the
    meta line (the reader header carries its own date), and pulls the prev/next
    nav arrows in 4px. */
-@media (min-width: 769px) {
+@media (min-width: 461px) {
   #email-lib-modal .doclib-card-expanded .email-card-titlerow,
   #email-lib-modal .doclib-card-expanded .email-card-titlerow > * {
     position: relative;
@@ -14643,7 +14648,7 @@ body:not(.email-doc-split-active) #email-lib-modal.email-lib-fullscreen:not(.mod
    rail. On phones the email should be the normal bottom-sheet — full width,
    rounded top corners. Same specificity as the rule above + later in source,
    so it wins on mobile. */
-@media (max-width: 768px) {
+@media (max-width: 460px) {
   body:not(.email-doc-split-active) #email-lib-modal.email-lib-fullscreen:not(.modal-right-docked) .modal-content {
     left: 0 !important;
     right: 0 !important;
@@ -14673,7 +14678,7 @@ body:not(.email-doc-split-active) #email-lib-modal.email-lib-fullscreen:not(.mod
   max-height: none !important;
   overflow: auto !important;
 }
-@media (max-width: 768px) {
+@media (max-width: 460px) {
   /* Mobile email modal sizing — keep in sync with the rule earlier in the
      file. 75dvh tall always so flex children (the expanded email reader)
      have a real height to grow into. */
@@ -14735,7 +14740,7 @@ body:not(.email-doc-split-active) #email-lib-modal.email-lib-fullscreen:not(.mod
    so touch-pan never gets trapped in a nested scroller.
    Without this, three levels of overflow:auto + max-height combinations
    produce dead-zone areas where swipes do nothing. */
-@media (max-width: 768px) {
+@media (max-width: 460px) {
   #cookbook-modal .modal-content {
     overflow-y: auto !important;
     -webkit-overflow-scrolling: touch;
@@ -14831,7 +14836,7 @@ body:not(.email-doc-split-active) #email-lib-modal.email-lib-fullscreen:not(.mod
    it sits visually centered with the surrounding card padding. Targets the
    actual title-row class (.email-card-titlerow) — the earlier attempt used
    .doclib-card-header which the email card builds differently. */
-@media (max-width: 768px) {
+@media (max-width: 460px) {
   #email-lib-modal .doclib-card:not(.doclib-card-expanded) .email-card-titlerow {
     margin-top: 4px;
   }
@@ -14974,7 +14979,7 @@ body:not(.email-doc-split-active) #email-lib-modal.email-lib-fullscreen:not(.mod
   font-family: var(--font-family, 'Fira Code', monospace);
   transition: border-color 0.15s, color 0.15s;
 }
-@media (min-width: 769px) {
+@media (min-width: 461px) {
   .doclib-card-action-btn {
     font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
     letter-spacing: -0.015em;
@@ -15009,7 +15014,7 @@ body:not(.email-doc-split-active) #email-lib-modal.email-lib-fullscreen:not(.mod
   padding: 0 8px;
   box-sizing: border-box;
 }
-@media (max-width: 768px) {
+@media (max-width: 460px) {
   .doclib-btn-hint { display: none !important; }
 }
 
@@ -16459,7 +16464,7 @@ body.gallery-selecting .gallery-dl-btn,
 .attach-ocr-btn svg { display: block; }
 /* On mobile keep just the (larger) edit icon — the "Caption" label crowds
    the corner of the small chat photo. */
-@media (max-width: 768px) {
+@media (max-width: 460px) {
   .attach-ocr-btn .attach-ocr-label { display: none; }
   .attach-ocr-btn {
     width: 28px; height: 28px;
@@ -17567,7 +17572,7 @@ body.gallery-selecting .gallery-dl-btn,
 }
 /* The serve-list 'downloading' / 'download stalled' status text sits a hair
    low against the rest of the meta line on mobile — nudge it up 2px. */
-@media (max-width: 768px) {
+@media (max-width: 460px) {
   .cookbook-dl-status {
     position: relative;
     top: -2px;
@@ -18508,7 +18513,7 @@ body.gallery-selecting .gallery-dl-btn,
   border-color: var(--border);
   color: var(--fg);
 }
-@media (max-width: 768px) {
+@media (max-width: 460px) {
   .cookbook-task .cookbook-task-menu-btn {
     opacity: 0.72;
     width: 32px;
@@ -18922,7 +18927,7 @@ body.gallery-selecting .gallery-dl-btn,
 }
 /* Mobile: every modal tab strip should swipe horizontally instead of wrapping
    or getting cut off. Hide the scrollbar (still pannable via touch / drag). */
-@media (max-width: 768px) {
+@media (max-width: 460px) {
   .cookbook-tabs,
   .memory-tabs,
   .admin-tabs,
@@ -19010,7 +19015,7 @@ body.gallery-selecting .gallery-dl-btn,
 }
 
 /* Mobile cookbook sizing — kept in line with calendar/library modals. */
-@media (max-width: 768px) {
+@media (max-width: 460px) {
   /* The Speculative control (checkbox + method dropdown + token stepper)
      is too wide for a phone — the stepper ran off the right edge of the
      modal. Let the group wrap onto its own line, take full width, and
@@ -19603,7 +19608,7 @@ body.gallery-selecting .gallery-dl-btn,
 .cookbook-server-entry:last-child { margin-bottom: 0; }
 /* Keep the row inside the card on narrow screens — the fixed-width host/path
    inputs would otherwise overflow the card's background to the right. */
-@media (max-width: 768px) {
+@media (max-width: 460px) {
   .cookbook-server-row .cookbook-srv-host,
   .cookbook-server-row .cookbook-srv-path { flex: 1 1 100% !important; width: auto !important; min-width: 0 !important; }
 }
@@ -20475,7 +20480,7 @@ body:not(.welcome-ready) #welcome-screen {
 }
 /* Mobile: real bottom-sheet slide-up — the existing 12px translate is
    too subtle on a phone, the modal effectively just appeared. */
-@media (max-width: 768px) {
+@media (max-width: 460px) {
   #cookbook-modal .modal-content.cookbook-modal-entering {
     animation: cookbook-modal-enter-mobile 0.32s cubic-bezier(0.22, 1, 0.36, 1) both;
   }
@@ -20945,7 +20950,7 @@ a.chat-link[href^="#research-"] {
    #tasks-select-all (not .memory-select-cb), so it stays put. */
 .task-card .memory-select-cb { position: relative; top: -4px; }
 /* Bigger ⋮ dropdown on mobile (its buttons carry inline styles → !important). */
-@media (max-width: 768px) {
+@media (max-width: 460px) {
   .task-dropdown { min-width: 160px !important; padding: 6px !important; }
   .task-dropdown button { font-size: 13px !important; padding: 10px 12px !important; gap: 10px !important; }
   .task-dropdown button svg { width: 15px !important; height: 15px !important; }
@@ -21324,7 +21329,7 @@ input.settings-select::placeholder { color: color-mix(in srgb, var(--fg) 35%, tr
 /* Mobile: bigger taps for the chats sort/funnel menu and the select-mode
    bulk-action bar. Also drop the "Rearrange" item — it's a touch-finicky
    feature better left to desktop. */
-@media (max-width: 768px) {
+@media (max-width: 460px) {
   /* Nudge the funnel/sort button right on mobile so it doesn't hug the
      chevron next to it. */
   #session-sort-btn { transform: translateX(11px); }
@@ -21494,7 +21499,7 @@ input.settings-select::placeholder { color: color-mix(in srgb, var(--fg) 35%, tr
 .hwfit-cached-item:hover .hwfit-cached-menu-btn { opacity: 0.4; }
 .hwfit-cached-menu-btn:hover { opacity: 1 !important; }
 .hwfit-cached-menu-btn svg { pointer-events: none; }
-@media (max-width: 768px) {
+@media (max-width: 460px) {
   #cookbook-modal .hwfit-cached-menu-btn {
     opacity: 0.72 !important;
     width: 32px;
@@ -22424,7 +22429,7 @@ input.settings-select::placeholder { color: color-mix(in srgb, var(--fg) 35%, tr
   user-select: none;
   cursor: default;
 }
-@media (max-width: 768px) {
+@media (max-width: 460px) {
   /* Keep the toolbar tight on mobile — badge stays but shrinks. */
   .ge-alpha-badge { font-size: 8px; padding: 2px 5px; margin-right: 2px; }
 }
@@ -26741,7 +26746,7 @@ button .spinner-whirlpool {
   letter-spacing: 0.4px;
 }
 .email-card-reader.from-sender-open .email-reader-body { padding-right: 292px; }
-@media (max-width: 768px) {
+@media (max-width: 460px) {
   .from-sender-panel { width: 100%; }
   .email-card-reader.from-sender-open .email-reader-body { padding-right: 0; visibility: hidden; }
 }
@@ -27614,7 +27619,7 @@ body.doc-find-active mark.doc-find-mark.current {
    inline `right: ...px` relative to the kebab button). Stable position is
    easier to land on by touch. The inline `top:` set by the menu code is
    preserved; we only override the horizontal axis. */
-@media (max-width: 768px) {
+@media (max-width: 460px) {
   .email-card-dropdown,
   .cookbook-saved-menu,
   .cookbook-dep-menu {
@@ -27628,7 +27633,7 @@ body.doc-find-active mark.doc-find-mark.current {
    give an explicit Cancel row. Visually separated from the action items
    above by a top divider + slight muted color. */
 .dropdown-cancel-mobile { display: none; }
-@media (max-width: 768px) {
+@media (max-width: 460px) {
   .dropdown-cancel-mobile {
     display: flex;
     border-top: 1px solid var(--border);
@@ -27940,7 +27945,7 @@ body.doc-find-active mark.doc-find-mark.current {
   justify-content: center;
   gap: 0;
 }
-@media (max-width: 768px) {
+@media (max-width: 460px) {
   /* Mobile: keep the pill but ensure a comfortable touch target. */
   .email-attachment-open {
     height: 26px; padding: 0 10px;
@@ -28015,7 +28020,7 @@ body.doc-find-active mark.doc-find-mark.current {
 #email-lib-select-btn, #email-lib-refresh-btn, #email-lib-compose-btn { position: relative; top: -4px; }
 /* Select + Refresh sit slightly lower than Compose on desktop. */
 #email-lib-select-btn, #email-lib-refresh-btn { top: -2px; }
-@media (max-width: 768px) {
+@media (max-width: 460px) {
   /* On mobile they're 1px higher than desktop. */
   #email-lib-select-btn, #email-lib-refresh-btn { top: -3px; }
 }
@@ -28023,7 +28028,7 @@ body.doc-find-active mark.doc-find-mark.current {
 /* On mobile, the "New" (compose) button deserves a touch-friendly size
    so it stands out from the smaller toolbar buttons next to it. Lift
    it slightly visually with a bigger SVG, padding, and font. */
-@media (max-width: 768px) {
+@media (max-width: 460px) {
   #email-lib-compose-btn {
     padding: 8px 14px !important;
     font-size: 13px !important;
@@ -28044,7 +28049,7 @@ body.doc-find-active mark.doc-find-mark.current {
 body.notes-view .chat-container { flex: 1; min-width: 0; }
 
 /* Mobile: notes panel takes over full screen */
-@media (max-width: 768px) {
+@media (max-width: 460px) {
   body.notes-view .notes-pane {
     position: fixed;
     inset: 0;
@@ -28207,7 +28212,7 @@ body.notes-drag-mode .note-card::after {
   z-index: 1;
   mix-blend-mode: overlay;
 }
-@media (max-width: 768px) {
+@media (max-width: 460px) {
   body.notes-drag-mode .note-card {
     filter: none;
     opacity: 0.96;
@@ -28824,7 +28829,7 @@ body.notes-drag-mode .note-card-pin svg {
   top: -1px;
   box-sizing: border-box;
 }
-@media (max-width: 768px) {
+@media (max-width: 460px) {
   .notes-pane-title { top: -4px; }
   .notes-pane-title svg {
     position: relative;
@@ -28959,7 +28964,7 @@ body.notes-drag-mode .note-card-pin svg {
 
 /* Mobile: bigger, more legible note cards + a sticky quick-add bar so you can
    add a to-do without scrolling back up; and keep media inside the card. */
-@media (max-width: 768px) {
+@media (max-width: 460px) {
   .note-card { padding: 14px 16px; padding-right: 34px; min-height: 84px; font-size: 15px; }
   .note-card-image { max-height: 260px; max-width: 100%; object-fit: cover; }
   /* Sticky create-todo bar — pin it to the top of the scrolling list pane.
@@ -29668,7 +29673,7 @@ body.notes-mobile-mode.notes-drag-mode .note-card-pin.active {
 }
 /* Mobile: thumb-sized Note/Todo toggle. The 22px desktop pill is too
    small to hit reliably on a phone. */
-@media (max-width: 768px) {
+@media (max-width: 460px) {
   .notes-quick-type-seg {
     height: 36px;
     border-radius: 10px;
@@ -30202,7 +30207,7 @@ body.notes-mobile-mode.notes-drag-mode .note-card-pin.active {
    on every card after render. Pure CSS multi-column was tried but its
    `column-span: all` interaction with sticky positioning broke clicks on
    the quick-add bar (Firefox mobile). */
-@media (max-width: 768px) {
+@media (max-width: 460px) {
   .notes-pane.notes-view-grid .notes-pane-body {
     display: grid;
     grid-template-columns: repeat(2, 1fr);
@@ -31045,7 +31050,7 @@ body.notes-mobile-mode.notes-drag-mode .note-card-pin.active {
   container-type: inline-size;
   container-name: noteform;
 }
-@media (max-width: 768px) {
+@media (max-width: 460px) {
   .notes-pane:not(.notes-view-grid) .note-form.note-form-new {
     transform: translateY(6px);
   }
@@ -31629,7 +31634,7 @@ body.notes-mobile-mode.notes-drag-mode .note-card-pin.active {
    --cal-detail-h) and shrinks the grid visually as it grows. */
 #cal-body { display:flex; flex-direction:column; gap:8px; overflow:hidden; padding:0; min-height:0; }
 #cal-body > .cal-grid { flex: 1 1 auto; min-height: 120px; overflow-y: auto; overflow-x: hidden; }
-@media (max-width: 768px) {
+@media (max-width: 460px) {
   /* Let the calendar pane shrink to nothing on mobile so the day-detail
      splitter can be dragged all the way to the top, hiding the calendar
      entirely. Without min-height:0 the grid (or the week-wrap below)
@@ -31836,7 +31841,7 @@ button.cal-add-btn.cal-add-btn-text.cal-add-btn-sm:hover .cal-add-label {
 
 /* Mobile: bump the +New pill and the +/- zoom buttons up to a tap-friendly
    size so they're easy to hit with a thumb. */
-@media (max-width: 768px) {
+@media (max-width: 460px) {
   /* Toolbar +New (relocated by JS into the quickadd row on mobile) */
   button.cal-add-btn.cal-add-btn-text {
     height: 36px;
@@ -32147,7 +32152,7 @@ button.cal-add-btn.cal-add-btn-text.cal-add-btn-sm:hover .cal-add-label {
 /* Bump the icon up on mobile for a bigger visual — but keep the button BOX at
    24px so it never exceeds the header's natural height (the title/close set
    that). A taller box would grow the sticky header and push the list down. */
-@media (max-width: 768px) {
+@media (max-width: 460px) {
   .email-lib-header-actions #email-lib-refresh-btn svg {
     width: 17px;
     height: 17px;
@@ -32321,7 +32326,7 @@ button.cal-view-btn {
 }
 /* Mobile: fat hitbox so the splitter is easy to grab with a thumb,
    without changing how the grip itself looks. */
-@media (max-width: 768px) {
+@media (max-width: 460px) {
   .cal-splitter {
     height: 28px;
     margin-top: 0;
@@ -32578,7 +32583,7 @@ button.cal-view-btn {
 .cal-wk-block:hover { filter: brightness(1.05); transform: translateY(-0.5px); }
 .cal-wk-block-name { font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-size: 11px; }
 .cal-wk-block-time { font-size: 10px; opacity: 0.75; font-variant-numeric: tabular-nums; margin-top: 1px; }
-@media (max-width: 768px) {
+@media (max-width: 460px) {
   /* Mobile week view: the hour rail already shows the time, so drop it from the
      card and let the title wrap to fill the freed space (more readable text). */
   .cal-wk-block-time { display: none; }
@@ -34298,7 +34303,7 @@ body.theme-frosted .modal {
 }
 
 /* Mobile only: lift the Dependencies "Server" dropdown's selected text up ~2px. */
-@media (max-width: 768px) {
+@media (max-width: 460px) {
   #hwfit-deps-server { padding-bottom: 4px; line-height: 1; }
 }
 
@@ -34339,7 +34344,7 @@ body.theme-frosted .modal {
 /* RESEARCH FULLSCREEN MOBILE — the pane wasn't opening to full height on mobile,
    so its content overflowed with nowhere to scroll. Pin it to the full viewport
    (id selector + !important beats the inherited modal-content sizing). */
-@media (max-width: 768px) {
+@media (max-width: 460px) {
   /* Bottom-sheet: 90dvh tall (a touch smaller than full-screen) anchored to the
      bottom, so there's a small gap at the top and it reads as a sheet. The body
      still scrolls within the bounded height. */

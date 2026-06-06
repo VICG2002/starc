@@ -394,10 +394,130 @@ struct BrainProcessManager::Implementation {
             .arg(token);
     }
 
+    /** F2: JSON de overrides EDITABLES por el usuario (lo posee el panel del SPA). */
+    QString hermesUserSettingsPath() const
+    {
+        return QDir(hermesRunDir)
+            .absoluteFilePath(QStringLiteral("hermes-user-settings.json"));
+    }
+
+    /** F2: JSON de SOLO LECTURA que describe lo gestionado (lo muestra el SPA). */
+    QString hermesManagedPath() const
+    {
+        return QDir(hermesRunDir).absoluteFilePath(QStringLiteral("hermes-managed.json"));
+    }
+
+    /**
+     * F2: lee los ajustes EDITABLES de Hermes desde hermes-user-settings.json (lo
+     * escribe el panel del SPA) y los normaliza con defaults seguros. SOLO expone
+     * llaves de bajo riesgo: tool_search (auto|on|off), tool_use_enforcement y los
+     * toggles de cada MCP. Las llaves GESTIONADAS (modelo, base_url, api_server,
+     * rutas de los comandos MCP) NUNCA salen de aquí — las fija writeHermesConfig,
+     * que las re-afirma en cada arranque (así el usuario no puede romper el cerebro
+     * y las rutas del bundle quedan siempre frescas). Robusto a archivo ausente o
+     * corrupto: ante cualquier duda, vuelve al default.
+     */
+    QJsonObject readHermesUserSettings() const
+    {
+        QString toolSearch = QStringLiteral("auto");
+        bool toolUse = true;
+        bool mcpAula = true, mcpMem = true, mcpNotion = true;
+
+        QFile f(hermesUserSettingsPath());
+        if (f.open(QIODevice::ReadOnly)) {
+            const QJsonObject o = QJsonDocument::fromJson(f.readAll()).object();
+            f.close();
+            const QString ts = o.value(QStringLiteral("tool_search")).toString();
+            if (ts == QLatin1String("auto") || ts == QLatin1String("on")
+                || ts == QLatin1String("off")) {
+                toolSearch = ts;
+            }
+            if (o.value(QStringLiteral("tool_use_enforcement")).isBool()) {
+                toolUse = o.value(QStringLiteral("tool_use_enforcement")).toBool();
+            }
+            const QJsonObject m = o.value(QStringLiteral("mcp_enabled")).toObject();
+            if (m.value(QStringLiteral("aula122-mcp")).isBool()) {
+                mcpAula = m.value(QStringLiteral("aula122-mcp")).toBool();
+            }
+            if (m.value(QStringLiteral("memoria-mcp")).isBool()) {
+                mcpMem = m.value(QStringLiteral("memoria-mcp")).toBool();
+            }
+            if (m.value(QStringLiteral("notion")).isBool()) {
+                mcpNotion = m.value(QStringLiteral("notion")).toBool();
+            }
+        }
+        QJsonObject mcp;
+        mcp.insert(QStringLiteral("aula122-mcp"), mcpAula);
+        mcp.insert(QStringLiteral("memoria-mcp"), mcpMem);
+        mcp.insert(QStringLiteral("notion"), mcpNotion);
+        QJsonObject out;
+        out.insert(QStringLiteral("tool_search"), toolSearch);
+        out.insert(QStringLiteral("tool_use_enforcement"), toolUse);
+        out.insert(QStringLiteral("mcp_enabled"), mcp);
+        return out;
+    }
+
+    /**
+     * F2: escribe hermes-managed.json — descriptor de SOLO LECTURA que el panel del
+     * SPA muestra para que el usuario VEA (sin poder romper) lo gestionado por el
+     * cerebro: modelo compartido, endpoint local, puerto del api_server, si el token
+     * de Notion está presente y el catálogo de MCP con su descripción. El SPA jamás
+     * escribe este archivo.
+     */
+    void writeHermesManaged(const QString& model)
+    {
+        const auto srv = [](const QString& name, const QString& desc, bool needsToken) {
+            QJsonObject o;
+            o.insert(QStringLiteral("name"), name);
+            o.insert(QStringLiteral("desc"), desc);
+            o.insert(QStringLiteral("requires_token"), needsToken);
+            return o;
+        };
+        QJsonArray catalog;
+        catalog.append(srv(
+            QStringLiteral("aula122-mcp"),
+            QStringLiteral("Lee el proyecto .starc abierto: escenas, personajes, "
+                           "locaciones, desglose, plan de rodaje."),
+            false));
+        catalog.append(srv(
+            QStringLiteral("memoria-mcp"),
+            QStringLiteral("Lee y escribe la boveda de memoria-creativa (copia de "
+                           "trabajo bajo git)."),
+            false));
+        catalog.append(srv(
+            QStringLiteral("notion"),
+            QStringLiteral("Notion de Diez50 (metricas y miembros). Requiere el token "
+                           "en ~/.config/diez50/notion.env."),
+            true));
+
+        QJsonObject managed;
+        managed.insert(QStringLiteral("available"), true);
+        managed.insert(QStringLiteral("model"), model);
+        managed.insert(QStringLiteral("base_url"),
+                       QStringLiteral("http://127.0.0.1:%1/v1").arg(kLlamaPort));
+        managed.insert(QStringLiteral("api_server_port"), kHermesPort);
+        managed.insert(QStringLiteral("context_length"), 65536);
+        managed.insert(QStringLiteral("notion_token_present"),
+                       !notionMcpHeaders().isEmpty());
+        managed.insert(QStringLiteral("mcp_catalog"), catalog);
+
+        QFile f(hermesManagedPath());
+        if (f.open(QIODevice::WriteOnly | QIODevice::Truncate)) {
+            f.write(QJsonDocument(managed).toJson(QJsonDocument::Indented));
+            f.close();
+        }
+    }
+
     /**
      * Escribe config.yaml en HERMES_HOME: provider OpenAI local (:8533, el
      * llama-server compartido), contexto 64K (Hermes lo exige) y la plataforma
      * api_server habilitada (su servidor OpenAI en kHermesPort).
+     *
+     * F2: las llaves de BAJO RIESGO (tool_search, tool_use_enforcement, toggles de
+     * MCP) se toman de readHermesUserSettings() — editables por el panel del SPA.
+     * Las GESTIONADAS se re-afirman aqui en cada arranque. Por eso el config.yaml es
+     * un ARTEFACTO DERIVADO (no se edita a mano): la fuente de verdad de lo editable
+     * es hermes-user-settings.json. Los cambios del panel se aplican al reiniciar.
      */
     void writeHermesConfig()
     {
@@ -415,6 +535,23 @@ struct BrainProcessManager::Implementation {
             = QDir(brainRoot()).absoluteFilePath(QStringLiteral("memoria-mcp/server.py"));
         // Notion MCP (Diez50): el token va por OPENAPI_MCP_HEADERS (entorno), no aquí.
         const QString npx = QDir::homePath() + QStringLiteral("/.local/bin/npx");
+
+        // F2: ajustes EDITABLES por el usuario (panel del SPA). Solo de bajo riesgo.
+        const QJsonObject us = readHermesUserSettings();
+        const auto yb = [](bool b) {
+            return b ? QStringLiteral("true") : QStringLiteral("false");
+        };
+        // "auto": solo difiere tools tras un umbral de contexto. Con pocas tools (~19),
+        // "on" las ESCONDÍA tras tool_search y el 8B no las encontraba; "auto" las
+        // muestra directo → las llama nativo. (El usuario puede cambiarlo en el panel.)
+        const QString toolSearch = us.value(QStringLiteral("tool_search")).toString();
+        const QString tueEnabled
+            = yb(us.value(QStringLiteral("tool_use_enforcement")).toBool());
+        const QJsonObject mcpEn = us.value(QStringLiteral("mcp_enabled")).toObject();
+        const QString aulaEnabled = yb(mcpEn.value(QStringLiteral("aula122-mcp")).toBool());
+        const QString memEnabled = yb(mcpEn.value(QStringLiteral("memoria-mcp")).toBool());
+        const QString notionEnabled = yb(mcpEn.value(QStringLiteral("notion")).toBool());
+
         const QString cfg
             = QStringLiteral("model:\n"
                              "  default: \"%1\"\n"
@@ -426,42 +563,47 @@ struct BrainProcessManager::Implementation {
                              "  api_server:\n"
                              "    enabled: true\n"
                              "agent:\n"
-                             "  tool_use_enforcement: true\n"
+                             "  tool_use_enforcement: %7\n"
                              "tools:\n"
                              "  tool_search:\n"
-                             // "auto": solo difiere tools tras un umbral de contexto. Con
-                             // pocas tools (~19), "on" las ESCONDÍA tras tool_search y el 8B
-                             // no las encontraba; "auto" las muestra directo → las llama nativo.
-                             "    enabled: \"auto\"\n"
+                             "    enabled: \"%8\"\n"
                              "mcp_servers:\n"
                              "  aula122-mcp:\n"
                              "    command: \"%3\"\n"
                              "    args:\n"
                              "    - \"%4\"\n"
-                             "    enabled: true\n"
+                             "    enabled: %9\n"
                              "  memoria-mcp:\n"
                              "    command: \"%3\"\n"
                              "    args:\n"
                              "    - \"%5\"\n"
-                             "    enabled: true\n"
+                             "    enabled: %10\n"
                              "  notion:\n"
                              "    command: \"%6\"\n"
                              "    args:\n"
                              "    - \"-y\"\n"
                              "    - \"@notionhq/notion-mcp-server\"\n"
                              "    timeout: 120\n"
-                             "    enabled: true\n")
-                  .arg(model)
-                  .arg(kLlamaPort)
-                  .arg(pythonBin)
-                  .arg(serverPy)
-                  .arg(serverPyMem)
-                  .arg(npx);
+                             "    enabled: %11\n")
+                  .arg(model)         // %1
+                  .arg(kLlamaPort)    // %2
+                  .arg(pythonBin)     // %3
+                  .arg(serverPy)      // %4
+                  .arg(serverPyMem)   // %5
+                  .arg(npx)           // %6
+                  .arg(tueEnabled)    // %7
+                  .arg(toolSearch)    // %8
+                  .arg(aulaEnabled)   // %9
+                  .arg(memEnabled)    // %10
+                  .arg(notionEnabled);// %11
         QFile f(QDir(home).absoluteFilePath(QStringLiteral("config.yaml")));
         if (f.open(QIODevice::WriteOnly | QIODevice::Truncate)) {
             f.write(cfg.toUtf8());
             f.close();
         }
+        // F2: descriptor de solo-lectura para el panel del SPA (modelo, endpoint,
+        // catálogo MCP). Va junto al config; lo lee /api/hermes/settings.
+        writeHermesManaged(model);
     }
 
     /**
@@ -918,6 +1060,9 @@ void BrainProcessManager::startAll()
         // configure en Ajustes se persiste aparte y tiene prioridad sobre esto.)
         env.insert(QStringLiteral("EMBEDDING_URL"),
                    QStringLiteral("http://127.0.0.1:1/v1/embeddings"));
+        // F2: el panel de ajustes de Hermes (SPA) lee/escribe los dos JSON aquí
+        // (hermes-managed.json solo-lectura + hermes-user-settings.json editable).
+        env.insert(QStringLiteral("HERMES_RUNTIME_DIR"), d->hermesRunDir);
         const QStringList args{ QStringLiteral("-m"),
                                 QStringLiteral("uvicorn"),
                                 QStringLiteral("app:app"),

@@ -1106,6 +1106,12 @@ void ProjectManager::Implementation::addDocument(Domain::DocumentObjectType _typ
                 setCurrentIndex(itemForSelectIndex);
 
                 //
+                // Aula 122: avisamos que se añadió un documento → la barra de Odiseo se refresca
+                // para mostrarlo (al nivel superior, junto al Guion).
+                //
+                emit q->aula122DocumentAdded();
+
+                //
                 // Если исходный тип документа задан не был, то сохраним выбранный, чтобы
                 // переиспользовать его при следующем вызове диалога добавления документа
                 //
@@ -3680,6 +3686,22 @@ void ProjectManager::loadCurrentProject(BusinessLayer::ProjectsModelProjectItem*
     // Обновляем режим редактирования для всех вьюх
     //
     d->updateViewsEditingMode();
+
+    //
+    // Aula 122 / A4: al abrir un proyecto aterrizamos en la INFORMACIÓN del proyecto — la pestaña
+    // donde se edita el TÍTULO, el PÓSTER (portada) y la SINOPSIS corta (logline) — igual para
+    // todos los proyectos (decisión del usuario: "que abra esa pestaña, igual que con EDLP").
+    // Sobrescribe el último documento restaurado. Las pestañas del sidebar de Odiseo
+    // (Guion/Personajes/…) van a su vista porque hacen showDocument DESPUÉS.
+    //
+    showDocument(Domain::DocumentObjectType::Project);
+
+    //
+    // Aula 122 / A3: el botón "+" (Añadir documento) del navegador, visible y habilitado desde la
+    // carga (sin esperar a la 1ª selección). setButtonEnabled respeta internamente el modo read-only.
+    //
+    d->navigator->showButton(Ui::ProjectNavigator::ActionButton::AddDocument);
+    d->navigator->setButtonEnabled(true);
 }
 
 void ProjectManager::updateCurrentProject(BusinessLayer::ProjectsModelProjectItem* _project)
@@ -3714,6 +3736,146 @@ void ProjectManager::updateCurrentProject(BusinessLayer::ProjectsModelProjectIte
     // Раз получили обновлённую информацию о проекте, проверим режим редактирования для всех вьюх
     //
     d->updateViewsEditingMode();
+}
+
+bool ProjectManager::showDocument(Domain::DocumentObjectType _type)
+{
+    //
+    // Aula 122: buscamos el primer documento del tipo pedido (Sinopsis, Tratamiento, …) en TODO el
+    // árbol de la estructura. OJO: StructureModel::itemForType() solo mira el nivel superior, pero
+    // la Sinopsis y el Tratamiento cuelgan del Guion (no son top-level) → recorremos en profundidad
+    // por la API del modelo. Al seleccionar el elemento se dispara itemSelected → showView, igual
+    // que si el usuario lo clicara en el navegador. Devuelve false si el proyecto no lo tiene.
+    //
+    auto* model = d->projectStructureModel;
+    if (model == nullptr) {
+        return false;
+    }
+    //
+    // DFS por ITEMS (no por índices construidos a mano: el índice fuente canónico se obtiene con
+    // indexForItem, que es lo que setCurrentItem usa y lo único que el proxy sabe mapear).
+    //
+    BusinessLayer::StructureModelItem* found = nullptr;
+    QVector<BusinessLayer::StructureModelItem*> stack;
+    for (int row = model->rowCount() - 1; row >= 0; --row) {
+        if (auto* item = model->itemForIndex(model->index(row, 0))) {
+            stack.append(item);
+        }
+    }
+    while (!stack.isEmpty()) {
+        auto* item = stack.takeLast();
+        if (item->type() == _type) {
+            found = item;
+            break;
+        }
+        for (int i = item->childCount() - 1; i >= 0; --i) {
+            if (auto* child = item->childAt(i)) {
+                stack.append(child);
+            }
+        }
+    }
+    if (found == nullptr) {
+        return false;
+    }
+    //
+    // La Sinopsis/Tratamiento son SUBdocumentos del Guion, ocultos del árbol del navegador (su
+    // índice no mapea en el proxy). Si está oculto, activamos la visibilidad de subelementos para
+    // que su índice exista en el proxy; luego mostramos su editor DIRECTAMENTE con showView (no
+    // dependemos de la señal itemSelected del navegador, que de forma programática no siempre se
+    // dispara). También lo resaltamos en el árbol.
+    //
+    auto proxyIndex = d->projectStructureProxyModel->mapFromSource(model->indexForItem(found));
+    if (!proxyIndex.isValid()) {
+        //
+        // El documento está oculto en el navegador. El filtro del proxy es
+        // (isSubitemsVisible && item->isVisible()), así que activamos AMBOS: hacemos visible el
+        // documento (su contenido ya existe; solo estaba oculto) y mostramos los subelementos.
+        //
+        model->setItemVisible(found, true);
+        d->projectStructureProxyModel->setSubitemsVisible(true);
+        proxyIndex = d->projectStructureProxyModel->mapFromSource(model->indexForItem(found));
+    }
+    if (!proxyIndex.isValid()) {
+        return false;
+    }
+    d->navigator->setCurrentIndex(proxyIndex);
+    showView(proxyIndex);
+    return true;
+}
+
+bool ProjectManager::showDocumentByUuid(const QString& _uuid)
+{
+    //
+    // Aula 122: misma mecánica que showDocument(tipo) pero buscando por UUID — el documento que el
+    // usuario clicó en el árbol reflejado en la barra de Odiseo. El uuid del SPA viene SIN llaves;
+    // QUuid::fromString las exige, así que las añadimos si faltan.
+    //
+    auto* model = d->projectStructureModel;
+    if (model == nullptr) {
+        return false;
+    }
+    const QUuid target = QUuid::fromString(_uuid.startsWith(QLatin1Char('{'))
+                                               ? _uuid
+                                               : (QLatin1Char('{') + _uuid + QLatin1Char('}')));
+    if (target.isNull()) {
+        return false;
+    }
+    //
+    // DFS por ITEMS (igual que showDocument): el índice fuente canónico se obtiene con
+    // indexForItem, que es lo único que el proxy sabe mapear.
+    //
+    BusinessLayer::StructureModelItem* found = nullptr;
+    QVector<BusinessLayer::StructureModelItem*> stack;
+    for (int row = model->rowCount() - 1; row >= 0; --row) {
+        if (auto* item = model->itemForIndex(model->index(row, 0))) {
+            stack.append(item);
+        }
+    }
+    while (!stack.isEmpty()) {
+        auto* item = stack.takeLast();
+        if (item->uuid() == target) {
+            found = item;
+            break;
+        }
+        for (int i = item->childCount() - 1; i >= 0; --i) {
+            if (auto* child = item->childAt(i)) {
+                stack.append(child);
+            }
+        }
+    }
+    if (found == nullptr) {
+        return false;
+    }
+    //
+    // Si el documento está oculto en el navegador (subdocumento del guion, item con visible=false),
+    // su índice no mapea en el proxy: activamos visibilidad de subelementos y del propio item, luego
+    // mostramos su editor con showView (igual que showDocument).
+    //
+    auto proxyIndex = d->projectStructureProxyModel->mapFromSource(model->indexForItem(found));
+    if (!proxyIndex.isValid()) {
+        model->setItemVisible(found, true);
+        d->projectStructureProxyModel->setSubitemsVisible(true);
+        proxyIndex = d->projectStructureProxyModel->mapFromSource(model->indexForItem(found));
+    }
+    if (!proxyIndex.isValid()) {
+        return false;
+    }
+    d->navigator->setCurrentIndex(proxyIndex);
+    showView(proxyIndex);
+    return true;
+}
+
+void ProjectManager::createNewDocument()
+{
+    //
+    // Aula 122: abrir el diálogo nativo "Añadir documento" (el menú de tipos) desde el puente de
+    // Odiseo. addDocument() coloca el documento RELATIVO al item seleccionado en el navegador. Para
+    // que el documento nuevo caiga SIEMPRE al NIVEL SUPERIOR (misma jerarquía que el Guion, no
+    // anidado bajo lo último que se vio), seleccionamos la RAÍZ del proyecto: su .parent() es la
+    // raíz, así que el documento queda como hermano de Guion/Personajes/Locaciones.
+    //
+    showDocument(Domain::DocumentObjectType::Project);
+    d->addDocument();
 }
 
 void ProjectManager::restoreCurrentProjectState(const QString& _path)

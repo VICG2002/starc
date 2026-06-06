@@ -143,6 +143,29 @@ public:
     Domain::DocumentObject* currentDocument() const;
 
     /**
+     * @brief Aula 122: mostrar (seleccionar en el navegador + abrir su editor) el PRIMER documento
+     *        del tipo dado del proyecto actual — p. ej. Sinopsis o Tratamiento. Equivale a que el
+     *        usuario lo clicara en el árbol. Devuelve false si el proyecto no tiene un documento de
+     *        ese tipo (el llamador puede hacer fallback). Requiere el proyecto ya cargado.
+     */
+    bool showDocument(Domain::DocumentObjectType _type);
+
+    /**
+     * @brief Aula 122: mostrar (seleccionar + abrir su editor) el documento cuyo uuid coincide.
+     *        Lo usa el puente de Odiseo cuando el usuario hace clic en un personaje/locación/
+     *        subdocumento del árbol reflejado en la barra. Devuelve false si no existe. El
+     *        navegador nativo puede estar oculto: la selección del modelo igual conduce al editor.
+     */
+    bool showDocumentByUuid(const QString& _uuid);
+
+    /**
+     * @brief Aula 122: abrir el diálogo nativo "Añadir documento" (el menú de tipos), invocado
+     *        desde el puente de Odiseo. Si no hay selección en el navegador, selecciona la raíz del
+     *        proyecto antes (para no desreferenciar un item nulo).
+     */
+    void createNewDocument();
+
+    /**
      * @brief Установить возможность экспортирования текущего документа
      */
     void setCurrentDocumentExportAvailable(bool _available);
@@ -264,6 +287,12 @@ signals:
      * @brief Изменились данные
      */
     void contentsChanged(BusinessLayer::AbstractModel* _model);
+
+    /**
+     * @brief Aula 122: se AÑADIÓ un documento a la estructura (alta del usuario). La barra de
+     *        Odiseo se refresca para mostrarlo. No se emite en cada edición, solo al añadir.
+     */
+    void aula122DocumentAdded();
 
     /**
      * @brief Изменился гуид проекта
