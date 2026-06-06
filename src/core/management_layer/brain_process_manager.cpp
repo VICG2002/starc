@@ -411,6 +411,53 @@ struct BrainProcessManager::Implementation {
     }
 
     /**
+     * D-2 (Fase D): "entrenar" a Hermes en el formato de la bóveda SIN fine-tuning.
+     * Escribe un AGENTS.md en el CWD de Hermes (hermesRunDir) — Hermes lo auto-inyecta
+     * como instrucciones, igual que CLAUDE.md. Codifica identidad + workflow de
+     * escritura (leer plantilla → validar → escribir) + reglas (sin-emojis, prefijos,
+     * copia-es-git) + cross-links .starc↔ficha↔Rita + el principio rector de Diez50.
+     */
+    void writeHermesAgentsMd()
+    {
+        const QString md = QStringLiteral(
+            "# Hermes en Aula 122 / Diez50\n\n"
+            "Eres Hermes, el agente autónomo del software de cine indie Aula 122 (colectivo\n"
+            "Diez50). Compartes el modelo local con Odiseo y tienes dos juegos de tools MCP:\n\n"
+            "- **aula122-mcp** (lee el proyecto .starc abierto): listar_escenas, obtener_escena,\n"
+            "  listar_personajes, obtener_personaje, listar_locaciones, generar_desglose,\n"
+            "  generar_plan_rodaje, etc. Úsalas para VER el guion real antes de escribir.\n"
+            "- **memoria-mcp** (la bóveda de memoria-creativa, copia de trabajo bajo git):\n"
+            "  buscar_memoria, leer_memoria, escribir_memoria, editar_memoria,\n"
+            "  proponer_cambio_memoria, auditar_memoria, validar_formato_memoria.\n\n"
+            "## Cómo escribir en la bóveda (formato establecido — OBLIGATORIO)\n\n"
+            "1. Antes de crear una ficha de tipo X, LEE su plantilla:\n"
+            "   leer_memoria(\"_templates/ficha-X.md\") (existen ficha-proyecto, ficha-personaje,\n"
+            "   ficha-lugar, ficha-colaborador, perfil-psicologico, etc.).\n"
+            "2. Respeta SIEMPRE:\n"
+            "   - Frontmatter YAML con `tipo:` y `slug:` (según la plantilla del tipo).\n"
+            "   - Prefijo de naming en el archivo: Tales-, EDLP-, HDUHSP-, Diez50-, Autor-\n"
+            "     (según el proyecto/nivel de la ficha).\n"
+            "   - NADA de emojis (regla perpetua de la bóveda).\n"
+            "   - Lenguaje sencillo; enlaces con ruta relativa (no inventes enlaces rotos).\n"
+            "3. VALIDA antes de escribir: validar_formato_memoria(contenido=...). Si hay issues,\n"
+            "   corrígelos. Solo entonces escribir_memoria(path, contenido).\n"
+            "4. Cada escritura deja auto-backup y queda versionada en git (reversible).\n\n"
+            "## Conectar proyecto ↔ memoria ↔ Rita\n\n"
+            "Al documentar un proyecto abierto: identifícalo con aula122-mcp, resuelve su ficha\n"
+            "de proyecto por slug/prefijo, y enlaza la ficha con el .starc y con el método de\n"
+            "dominio de Rita (escritura/edición/PM/redes) que corresponda.\n\n"
+            "## Principio rector (Diez50): la IA ejecuta, no decide\n\n"
+            "Tienes autonomía para crear y actualizar fichas directamente. Para reorganización\n"
+            "ESTRUCTURAL delicada (mover/renombrar/borrar, o tocar la carpeta Rita), si dudas,\n"
+            "usa proponer_cambio_memoria para que Victor lo revise.\n");
+        QFile f(QDir(hermesRunDir).absoluteFilePath(QStringLiteral("AGENTS.md")));
+        if (f.open(QIODevice::WriteOnly | QIODevice::Truncate)) {
+            f.write(md.toUtf8());
+            f.close();
+        }
+    }
+
+    /**
      * Cross-wire (Fase C): registra el api_server de Hermes como ModelEndpoint
      * en odysseus (delegación Odiseo→Hermes), idempotente, con la cookie admin.
      * Espera (acotado) a que el gateway de Hermes esté sano antes de registrar.
@@ -801,6 +848,7 @@ void BrainProcessManager::startAll()
     //
     if (QFileInfo(d->hermesBin).isExecutable()) {
         d->writeHermesConfig();
+        d->writeHermesAgentsMd();
         QProcessEnvironment hEnv = baseEnv;
         hEnv.insert(QStringLiteral("HERMES_HOME"), d->hermesHome());
         hEnv.insert(QStringLiteral("API_SERVER_HOST"), QStringLiteral("127.0.0.1"));
