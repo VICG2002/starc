@@ -387,6 +387,14 @@ struct BrainProcessManager::Implementation {
                              "platforms:\n"
                              "  api_server:\n"
                              "    enabled: true\n"
+                             "agent:\n"
+                             "  tool_use_enforcement: true\n"
+                             "tools:\n"
+                             "  tool_search:\n"
+                             // "auto": solo difiere tools tras un umbral de contexto. Con
+                             // pocas tools (~19), "on" las ESCONDÍA tras tool_search y el 8B
+                             // no las encontraba; "auto" las muestra directo → las llama nativo.
+                             "    enabled: \"auto\"\n"
                              "mcp_servers:\n"
                              "  aula122-mcp:\n"
                              "    command: \"%3\"\n"
@@ -772,7 +780,15 @@ void BrainProcessManager::startAll()
     // 2) llama-server — runtime de modelo en loopback (Metal vía -ngl).
     //
     {
-        const QStringList args{ QStringLiteral("-m"),
+        // Tool-calling FIABLE (causa raíz hallada): sin --jinja, llama.cpp NO activa
+        // el function-calling → el modelo emite la llamada como TEXTO y el gateway
+        // Hermes la descarta (solo ejecuta tool_calls NATIVOS). --jinja + el template
+        // tool_use de Hermes-3 + temp baja (la receta probada de Odiseo) fuerzan
+        // tool_calls nativos con JSON válido.
+        const QString toolTemplate
+            = QDir(d->brainRoot())
+                  .absoluteFilePath(QStringLiteral("llama/hermes-tool_use.jinja"));
+        QStringList args{ QStringLiteral("-m"),
                                 d->modelPath,
                                 QStringLiteral("--host"),
                                 QStringLiteral("127.0.0.1"),
@@ -808,7 +824,20 @@ void BrainProcessManager::startAll()
                                 QStringLiteral("-ctv"), QStringLiteral("q8_0"),
                                 // -np 1: un solo slot de contexto → KV = 1×64K (no 4×).
                                 // Decisivo para que Hermes-3-8B@64K quepa en 18 GB.
-                                QStringLiteral("-np"), QStringLiteral("1") };
+                                QStringLiteral("-np"), QStringLiteral("1"),
+                                // --jinja: activa el function-calling de llama.cpp (formato
+                                // <tools>, parser de <tool_call>, gramática lazy que fuerza
+                                // JSON válido) → tool_calls NATIVOS, no texto.
+                                QStringLiteral("--jinja"),
+                                // temp baja + top-p: tool-calling determinista (receta Odiseo:
+                                // a temp alta los tokens de tool_call se corrompen a texto).
+                                QStringLiteral("--temp"), QStringLiteral("0.2"),
+                                QStringLiteral("--top-p"), QStringLiteral("0.9") };
+        if (QFileInfo::exists(toolTemplate)) {
+            // El GGUF de Hermes-3 solo embebe ChatML plano; este template trae la
+            // lógica <tools>/<tool_call> correcta de Hermes.
+            args << QStringLiteral("--chat-template-file") << toolTemplate;
+        }
         d->llama = d->spawn(QStringLiteral("llama"), d->llamaServerBin, args, QString(),
                             baseEnv);
     }

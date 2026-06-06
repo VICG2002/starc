@@ -26,6 +26,8 @@ rsync -a --delete "$HERE/odysseus/runtime-python/" "$BRAIN/python/"
 
 echo "  · llama    (llama-server + dylibs, Fase B)"
 rsync -a --delete "$HERE/llama/" "$BRAIN/llama/"
+# Template tool_use de Hermes-3 para --jinja → tool-calling NATIVO fiable (va junto al binario).
+cp "$HERE/hermes-tool_use.jinja" "$BRAIN/llama/hermes-tool_use.jinja"
 
 echo "  · odysseus (código vendorizado; excluye runtime-python/data/venv)"
 # Exclusiones ANCLADAS a la raíz (/) para NO repetir el bug que se llevó
