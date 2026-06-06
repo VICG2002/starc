@@ -56,6 +56,9 @@ function _injectStyles() {
     .hz-toggle-row .nm{font-size:.9em;}
     .hz-toggle-row .ds{color:var(--fg-muted,#8a8a93);font-size:.8em;line-height:1.45;margin-top:2px;}
     .hz-warn{color:#d8a32f;font-size:.8em;margin-top:3px;}
+    .hz-badge{display:inline-block;margin-left:7px;font-size:.7em;font-weight:600;
+      color:#d8a32f;border:1px solid #d8a32f;border-radius:5px;padding:0 5px;vertical-align:middle;}
+    .hz-badge.danger{color:#e0664f;border-color:#e0664f;}
     .hz-sw{position:relative;width:40px;height:22px;flex-shrink:0;cursor:pointer;}
     .hz-sw input{opacity:0;width:0;height:0;}
     .hz-sw .tr{position:absolute;inset:0;background:var(--border,#3a3a44);border-radius:22px;transition:.15s;}
@@ -171,6 +174,24 @@ function _render() {
       '</div>';
   });
 
+  // --- toolsets internos (editable) ---
+  const tsetCat = Array.isArray(m.toolset_catalog) ? m.toolset_catalog : [];
+  const userTs = Array.isArray(u.toolsets) ? u.toolsets : [];
+  let tsetRows = '';
+  tsetCat.forEach((t) => {
+    const on = userTs.indexOf(t.key) !== -1;
+    const riskyBadge = t.risky ? '<span class="hz-badge danger">sensible</span>' : '';
+    const heavyBadge = t.heavy ? '<span class="hz-badge">pesado</span>' : '';
+    const badge = riskyBadge + heavyBadge;
+    tsetRows +=
+      '<div class="hz-toggle-row">' +
+        '<div class="meta"><div class="nm">' + _esc(t.label) + badge + '</div>' +
+          '<div class="ds">' + _esc(t.desc || '') + '</div></div>' +
+        '<label class="hz-sw"><input type="checkbox" data-tset="' + _esc(t.key) + '"' +
+          (on ? ' checked' : '') + '><span class="tr"></span></label>' +
+      '</div>';
+  });
+
   // --- tool_use_enforcement ---
   const tue = u.tool_use_enforcement !== false;
 
@@ -185,6 +206,15 @@ function _render() {
       '<p class="hint">Lo que Hermes puede tocar de forma autonoma. Apaga uno para cortarle ' +
         'el acceso (p.ej. Notion) sin desinstalar nada.</p>' +
       mcpRows +
+    '</div>' +
+    '<div class="hz-sec">' +
+      '<h3>Herramientas internas (toolsets)</h3>' +
+      '<p class="hint">Capacidades propias de Hermes. <b>pesado</b> = suma tokens al ' +
+        'prompt (primera respuesta mas lenta; skills ~11K). <b style="color:#e0664f">' +
+        'sensible</b> = capacidad potente (ejecutar comandos, actuar en la web): dasela ' +
+        'a un modelo que puede equivocarse solo si la necesitas. Lo minimo util es ' +
+        'terminal + file; los MCP de arriba no cuentan aqui.</p>' +
+      tsetRows +
     '</div>' +
     '<div class="hz-sec">' +
       '<h3>Comportamiento</h3>' +
@@ -221,11 +251,22 @@ function _collect() {
     mcp[c.dataset.mcp] = c.checked;
   });
   const tue = _bodyEl.querySelector('#hz-tue');
-  return {
+  const out = {
     tool_search: tsBtn ? tsBtn.dataset.ts : 'auto',
     tool_use_enforcement: tue ? tue.checked : true,
     mcp_enabled: mcp,
   };
+  // Solo incluimos 'toolsets' si la seccion se renderizo (hay toggles). Si el catalogo
+  // no estaba disponible (0 filas, p.ej. build viejo) OMITIMOS la clave para que el
+  // backend PRESERVE la seleccion previa, en vez de borrarla a "solo MCP" al guardar
+  // un cambio no relacionado. (Lista vacia con filas presentes = el usuario los apago.)
+  const tsetInputs = _bodyEl.querySelectorAll('input[data-tset]');
+  if (tsetInputs.length > 0) {
+    const toolsets = [];
+    tsetInputs.forEach((c) => { if (c.checked) toolsets.push(c.dataset.tset); });
+    out.toolsets = toolsets;
+  }
+  return out;
 }
 
 function _markDirty() { _dirty = true; _setSaveState(); }

@@ -422,6 +422,8 @@ struct BrainProcessManager::Implementation {
         QString toolSearch = QStringLiteral("auto");
         bool toolUse = true;
         bool mcpAula = true, mcpMem = true, mcpNotion = true;
+        // Default responsivo: solo terminal+file (lo esencial para el tablero).
+        QStringList toolsets{ QStringLiteral("terminal"), QStringLiteral("file") };
 
         QFile f(hermesUserSettingsPath());
         if (f.open(QIODevice::ReadOnly)) {
@@ -445,6 +447,24 @@ struct BrainProcessManager::Implementation {
             if (m.value(QStringLiteral("notion")).isBool()) {
                 mcpNotion = m.value(QStringLiteral("notion")).toBool();
             }
+            // Toolsets internos: lista validada contra el catálogo curado. Si el
+            // usuario manda un array (incluso vacío) lo respetamos; vacío = solo MCP.
+            const QJsonValue tsv = o.value(QStringLiteral("toolsets"));
+            if (tsv.isArray()) {
+                QStringList valid;
+                const QJsonArray cat = hermesToolsetCatalog();
+                for (const QJsonValue& c : cat) {
+                    valid << c.toObject().value(QStringLiteral("key")).toString();
+                }
+                QStringList picked;
+                for (const QJsonValue& v : tsv.toArray()) {
+                    const QString k = v.toString();
+                    if (valid.contains(k) && !picked.contains(k)) {
+                        picked << k;
+                    }
+                }
+                toolsets = picked;
+            }
         }
         QJsonObject mcp;
         mcp.insert(QStringLiteral("aula122-mcp"), mcpAula);
@@ -454,7 +474,71 @@ struct BrainProcessManager::Implementation {
         out.insert(QStringLiteral("tool_search"), toolSearch);
         out.insert(QStringLiteral("tool_use_enforcement"), toolUse);
         out.insert(QStringLiteral("mcp_enabled"), mcp);
+        out.insert(QStringLiteral("toolsets"), QJsonArray::fromStringList(toolsets));
         return out;
+    }
+
+    /**
+     * F2: catálogo CURADO de toolsets internos de Hermes que el panel del SPA puede
+     * activar/desactivar. NO es el catálogo completo de Hermes (27): es el subconjunto
+     * relevante para Diez50/Aula 122. "heavy" marca los que inflan notablemente el
+     * prompt (→ primera respuesta más lenta en el 8B local); skills es el peor (~11K
+     * tokens). Fuente ÚNICA: la usan readHermesUserSettings (validar) y
+     * writeHermesManaged (mostrar) para no desincronizarse. (Los MCP —Notion, bóveda,
+     * .starc— NO son toolsets: van por mcp_servers y se togglean aparte.)
+     */
+    QJsonArray hermesToolsetCatalog() const
+    {
+        // heavy = infla el prompt (→ respuesta más lenta). risky = CAPACIDAD sensible
+        // (ejecución/automatización con efectos en el sistema o la web); el panel la
+        // marca aparte para que el usuario no confunda "caro" con "peligroso".
+        struct T {
+            const char* key;
+            const char* label;
+            const char* desc;
+            bool heavy;
+            bool risky;
+        };
+        static const T items[] = {
+            { "terminal", "Terminal y procesos",
+              "Ejecuta comandos de shell ARBITRARIOS (git/gh para el tablero de Diez50, "
+              "etc.). Capacidad sensible: el agente puede correr cualquier comando.",
+              false, true },
+            { "file", "Archivos",
+              "Leer, escribir, parchar y buscar archivos.", false, false },
+            { "todo", "Planificacion de tareas",
+              "Lista de pasos para trabajo multi-etapa.", false, false },
+            { "delegation", "Delegacion",
+              "Delegar subtareas a sub-agentes.", false, false },
+            { "session_search", "Buscar conversaciones",
+              "Buscar en charlas pasadas de Hermes.", false, false },
+            { "cronjob", "Tareas programadas (cron)",
+              "Programar acciones recurrentes (p.ej. actualizar Notion/web periodicamente).",
+              false, false },
+            { "web", "Busqueda web",
+              "web_search + extraccion de contenido de paginas.", true, false },
+            { "memory", "Memoria persistente",
+              "Notas que persisten entre sesiones (se solapa con la boveda).", true, false },
+            { "browser", "Navegador (automatizacion)",
+              "Control de navegador (navegar, click, escribir): puede ACTUAR en la web "
+              "en tu nombre. Capacidad sensible y pesada.", true, true },
+            { "vision", "Vision / analisis de imagen",
+              "Requiere un modelo con vision (el 8B actual no la tiene).", true, false },
+            { "skills", "Skills (workflows reutilizables)",
+              "Aprender y reutilizar procedimientos. MUY CARO: ~11K tokens en cada "
+              "prompt -> respuestas notablemente mas lentas.", true, false },
+        };
+        QJsonArray a;
+        for (const auto& it : items) {
+            QJsonObject o;
+            o.insert(QStringLiteral("key"), QString::fromUtf8(it.key));
+            o.insert(QStringLiteral("label"), QString::fromUtf8(it.label));
+            o.insert(QStringLiteral("desc"), QString::fromUtf8(it.desc));
+            o.insert(QStringLiteral("heavy"), it.heavy);
+            o.insert(QStringLiteral("risky"), it.risky);
+            a.append(o);
+        }
+        return a;
     }
 
     /**
@@ -500,6 +584,8 @@ struct BrainProcessManager::Implementation {
         managed.insert(QStringLiteral("notion_token_present"),
                        !notionMcpHeaders().isEmpty());
         managed.insert(QStringLiteral("mcp_catalog"), catalog);
+        // F2: catálogo de toolsets internos editables (terminal, file, skills…).
+        managed.insert(QStringLiteral("toolset_catalog"), hermesToolsetCatalog());
 
         QFile f(hermesManagedPath());
         if (f.open(QIODevice::WriteOnly | QIODevice::Truncate)) {
@@ -551,8 +637,21 @@ struct BrainProcessManager::Implementation {
         const QString aulaEnabled = yb(mcpEn.value(QStringLiteral("aula122-mcp")).toBool());
         const QString memEnabled = yb(mcpEn.value(QStringLiteral("memoria-mcp")).toBool());
         const QString notionEnabled = yb(mcpEn.value(QStringLiteral("notion")).toBool());
+        // platform_toolsets.api_server: la lista (editable en el panel) de toolsets
+        // internos. Vacía → "[]" (solo MCP). Las claves ya vienen validadas contra el
+        // catálogo en readHermesUserSettings, así que no hay inyección posible.
+        const QJsonArray tsArr = us.value(QStringLiteral("toolsets")).toArray();
+        QString tsBlock;
+        if (tsArr.isEmpty()) {
+            tsBlock = QStringLiteral("  api_server: []\n");
+        } else {
+            tsBlock = QStringLiteral("  api_server:\n");
+            for (const QJsonValue& v : tsArr) {
+                tsBlock += QStringLiteral("  - \"%1\"\n").arg(v.toString());
+            }
+        }
 
-        const QString cfg
+        QString cfg
             = QStringLiteral("model:\n"
                              "  default: \"%1\"\n"
                              "  provider: \"custom\"\n"
@@ -575,10 +674,11 @@ struct BrainProcessManager::Implementation {
                              // on local models". Recortamos a lo esencial: terminal+file (para el
                              // tablero de Diez50 vía gh) — los MCP (Notion/memoria/aula122) NO se
                              // filtran por esto (van por mcp_servers, include_default_mcp_servers).
+                             // La lista la edita el usuario en el panel F2 (ya validada).
+                             // Se sustituye por centinela (no %12) para NO acoplar el
+                             // bloque dinámico a la cadena posicional de .arg().
                              "platform_toolsets:\n"
-                             "  api_server:\n"
-                             "  - \"terminal\"\n"
-                             "  - \"file\"\n"
+                             "__TS_BLOCK__"
                              "mcp_servers:\n"
                              "  aula122-mcp:\n"
                              "    command: \"%3\"\n"
@@ -608,6 +708,8 @@ struct BrainProcessManager::Implementation {
                   .arg(aulaEnabled)   // %9
                   .arg(memEnabled)    // %10
                   .arg(notionEnabled);// %11
+        // El bloque de toolsets (dinámico) va por centinela, no por .arg posicional.
+        cfg.replace(QStringLiteral("__TS_BLOCK__"), tsBlock);
         QFile f(QDir(home).absoluteFilePath(QStringLiteral("config.yaml")));
         if (f.open(QIODevice::WriteOnly | QIODevice::Truncate)) {
             f.write(cfg.toUtf8());
