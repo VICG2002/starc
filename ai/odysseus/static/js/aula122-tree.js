@@ -128,17 +128,6 @@ function _injectStyles() {
     .a122-chat-fab:hover{opacity:1;color:var(--fg,#e6e6e6);}
     .a122-chat-fab svg{transition:transform .15s ease;}
     .a122-chat-fab.open svg{transform:rotate(180deg);}
-    /* Tuerca (en el menú) / X (en el menú flotante) para mostrar/ocultar el menú ENCIMA del editor. */
-    .a122-floatmenu-btn{position:fixed;top:9px;left:10px;z-index:700;width:26px;height:26px;
-      display:flex;align-items:center;justify-content:center;background:transparent;
-      color:var(--fg-muted,#8a8a93);border:none;cursor:pointer;opacity:.7;
-      transition:opacity .15s ease,color .15s ease;}
-    .a122-floatmenu-btn:hover{opacity:1;color:var(--fg,#e6e6e6);}
-    html.aula122-floatwin .a122-floatmenu-btn{color:var(--fg,#e6e6e6);opacity:.95;}
-    /* En la ventana FLOTANTE: sin hamburguesa (la X va arriba-izquierda) y sin chat (solo el menú). */
-    html.aula122-floatwin .hamburger-btn{display:none !important;}
-    html.aula122-floatwin #chat-container{display:none !important;}
-    html.aula122-floatwin .sidebar{width:100% !important;max-width:none !important;}
   `;
   document.head.appendChild(s);
 }
@@ -398,12 +387,6 @@ function _injectAppActions() {
   if (!ajustes || !ajustes.parentNode) return;
   const box = document.createElement('div');
   box.id = 'aula122-app-actions';
-  // Menú flotante: invoca el menú NATIVO de Aula 122 como ventana ENCIMA del editor y sus pestañas
-  // (el verbo /odiseo/floatmenu → toggleMenuOverlay construye un menú nativo, render fiable en macOS).
-  const floatIc = _ai('<rect x="3" y="3" width="18" height="18" rx="2"/><rect x="3" y="3" width="7" height="18" rx="1"/>');
-  const floatRow = _actionRow('aula122-act-floatmenu', 'Menú flotante', floatIc, '/odiseo/floatmenu');
-  floatRow.title = 'Mostrar el menú de Aula 122 flotando encima del editor';
-  box.appendChild(floatRow);
   _APP_ACTIONS.forEach((a) => {
     const row = _actionRow('aula122-act-' + a.id, a.label, a.icon, '/action/' + a.action);
     box.appendChild(row);
@@ -484,47 +467,6 @@ function _injectChatToggle() {
   btn.addEventListener('click', (e) => {
     e.stopPropagation();
     _setChatCollapsed(!_chatCollapsed);
-  });
-  document.body.appendChild(btn);
-}
-
-// ── Tuerca / X para el MENÚ FLOTANTE (B): mostrar/ocultar el menú ENCIMA del editor ──────────────
-// En el menú normal muestra una TUERCA (picarla → el menú aparece flotando encima del editor). En la
-// ventana flotante (?aula122float=1) muestra una X arriba-izquierda (picarla → se cierra). Ambas
-// disparan el mismo verbo /odiseo/floatmenu, que el shell nativo togglea (toggleMenuOverlay).
-const _GEAR_ICON =
-  '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" ' +
-  'stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 ' +
-  '1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 ' +
-  '1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l' +
-  '.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 ' +
-  '1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51' +
-  'V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a' +
-  '1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>';
-const _CLOSE_X_ICON =
-  '<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" ' +
-  'stroke-linecap="round" stroke-linejoin="round"><path d="M18 6L6 18M6 6l12 12"/></svg>';
-
-function _isFloatWin() {
-  try {
-    return /[?&]aula122float=1/.test((globalThis.location && globalThis.location.search) || '');
-  } catch (_e) {
-    return false;
-  }
-}
-
-function _injectFloatMenuControls() {
-  if (document.getElementById('aula122-floatmenu-btn')) return;
-  const float = _isFloatWin();
-  if (float) document.documentElement.classList.add('aula122-floatwin');
-  const btn = document.createElement('button');
-  btn.className = 'a122-floatmenu-btn';
-  btn.id = 'aula122-floatmenu-btn';
-  btn.title = float ? 'Cerrar el menú flotante' : 'Mostrar el menú de Odiseo encima del editor';
-  btn.innerHTML = float ? _CLOSE_X_ICON : _GEAR_ICON;
-  btn.addEventListener('click', (e) => {
-    e.stopPropagation();
-    _bridge('/odiseo/floatmenu');
   });
   document.body.appendChild(btn);
 }

@@ -4,7 +4,6 @@
 #include <QWidget>
 
 class QTimer;
-class QPushButton;
 class QWebEngineView;
 
 
@@ -63,11 +62,6 @@ signals:
      * @brief Exportar el documento actual (verbo /project/export).
      */
     void exportProjectRequested();
-    /**
-     * @brief Aula 122 (B): el usuario picó la tuerca/X del menú → mostrar/ocultar el MENÚ en una
-     *        ventana FLOTANTE encima del editor (verbo /odiseo/floatmenu).
-     */
-    void floatMenuToggleRequested();
     /**
      * @brief Aula 122: el SPA (panel "Aula 122" de ajustes) pide los AJUSTES nativos actuales
      *        (verbo /settings/native/get). El shell responde empujándolos vía applyNativeSettings.
@@ -161,28 +155,6 @@ public:
      */
     void setChatCollapsed(bool _collapsed);
 
-    /**
-     * @brief Aula 122 (B): muestra/oculta el MENÚ de Odiseo en una VENTANA FLOTANTE propia, ENCIMA
-     *        del editor de STARC (segunda vista web con la misma sesión). El menú flotante controla
-     *        el editor (abrir documentos/secciones) y se oculta al navegar.
-     */
-    void toggleMenuOverlay();
-
-    /**
-     * @brief Aula 122 (B): muestra/oculta la TUERCA (botón nativo, abajo-izquierda sobre el editor)
-     *        que invoca el menú flotante. showMenuGear se usa en la vista de PROYECTO; hideMenuGear
-     *        en cuenta/onboarding/ajustes.
-     */
-    void showMenuGear();
-    void hideMenuGear();
-
-protected:
-    /**
-     * @brief Aula 122 (B): mientras el menú flotante está visible, lo reposicionamos cuando la
-     *        ventana principal se mueve/redimensiona/cambia de estado → sigue pegado al editor.
-     */
-    bool eventFilter(QObject* _watched, QEvent* _event) override;
-
 signals:
     /**
      * @brief El SPA pidió abrir una etapa del pipeline nativo
@@ -260,15 +232,7 @@ private:
      */
     void showSplash();
 
-    /**
-     * @brief Aula 122 (B): coloca el menú flotante como una franja a la IZQUIERDA del área de
-     *        contenido de la ventana (sobre el editor y sus pestañas), de alto completo.
-     */
-    void positionOverlay();
-
     QWebEngineView* m_web = nullptr;
-    QWidget* m_menuOverlay = nullptr; // Aula 122 (B): ventana flotante del menú, encima del editor.
-    QPushButton* m_menuGear = nullptr; // Aula 122 (B): tuerca para invocar el menú flotante.
     QTimer* m_pollTimer = nullptr;
     bool m_loaded = false;
     bool m_spaLoaded = false;
