@@ -439,6 +439,13 @@ public:
     //
     Ui::OdysseusWorkspaceView* odysseusView = nullptr;
     //
+    // Aula 122 (Etapa 1, editor-first): ruta del proyecto para el que YA colapsamos el chat al
+    // entrar. showProject() corre en cada navegación; solo colapsamos cuando esta ruta cambia
+    // (entrada nueva) → la navegación intra-proyecto no re-colapsa (sin freeze; respeta el FAB).
+    // showProjects() la limpia.
+    //
+    QString odiseoChatCollapsedForProject;
+    //
     // Anti-eco del tema: no reenviar nativo→web mientras se aplica un tema que vino de
     // Odiseo (web→nativo).
     //
@@ -1040,12 +1047,14 @@ void ApplicationManager::Implementation::showProjects()
     applicationView->showOdiseoBeside();  // Aula 122 / M6: Proyectos al lado de Odiseo
     //
     // Aula 122 (Etapa 1): en la LISTA de proyectos no hay editor que priorizar → el chat de
-    // Odiseo/Rita es lo útil. Lo restauramos visible (revierte el colapso editor-first del proyecto).
+    // Odiseo/Rita es lo útil. Lo restauramos visible (revierte el colapso editor-first del proyecto)
+    // y limpiamos el flag → la próxima entrada a un proyecto vuelve a colapsar (editor-first).
     //
     applicationView->setOdiseoChatCollapsed(false);
     if (odysseusView != nullptr) {
         odysseusView->setChatCollapsed(false);
     }
+    odiseoChatCollapsedForProject.clear();
     saveLastContent(projectsManager.data());
 
     projectsManager->view()->setFocus();
@@ -1064,15 +1073,26 @@ void ApplicationManager::Implementation::showProject()
     showContent(projectManager.data());
     applicationView->showOdiseoBeside();
     //
-    // Aula 122 (Etapa 1, editor-first): en la vista de PROYECTO el editor es lo primario →
+    // Aula 122 (Etapa 1, editor-first): al ENTRAR a un proyecto el editor es lo primario →
     // arrancamos con el chat de Odiseo COLAPSADO (el menú se queda; el chat vuelve con el FAB).
-    // Va DESPUÉS de showOdiseoBeside (que aplica el estado recordado) para fijar colapsado aquí.
-    // Native = encoge el split; web (odysseusView) = sincroniza la clase/FAB del SPA (con
-    // re-aplicación en loadFinished por si el SPA aún no cargó).
     //
-    applicationView->setOdiseoChatCollapsed(true);
-    if (odysseusView != nullptr) {
-        odysseusView->setChatCollapsed(true);
+    // CLAVE: showProject() se llama en CADA navegación (clic en doc/etapa → documentRequested/
+    // pipelineRequested → showProject()), no solo al abrir. Por eso SOLO colapsamos cuando el
+    // proyecto CAMBIA respecto al último mostrado. Si re-colapsáramos en cada clic: (1) thrash de
+    // layout que congelaba el editor (regresión reportada), y (2) si el usuario abrió el chat con
+    // el FAB, un clic en otro doc se lo cerraría de golpe. Native = encoge el split; web
+    // (odysseusView) = sincroniza la clase/FAB del SPA (re-aplicado en loadFinished si el SPA
+    // aún no cargó). showProjects() limpia el flag → re-entrar a un proyecto vuelve a colapsar.
+    //
+    const QString currentProjectPath = projectsManager->currentProject() != nullptr
+        ? projectsManager->currentProject()->path()
+        : QString();
+    if (!currentProjectPath.isEmpty() && currentProjectPath != odiseoChatCollapsedForProject) {
+        applicationView->setOdiseoChatCollapsed(true);
+        if (odysseusView != nullptr) {
+            odysseusView->setChatCollapsed(true);
+        }
+        odiseoChatCollapsedForProject = currentProjectPath;
     }
     saveLastContent(projectManager.data());
 }

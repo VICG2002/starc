@@ -222,6 +222,12 @@ private:
     // llamada nativo→web se perdería). m_chatCollapsedSet evita tocar nada si nunca se pidió.
     bool m_chatCollapsed = false;
     bool m_chatCollapsedSet = false;
+    // Aula 122 (fix navegación): proyecto activo recordado para RE-APLICARLO en loadFinished.
+    // setActiveProject corre al abrir el proyecto, ANTES de que el SPA cargue → la llamada
+    // nativo→web se perdía y el SPA quedaba mostrando el proyecto por defecto del backend
+    // (otro .starc) → sus uuids no encajaban con el modelo nativo y los docs no abrían.
+    QString m_activeProjectPath;
+    bool m_activeProjectSet = false;
 };
 
 } // namespace Ui

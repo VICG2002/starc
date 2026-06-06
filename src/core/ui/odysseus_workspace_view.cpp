@@ -205,6 +205,21 @@ OdysseusWorkspaceView::OdysseusWorkspaceView(QWidget* _parent)
                 m_web->page()->runJavaScript(
                     QStringLiteral("window.__aula122PushTheme && window.__aula122PushTheme()"));
                 //
+                // Aula 122 (fix navegación): re-aplicar el PROYECTO activo pedido antes de que el
+                // SPA cargara. Sin esto el árbol del SPA quedaba en el proyecto por defecto del
+                // backend (otro .starc) y sus uuids no encajaban con el modelo nativo → los
+                // documentos no abrían. Va PRIMERO para que _load() del SPA use el proyecto correcto.
+                //
+                if (m_activeProjectSet && !m_activeProjectPath.isEmpty()) {
+                    QString escaped = m_activeProjectPath;
+                    escaped.replace(QLatin1Char('\\'), QLatin1String("\\\\"));
+                    escaped.replace(QLatin1Char('"'), QLatin1String("\\\""));
+                    m_web->page()->runJavaScript(
+                        QStringLiteral(
+                            "window.aula122SetProject && window.aula122SetProject(\"%1\")")
+                            .arg(escaped));
+                }
+                //
                 // Aula 122 (Etapa 1): re-aplicar el estado de chat colapsado pedido ANTES de que
                 // el SPA cargara (showProject) → el editor-first del proyecto se respeta y el FAB
                 // del SPA queda en el estado correcto (sincronizado con el split nativo).
@@ -464,6 +479,14 @@ void OdysseusWorkspaceView::applyThemeFromNative(const QString& _bg, const QStri
 
 void OdysseusWorkspaceView::setActiveProject(const QString& _path)
 {
+    //
+    // Recordamos el proyecto para RE-APLICARLO en loadFinished: al abrir un proyecto el shell
+    // llama aquí ANTES de que el SPA cargue → este runJavaScript se perdería y el SPA seguiría
+    // pidiendo /api/guion/estructura SIN proyecto = el default del backend (otro .starc), cuyos
+    // uuids no encajan con el modelo nativo → los documentos del árbol no abrían.
+    //
+    m_activeProjectPath = _path;
+    m_activeProjectSet = true;
     if (m_web == nullptr || m_web->page() == nullptr) {
         return;
     }
