@@ -567,6 +567,18 @@ struct BrainProcessManager::Implementation {
                              "tools:\n"
                              "  tool_search:\n"
                              "    enabled: \"%8\"\n"
+                             // RENDIMIENTO (causa raíz de "Hermes no responde"): por defecto
+                             // api_server carga el toolset compuesto completo (skills, browser,
+                             // image_gen, memory, web…) → el system prompt se infla a ~19K tokens
+                             // (los skills solos son ~11K) y el 8B local tarda ~130s por turno.
+                             // El propio Hermes lo documenta: tools de más = "10x latency penalty
+                             // on local models". Recortamos a lo esencial: terminal+file (para el
+                             // tablero de Diez50 vía gh) — los MCP (Notion/memoria/aula122) NO se
+                             // filtran por esto (van por mcp_servers, include_default_mcp_servers).
+                             "platform_toolsets:\n"
+                             "  api_server:\n"
+                             "  - \"terminal\"\n"
+                             "  - \"file\"\n"
                              "mcp_servers:\n"
                              "  aula122-mcp:\n"
                              "    command: \"%3\"\n"
@@ -1027,6 +1039,15 @@ void BrainProcessManager::startAll()
                                 // -np 1: un solo slot de contexto → KV = 1×64K (no 4×).
                                 // Decisivo para que Hermes-3-8B@64K quepa en 18 GB.
                                 QStringLiteral("-np"), QStringLiteral("1"),
+                                // -ub 1024 (micro-batch; default 512): el agent loop de Hermes
+                                // manda prompts ENORMES (esquemas de tools + contexto), p.ej. ~19K
+                                // tokens. El cuello de botella es el PROCESAMIENTO de prompt, no la
+                                // generación. Subir el micro-batch ~duplica el throughput de prompt
+                                // en Metal (M3) → la primera respuesta baja de ~130s a la mitad. -b
+                                // 2048 (default) es el batch lógico; el coste extra de RAM del
+                                // ubatch mayor es modesto (~cientos de MB) y cabe en 18 GB.
+                                QStringLiteral("-b"), QStringLiteral("2048"),
+                                QStringLiteral("-ub"), QStringLiteral("1024"),
                                 // --jinja: activa el function-calling de llama.cpp (formato
                                 // <tools>, parser de <tool_call>, gramática lazy que fuerza
                                 // JSON válido) → tool_calls NATIVOS, no texto.
