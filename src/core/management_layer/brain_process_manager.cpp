@@ -359,6 +359,42 @@ struct BrainProcessManager::Implementation {
     }
 
     /**
+     * Header para el Notion MCP de Hermes (Diez50): lee NOTION_TOKEN_DIEZ50 de
+     * ~/.config/diez50/notion.env y arma el OPENAPI_MCP_HEADERS que espera
+     * @notionhq/notion-mcp-server. El token viaja por el ENTORNO del gateway
+     * (nunca se escribe a config.yaml). Vacío si falta el archivo o el token.
+     */
+    QString notionMcpHeaders() const
+    {
+        QFile f(QDir::homePath()
+                + QStringLiteral("/.config/diez50/notion.env"));
+        if (!f.open(QIODevice::ReadOnly)) {
+            return QString();
+        }
+        QString token;
+        const QList<QByteArray> lines = f.readAll().split('\n');
+        f.close();
+        for (const QByteArray& line : lines) {
+            QString s = QString::fromUtf8(line).trimmed();
+            if (s.startsWith(QStringLiteral("export "))) {
+                s = s.mid(7).trimmed();
+            }
+            if (s.startsWith(QStringLiteral("NOTION_TOKEN_DIEZ50="))) {
+                token = s.mid(QStringLiteral("NOTION_TOKEN_DIEZ50=").length())
+                            .trimmed();
+                token.remove(QLatin1Char('"')).remove(QLatin1Char('\''));
+                break;
+            }
+        }
+        if (token.isEmpty()) {
+            return QString();
+        }
+        return QStringLiteral(
+                   "{\"Authorization\":\"Bearer %1\",\"Notion-Version\":\"2022-06-28\"}")
+            .arg(token);
+    }
+
+    /**
      * Escribe config.yaml en HERMES_HOME: provider OpenAI local (:8533, el
      * llama-server compartido), contexto 64K (Hermes lo exige) y la plataforma
      * api_server habilitada (su servidor OpenAI en kHermesPort).
@@ -377,6 +413,8 @@ struct BrainProcessManager::Implementation {
         // (sobre la copia de trabajo bajo git; reusa el motor steward de odysseus).
         const QString serverPyMem
             = QDir(brainRoot()).absoluteFilePath(QStringLiteral("memoria-mcp/server.py"));
+        // Notion MCP (Diez50): el token va por OPENAPI_MCP_HEADERS (entorno), no aquí.
+        const QString npx = QDir::homePath() + QStringLiteral("/.local/bin/npx");
         const QString cfg
             = QStringLiteral("model:\n"
                              "  default: \"%1\"\n"
@@ -405,12 +443,20 @@ struct BrainProcessManager::Implementation {
                              "    command: \"%3\"\n"
                              "    args:\n"
                              "    - \"%5\"\n"
+                             "    enabled: true\n"
+                             "  notion:\n"
+                             "    command: \"%6\"\n"
+                             "    args:\n"
+                             "    - \"-y\"\n"
+                             "    - \"@notionhq/notion-mcp-server\"\n"
+                             "    timeout: 120\n"
                              "    enabled: true\n")
                   .arg(model)
                   .arg(kLlamaPort)
                   .arg(pythonBin)
                   .arg(serverPy)
-                  .arg(serverPyMem);
+                  .arg(serverPyMem)
+                  .arg(npx);
         QFile f(QDir(home).absoluteFilePath(QStringLiteral("config.yaml")));
         if (f.open(QIODevice::WriteOnly | QIODevice::Truncate)) {
             f.write(cfg.toUtf8());
@@ -454,6 +500,20 @@ struct BrainProcessManager::Implementation {
             "Al documentar un proyecto abierto: identifícalo con aula122-mcp, resuelve su ficha\n"
             "de proyecto por slug/prefijo, y enlaza la ficha con el .starc y con el método de\n"
             "dominio de Rita (escritura/edición/PM/redes) que corresponda.\n\n"
+            "## Tablero de Diez50 (Notion + web) — REGLAS DE ALCANCE ESTRICTAS\n\n"
+            "Tienes un MCP de Notion (tools `mcp_notion_*`) sobre el espacio 'Diez50 - Centro'\n"
+            "y acceso a la terminal + `gh` (autenticado como VICG2002) sobre el repo del sitio\n"
+            "publicado en `~/rita-tablero`.\n\n"
+            "- **SOLO escribe en las bases COLECTIVAS: `metricas` y `miembros`** (foto, proximo\n"
+            "  video, metricas). Las demas bases (`proyectos`, `tareas`, `ideas`, `en_progreso`,\n"
+            "  `calendario`) son **sync-fed**: su fuente de verdad es la memoria local y el `/sync`\n"
+            "  las SOBREESCRIBE -> NO las edites (tu cambio se perderia).\n"
+            "- **NUNCA archives ni borres** paginas ni bases de Notion. Solo crear/actualizar\n"
+            "  propiedades en las bases permitidas.\n"
+            "- **Web del tablero** (`~/rita-tablero`, repo PUBLICO): el sitio se regenera desde\n"
+            "  Notion cada 6h (GitHub Actions), asi que para cambios de DATOS edita Notion (se\n"
+            "  propaga solo). Toca el repo SOLO para plantilla/HTML; `git push` a main publica\n"
+            "  DIRECTO a produccion. Antes de push: revisa el diff y NUNCA commitees secretos.\n\n"
             "## Principio rector (Diez50): la IA ejecuta, no decide\n\n"
             "Tienes autonomía para crear y actualizar fichas directamente. Para reorganización\n"
             "ESTRUCTURAL delicada (mover/renombrar/borrar, o tocar la carpeta Rita), si dudas,\n"
@@ -883,6 +943,16 @@ void BrainProcessManager::startAll()
         hEnv.insert(QStringLiteral("API_SERVER_HOST"), QStringLiteral("127.0.0.1"));
         hEnv.insert(QStringLiteral("API_SERVER_PORT"), QString::number(kHermesPort));
         hEnv.insert(QStringLiteral("API_SERVER_KEY"), d->hermesApiKey());
+        // npx (para el Notion MCP) en el PATH del gateway.
+        hEnv.insert(QStringLiteral("PATH"),
+                    QDir::homePath() + QStringLiteral("/.local/bin:")
+                        + hEnv.value(QStringLiteral("PATH")));
+        // Token de Notion (Diez50) por el ENTORNO del gateway → lo hereda el
+        // subproceso del Notion MCP. NO se escribe a config.yaml.
+        const QString notionHeaders = d->notionMcpHeaders();
+        if (!notionHeaders.isEmpty()) {
+            hEnv.insert(QStringLiteral("OPENAPI_MCP_HEADERS"), notionHeaders);
+        }
         const QStringList hArgs{ QStringLiteral("gateway"), QStringLiteral("run"),
                                  QStringLiteral("-q") };
         d->hermes = d->spawn(QStringLiteral("hermes"), d->hermesBin, hArgs,
