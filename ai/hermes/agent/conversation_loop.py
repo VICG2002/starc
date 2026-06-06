@@ -3784,6 +3784,29 @@ def run_conversation(
             elif hasattr(agent, "_codex_incomplete_retries"):
                 agent._codex_incomplete_retries = 0
             
+            # Aula 122 / red correctiva (espejo del parser de Odiseo): si el modelo
+            # NO emitió tool_calls NATIVOS pero escribió la llamada como TEXTO
+            # (<tool_call>{...}</tool_call> o JSON suelto), la rescatamos y la
+            # ejecutamos en vez de descartarla. Con --jinja esto es raro, pero salva
+            # el turno cuando una llamada se escapa. Solo en el fallback (no había
+            # nativas); guardado con try/except para degradar a no-op si algo falla.
+            if (not assistant_message.tool_calls
+                    and isinstance(assistant_message.content, str)
+                    and assistant_message.content.strip()):
+                try:
+                    from agent.copilot_acp_client import _extract_tool_calls_from_text
+                    _rescued, _cleaned = _extract_tool_calls_from_text(
+                        assistant_message.content)
+                except Exception:
+                    _rescued, _cleaned = [], None
+                if _rescued:
+                    assistant_message.tool_calls = _rescued
+                    assistant_message.content = _cleaned or None
+                    if not agent.quiet_mode:
+                        agent._vprint(
+                            f"{agent.log_prefix}rescued {len(_rescued)} "
+                            f"tool-call(s) from text")
+
             # Check for tool calls
             if assistant_message.tool_calls:
                 if not agent.quiet_mode:
