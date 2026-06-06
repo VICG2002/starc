@@ -595,6 +595,78 @@ struct BrainProcessManager::Implementation {
     }
 
     /**
+     * Escribe el plugin "aula122-pin" en HERMES_HOME/plugins/ — mantiene los MCP
+     * ESENCIALES (memoria + .starc) VISIBLES en tool_search (su register() monkeypatchea
+     * is_deferrable_tool_name para no diferir los nombres que casen HERMES_TOOL_SEARCH_PIN).
+     *
+     * CLAVE del diseño: se hace vía el sistema de PLUGINS de Hermes (datos de usuario en
+     * HERMES_HOME), NO parcheando el código vendorizado de Hermes → SOBREVIVE a una
+     * actualización/re-vendorizado de Hermes sin re-aplicar nada. El shell lo (re)escribe
+     * en cada arranque y lo habilita en config.yaml (plugins.enabled). Si Hermes cambia su
+     * API de plugins, el register() falla suave (try/except) sin tumbar el gateway.
+     */
+    void writeHermesPinPlugin()
+    {
+        const QString dir
+            = QDir(hermesHome()).absoluteFilePath(QStringLiteral("plugins/aula122-pin"));
+        QDir().mkpath(dir);
+        const QString yaml = QStringLiteral(
+            "name: aula122-pin\n"
+            "version: 1.0.0\n"
+            "description: \"Aula 122: mantiene visibles (no diferidos por tool_search) "
+            "los MCP esenciales (memoria-creativa + .starc) para el modelo local.\"\n"
+            "author: Diez50 / Aula 122\n");
+        const QString init = QStringLiteral(
+            "# aula122-pin -- pin de los MCP esenciales de Aula 122 en tool_search.\n"
+            "# Mantiene VISIBLES (nunca diferidos) los tools MCP de memoria-creativa\n"
+            "# (mcp_memoria_mcp_*) y de lectura del .starc (mcp_aula122_mcp_*), para que\n"
+            "# el modelo local los use de forma fiable aunque Notion aporte muchas tools.\n"
+            "# Es un PLUGIN (no un patch al codigo vendorizado) para sobrevivir\n"
+            "# actualizaciones de Hermes: vive en HERMES_HOME/plugins (datos de usuario).\n"
+            "# Lo escribe el shell nativo; los prefijos a fijar vienen de la env var\n"
+            "# HERMES_TOOL_SEARCH_PIN (coma-separado), que el shell fija en el entorno.\n"
+            "import logging\n"
+            "import os\n"
+            "\n"
+            "logger = logging.getLogger(__name__)\n"
+            "\n"
+            "\n"
+            "def _pins():\n"
+            "    raw = os.environ.get(\"HERMES_TOOL_SEARCH_PIN\", \"\")\n"
+            "    return tuple(p.strip() for p in raw.split(\",\") if p.strip())\n"
+            "\n"
+            "\n"
+            "def register(ctx):\n"
+            "    try:\n"
+            "        import tools.tool_search as ts\n"
+            "    except Exception as exc:\n"
+            "        logger.warning(\"aula122-pin: no pude importar tool_search: %s\", exc)\n"
+            "        return\n"
+            "    if getattr(ts, \"_aula122_pinned\", False):\n"
+            "        return\n"
+            "    _orig = ts.is_deferrable_tool_name\n"
+            "\n"
+            "    def _patched(name):\n"
+            "        for p in _pins():\n"
+            "            if p and p in name:\n"
+            "                return False\n"
+            "        return _orig(name)\n"
+            "\n"
+            "    ts.is_deferrable_tool_name = _patched\n"
+            "    ts._aula122_pinned = True\n"
+            "    logger.info(\"aula122-pin: pin activo para %s\", \", \".join(_pins()) or \"(vacio)\")\n");
+        const auto writeFile = [](const QString& path, const QString& content) {
+            QFile f(path);
+            if (f.open(QIODevice::WriteOnly | QIODevice::Truncate)) {
+                f.write(content.toUtf8());
+                f.close();
+            }
+        };
+        writeFile(QDir(dir).absoluteFilePath(QStringLiteral("plugin.yaml")), yaml);
+        writeFile(QDir(dir).absoluteFilePath(QStringLiteral("__init__.py")), init);
+    }
+
+    /**
      * Escribe config.yaml en HERMES_HOME: provider OpenAI local (:8533, el
      * llama-server compartido), contexto 64K (Hermes lo exige) y la plataforma
      * api_server habilitada (su servidor OpenAI en kHermesPort).
@@ -666,6 +738,12 @@ struct BrainProcessManager::Implementation {
                              "    enabled: true\n"
                              "agent:\n"
                              "  tool_use_enforcement: %7\n"
+                             // Habilita el plugin aula122-pin (lo escribe writeHermesPinPlugin
+                             // en HERMES_HOME/plugins): pin de memoria + .starc en tool_search,
+                             // robusto a actualizaciones de Hermes. Los user plugins son opt-in.
+                             "plugins:\n"
+                             "  enabled:\n"
+                             "  - \"aula122-pin\"\n"
                              "tools:\n"
                              "  tool_search:\n"
                              "    enabled: \"%8\"\n"
@@ -734,6 +812,8 @@ struct BrainProcessManager::Implementation {
         // F2: descriptor de solo-lectura para el panel del SPA (modelo, endpoint,
         // catálogo MCP). Va junto al config; lo lee /api/hermes/settings.
         writeHermesManaged(model);
+        // Pin de MCP esenciales vía plugin (robusto a actualizaciones de Hermes).
+        writeHermesPinPlugin();
     }
 
     /**

@@ -30,7 +30,6 @@ from __future__ import annotations
 import json
 import logging
 import math
-import os
 import re
 from dataclasses import dataclass, field
 from typing import Any, Dict, Iterable, List, Optional, Tuple
@@ -161,17 +160,6 @@ def _core_tool_names() -> frozenset[str]:
         return frozenset()
 
 
-def _pinned_substrings() -> tuple:
-    """Aula 122 patch: substrings de nombres de tool que NUNCA se difieren (siempre
-    visibles para el modelo), aunque sean MCP. Se configuran por la env var
-    ``HERMES_TOOL_SEARCH_PIN`` (coma-separado). El shell nativo (BrainProcessManager)
-    fija ahí los MCP ESENCIALES (memoria-creativa + lectura del .starc) para que el 8B
-    local los use de forma fiable AUNQUE Notion (que aporta ~22 tools) esté activo y
-    dispare el deferral del resto. Sin la env var, comportamiento upstream intacto."""
-    raw = os.environ.get("HERMES_TOOL_SEARCH_PIN", "")
-    return tuple(p.strip() for p in raw.split(",") if p.strip())
-
-
 def is_deferrable_tool_name(name: str) -> bool:
     """Return True if a tool with this name is *eligible* for deferral.
 
@@ -184,10 +172,6 @@ def is_deferrable_tool_name(name: str) -> bool:
         return False
     if name in _core_tool_names():
         return False
-    # Aula 122 patch: pin (nunca diferir) los MCP esenciales fijados por el shell.
-    for _sub in _pinned_substrings():
-        if _sub and _sub in name:
-            return False
     # Check registry toolset for MCP prefix.
     try:
         from tools.registry import registry
