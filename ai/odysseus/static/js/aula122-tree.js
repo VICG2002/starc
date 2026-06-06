@@ -368,6 +368,48 @@ function _injectDocActions() {
   [loose, add, save, exp].forEach((el) => parent.insertBefore(el, after));
 }
 
+// ── Acciones de APP (antes solo en el ☰ nativo) — ahora desde el menú ÚNICO de Odiseo ──────
+// Cada fila navega a /action/<nombre>; el shell la enruta al MISMO slot del ☰ (paridad total, el
+// ☰ y la barra de macOS siguen como respaldo). Se agrupan al final, tras "Ajustes".
+function _ai(inner) {
+  return '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" ' +
+    'stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0;opacity:.6;">' +
+    inner + '</svg>';
+}
+const _APP_ACTIONS = [
+  { id: 'importar', label: 'Importar…', action: 'import',
+    icon: _ai('<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/>') },
+  { id: 'guardar-como', label: 'Guardar como…', action: 'save-as',
+    icon: _ai('<path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/>') },
+  { id: 'pantalla-completa', label: 'Pantalla completa', action: 'fullscreen',
+    icon: _ai('<path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"/>') },
+  { id: 'asistente', label: 'Asistente', action: 'assistant',
+    icon: _ai('<path d="M12 8V4H8"/><rect x="4" y="8" width="16" height="12" rx="2"/><path d="M2 14h2M20 14h2M15 13v2M9 13v2"/>') },
+  { id: 'estadisticas', label: 'Estadísticas', action: 'stats',
+    icon: _ai('<path d="M3 3v18h18"/><path d="M18 17V9M13 17V5M8 17v-3"/>') },
+  { id: 'sprint', label: 'Sprint de escritura', action: 'sprint',
+    icon: _ai('<circle cx="12" cy="13" r="8"/><path d="M12 9v4l2 2M5 3 2 6M22 6l-3-3"/>') },
+  { id: 'cuenta', label: 'Cuenta', action: 'account',
+    icon: _ai('<path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/>') },
+];
+function _injectAppActions() {
+  if (document.getElementById('aula122-app-actions')) return;
+  const ajustes = document.getElementById('aula122-ajustes-btn');
+  if (!ajustes || !ajustes.parentNode) return;
+  const box = document.createElement('div');
+  box.id = 'aula122-app-actions';
+  // NOTA (M3): el "Menú flotante" (verbo /odiseo/floatmenu) queda DESACTIVADO: un 2º QWebEngineView
+  // en una ventana top-level separada no renderiza en este stack macOS/Qt (sale en blanco). La
+  // ventana en C++ ya se posiciona bien (lista para un menú flotante NATIVO si se decide). Mientras,
+  // el menú lado-a-lado de Odiseo ya da acceso a TODO.
+  _APP_ACTIONS.forEach((a) => {
+    const row = _actionRow('aula122-act-' + a.id, a.label, a.icon, '/action/' + a.action);
+    box.appendChild(row);
+  });
+  // Tras "Ajustes" (último ítem de la sección Aula 122).
+  ajustes.parentNode.insertBefore(box, ajustes.nextSibling);
+}
+
 async function _load() {
   try {
     // Si el shell nativo nos dijo qué proyecto está abierto, pedimos ESE (no el más
@@ -640,6 +682,7 @@ export function init() {
   _injectStyles();
   _wireGroups();
   _injectDocActions();
+  _injectAppActions();
   _injectGuionParts();
   _injectChatToggle();
   _wireChatAutoExpand();

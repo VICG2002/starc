@@ -225,6 +225,18 @@ public:
     void pushNativeThemeToOdiseo();
 
     /**
+     * @brief Aula 122: empuja a Odiseo los AJUSTES nativos clave (escala/densidad/idioma/autoguardado/
+     *        backups/corrector/logging) para su panel "Aula 122" de ajustes (nativo→web).
+     */
+    void pushNativeSettingsToOdiseo();
+
+    /**
+     * @brief Aula 122: aplica un ajuste nativo pedido desde el panel "Aula 122" de Odiseo (web→nativo),
+     *        reusando la lógica del panel de Ajustes nativo (SettingsManager) — sin duplicar.
+     */
+    void applyNativeSettingFromOdiseo(const QString& _key, const QString& _value);
+
+    /**
      * @brief Показать страницу статистика работы с программой
      */
     void showSessionStatistics();
@@ -1371,6 +1383,48 @@ void ApplicationManager::Implementation::showOdysseus()
                              Ui::DesignSystem::setUiFontFamily(qtFamily);
                              QApplication::postEvent(q, new DesignSystemChangeEvent);
                          });
+        //
+        // Aula 122: el panel "Aula 122" de los ajustes de Odiseo pide los ajustes nativos actuales
+        // (nativo→web). También se dispara en loadFinished para mantenerlo fresco.
+        //
+        QObject::connect(odysseusView, &Ui::OdysseusWorkspaceView::nativeSettingsGetRequested, q,
+                         [this] { pushNativeSettingsToOdiseo(); });
+        QObject::connect(odysseusView, &Ui::OdysseusWorkspaceView::nativeSettingChangeRequested, q,
+                         [this](const QString& _key, const QString& _value) {
+                             applyNativeSettingFromOdiseo(_key, _value);
+                         });
+        //
+        // Aula 122: el menú web pidió una ACCIÓN de app del ☰ nativo. La enrutamos al MISMO slot que
+        // usa el ☰ (paridad: nada se pierde y el ☰ sigue funcionando como respaldo).
+        //
+        QObject::connect(odysseusView, &Ui::OdysseusWorkspaceView::appActionRequested, q,
+                         [this](const QString& _action) {
+                             if (_action == QLatin1String("import")) {
+                                 importProject();
+                             } else if (_action == QLatin1String("save-as")) {
+                                 saveIfNeeded([this] { saveAs(); });
+                             } else if (_action == QLatin1String("create-project")) {
+                                 createProject();
+                             } else if (_action == QLatin1String("open-project")) {
+                                 openProject();
+                             } else if (_action == QLatin1String("fullscreen")) {
+                                 toggleFullScreen();
+                             } else if (_action == QLatin1String("signin")) {
+                                 accountManager->signIn();
+                             } else if (_action == QLatin1String("account")) {
+                                 showAccount();
+                             } else if (_action == QLatin1String("assistant")) {
+                                 showAssistant();
+                             } else if (_action == QLatin1String("stats")) {
+#ifdef CLOUD_SERVICE_MANAGER
+                                 cloudServiceManager->askSessionStatistics(
+                                     writingSessionManager->sessionStatisticsLastSyncDateTime());
+#endif
+                                 showSessionStatistics();
+                             } else if (_action == QLatin1String("sprint")) {
+                                 writingSessionManager->showSprintPanel();
+                             }
+                         });
     }
     //
     // Aula 122 / M2: Odiseo es el ANFITRIÓN. Vive permanente en su panel; aquí lo instalamos
@@ -1802,6 +1856,51 @@ void ApplicationManager::Implementation::pushNativeThemeToOdiseo()
     odysseusView->applyThemeFromNative(c.background().name(), c.onBackground().name(),
                                        c.surface().name(), c.accent().name(), c.error().name(),
                                        dark ? QStringLiteral("dark") : QStringLiteral("light"));
+}
+
+void ApplicationManager::Implementation::pushNativeSettingsToOdiseo()
+{
+    if (odysseusView == nullptr) {
+        return;
+    }
+    using namespace DataStorageLayer;
+    //
+    // Leemos los ajustes nativos CLAVE (los de "Componentes"/por-tipo quedan en la UI nativa). Para
+    // escala usamos 1.0 si nunca se fijó (0 sería inválido). extendedLogging = (nivel == Trace), igual
+    // que SettingsView. theme: enum ApplicationTheme (Dark=0/Light=1/DarkAndLight=2/Custom=3).
+    //
+    const qreal scale = settingsValue(kApplicationScaleFactorKey).toReal();
+    QJsonObject o;
+    o[QStringLiteral("theme")] = settingsValue(kApplicationThemeKey).toInt();
+    o[QStringLiteral("scale")] = scale > 0.0 ? scale : 1.0;
+    o[QStringLiteral("density")] = settingsValue(kApplicationDensityKey).toInt();
+    o[QStringLiteral("language")] = settingsValue(kApplicationLanguagedKey).toInt();
+    o[QStringLiteral("autoSave")] = settingsValue(kApplicationUseAutoSaveKey).toBool();
+    o[QStringLiteral("saveBackups")] = settingsValue(kApplicationSaveBackupsKey).toBool();
+    o[QStringLiteral("backupsFolder")] = settingsValue(kApplicationBackupsFolderKey).toString();
+    o[QStringLiteral("backupsQty")] = settingsValue(kApplicationBackupsQtyKey).toInt();
+    o[QStringLiteral("useSpellChecker")] = settingsValue(kApplicationUseSpellCheckerKey).toBool();
+    o[QStringLiteral("spellLanguage")]
+        = settingsValue(kApplicationSpellCheckerLanguageKey).toString();
+    o[QStringLiteral("extendedLogging")]
+        = settingsValue(kApplicationLoggingLevelKey).toInt() == static_cast<int>(Log::Level::Trace);
+    const QString json = QString::fromUtf8(QJsonDocument(o).toJson(QJsonDocument::Compact));
+    odysseusView->applyNativeSettings(json);
+}
+
+void ApplicationManager::Implementation::applyNativeSettingFromOdiseo(const QString& _key,
+                                                                      const QString& _value)
+{
+    if (settingsManager.isNull()) {
+        return;
+    }
+    //
+    // Reusamos la lógica del panel de Ajustes nativo: persiste + aplica en vivo idéntico (sin
+    // duplicar). Tras aplicar, re-empujamos al SPA para que el panel "Aula 122" refleje el valor
+    // efectivo (p. ej. la escala fijada tras el clamp).
+    //
+    settingsManager->applyExternalApplicationSetting(_key, _value);
+    pushNativeSettingsToOdiseo();
 }
 
 void ApplicationManager::Implementation::setDesignSystemScaleFactor(qreal _scaleFactor)

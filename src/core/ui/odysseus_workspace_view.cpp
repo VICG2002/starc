@@ -1,6 +1,7 @@
 #include "odysseus_workspace_view.h"
 
 #include <QDir>
+#include <QEvent>
 #include <QFile>
 #include <QNetworkCookie>
 #include <QPushButton>
@@ -103,6 +104,34 @@ bool OdysseusPage::acceptNavigationRequest(const QUrl& _url, NavigationType _typ
             return false;
         }
         //
+        // Verbos de AJUSTES nativos (panel "Aula 122" dentro de los ajustes de Odiseo).
+        //   /settings/native/get          → el shell empuja los ajustes nativos actuales (nativo→web).
+        //   /settings/native/set?key&value → el shell cambia un ajuste reusando la lógica nativa.
+        // Se manejan ANTES del fallback de /open/<etapa> para que "set"/"get" no se tomen por etapas.
+        //
+        if (_url.path().startsWith(QLatin1String("/settings/native/get"))) {
+            emit nativeSettingsGetRequested();
+            return false;
+        }
+        if (_url.path().startsWith(QLatin1String("/settings/native/set"))) {
+            const QUrlQuery query(_url);
+            emit nativeSettingChangeRequested(
+                query.queryItemValue(QStringLiteral("key"), QUrl::FullyDecoded),
+                query.queryItemValue(QStringLiteral("value"), QUrl::FullyDecoded));
+            return false;
+        }
+        //
+        // Verbo "/action/<nombre>": acción de app que antes solo vivía en el ☰ nativo (import,
+        // save-as, fullscreen, cuenta, stats, sprint, …). Cerramos overlays web y la enrutamos al
+        // shell, que la manda al MISMO slot del ☰ (paridad total, sin perder funciones).
+        //
+        if (_url.path().startsWith(QLatin1String("/action/"))) {
+            runJavaScript(
+                QStringLiteral("window.aula122CloseOverlays && window.aula122CloseOverlays()"));
+            emit appActionRequested(_url.path().mid(QStringLiteral("/action/").length()));
+            return false;
+        }
+        //
         // Verbos de proyecto: guardar / exportar el documento actual.
         //
         if (_url.path().startsWith(QLatin1String("/project/save"))) {
@@ -189,6 +218,12 @@ OdysseusWorkspaceView::OdysseusWorkspaceView(QWidget* _parent)
             &OdysseusWorkspaceView::exportProjectRequested);
     connect(page, &OdysseusPage::themeRequested, this, &OdysseusWorkspaceView::themeRequested);
     connect(page, &OdysseusPage::fontRequested, this, &OdysseusWorkspaceView::fontRequested);
+    connect(page, &OdysseusPage::nativeSettingsGetRequested, this,
+            &OdysseusWorkspaceView::nativeSettingsGetRequested);
+    connect(page, &OdysseusPage::nativeSettingChangeRequested, this,
+            &OdysseusWorkspaceView::nativeSettingChangeRequested);
+    connect(page, &OdysseusPage::appActionRequested, this,
+            &OdysseusWorkspaceView::appActionRequested);
     //
     // Aula 122 / UI unificada: al terminar cada carga (incluido el reload() tras ready()),
     // pedimos al SPA que reenvíe su tema actual → el nativo se alinea con Odiseo (maestro).
@@ -230,6 +265,12 @@ OdysseusWorkspaceView::OdysseusWorkspaceView(QWidget* _parent)
                             "window.aula122SetChatCollapsed && window.aula122SetChatCollapsed(%1)")
                             .arg(m_chatCollapsed ? 1 : 0));
                 }
+                //
+                // Aula 122: tras cargar el SPA, pedir al shell que empuje los ajustes nativos
+                // actuales → el panel "Aula 122" de los ajustes de Odiseo queda fresco aunque se
+                // haya pedido antes de cargar (mismo patrón de timing que tema/proyecto/chat).
+                //
+                emit nativeSettingsGetRequested();
             }
             return;
         }
@@ -327,8 +368,14 @@ void OdysseusWorkspaceView::toggleMenuOverlay()
         return;
     }
     if (m_menuOverlay == nullptr) {
-        m_menuOverlay = new QWidget(window(), Qt::Window | Qt::FramelessWindowHint
-                                        | Qt::WindowStaysOnTopHint);
+        //
+        // FIX macOS: ventana TOP-LEVEL independiente (parent=nullptr). Antes era hija de window()
+        // con Qt::Window → macOS la trataba como ventana-hija constreñida y NO flotaba sobre el
+        // editor. Qt::Tool es la clase correcta de utilidad: flota por encima de las ventanas de la
+        // app y no se vuelve hija. NoDropShadow para que la franja quede limpia.
+        //
+        m_menuOverlay = new QWidget(nullptr, Qt::Tool | Qt::FramelessWindowHint
+                                        | Qt::WindowStaysOnTopHint | Qt::NoDropShadowWindowHint);
         auto* l = new QVBoxLayout(m_menuOverlay);
         l->setContentsMargins(0, 0, 0, 0);
         l->setSpacing(0);
@@ -337,7 +384,8 @@ void OdysseusWorkspaceView::toggleMenuOverlay()
         web->setPage(page);
         l->addWidget(web);
         //
-        // El menú flotante CONTROLA el editor: su puente → las MISMAS señales que la vista principal.
+        // El menú flotante CONTROLA el editor: su puente → las MISMAS señales que la vista principal
+        // (incluidas las acciones de app del ☰ y los ajustes nativos).
         //
         connect(page, &OdysseusPage::pipelineRequested, this,
                 &OdysseusWorkspaceView::navigateRequested);
@@ -349,8 +397,14 @@ void OdysseusWorkspaceView::toggleMenuOverlay()
                 &OdysseusWorkspaceView::saveProjectRequested);
         connect(page, &OdysseusPage::exportProjectRequested, this,
                 &OdysseusWorkspaceView::exportProjectRequested);
+        connect(page, &OdysseusPage::appActionRequested, this,
+                &OdysseusWorkspaceView::appActionRequested);
+        connect(page, &OdysseusPage::nativeSettingsGetRequested, this,
+                &OdysseusWorkspaceView::nativeSettingsGetRequested);
+        connect(page, &OdysseusPage::nativeSettingChangeRequested, this,
+                &OdysseusWorkspaceView::nativeSettingChangeRequested);
         //
-        // Al abrir un documento/sección desde el flotante, lo ocultamos → se ve el editor.
+        // Al abrir un documento/sección/acción desde el flotante, lo ocultamos → se ve el editor.
         //
         const auto hideOverlay = [this] {
             if (m_menuOverlay != nullptr) {
@@ -360,23 +414,71 @@ void OdysseusWorkspaceView::toggleMenuOverlay()
         connect(page, &OdysseusPage::documentRequested, this, hideOverlay);
         connect(page, &OdysseusPage::pipelineRequested, this, hideOverlay);
         connect(page, &OdysseusPage::addDocumentRequested, this, hideOverlay);
+        connect(page, &OdysseusPage::appActionRequested, this, hideOverlay);
         // La tuerca/X DENTRO del menú flotante también lo cierra (mismo verbo /odiseo/floatmenu).
         connect(page, &OdysseusPage::floatMenuToggleRequested, this,
                 &OdysseusWorkspaceView::toggleMenuOverlay);
+        // Seguir la ventana principal: reposicionar el flotante cuando se mueva/redimensione.
+        if (auto* w = window()) {
+            w->installEventFilter(this);
+        }
+        //
+        // FIX render: MOSTRAR la ventana (y el webview) ANTES de cargar el SPA. Si se carga con la
+        // ventana aún oculta, el 2º QWebEngineView en una ventana top-level separada puede quedarse
+        // en blanco en macOS (su superficie GPU no se realiza). Mostrar primero la realiza.
+        //
+        positionOverlay();
+        m_menuOverlay->show();
+        web->show();
         // ?aula122float=1 → el SPA muestra la X (cerrar) en vez de la tuerca, y se enfoca en el menú.
         web->load(QUrl(kOdysseusUrl + QStringLiteral("?aula122float=1")));
+        m_menuOverlay->raise();
+        m_menuOverlay->activateWindow();
+        return;
     }
-    //
-    // Posicionar sobre el BORDE IZQUIERDO de la ventana principal (donde el menú debe flotar), de
-    // arriba abajo. Panel angosto; el editor queda visible a su derecha.
-    //
-    if (auto* w = window()) {
-        const QRect g = w->frameGeometry();
-        m_menuOverlay->setGeometry(g.x(), g.y() + 28, 320, g.height() - 28);
-    }
+    positionOverlay();
     m_menuOverlay->show();
     m_menuOverlay->raise();
     m_menuOverlay->activateWindow();
+}
+
+void OdysseusWorkspaceView::positionOverlay()
+{
+    if (m_menuOverlay == nullptr) {
+        return;
+    }
+    auto* w = window();
+    if (w == nullptr) {
+        return;
+    }
+    //
+    // geometry() de un top-level = área de CONTENIDO en coords de pantalla (excluye la barra de
+    // título) → sin el "+28" mágico de antes. Franja angosta a la izquierda, alto completo: flota
+    // sobre el editor y sus pestañas. El editor queda visible/usable a su derecha.
+    //
+    const QRect c = w->geometry();
+    constexpr int kOverlayWidth = 320;
+    m_menuOverlay->setGeometry(c.x(), c.y(), qMin(kOverlayWidth, c.width()), c.height());
+}
+
+bool OdysseusWorkspaceView::eventFilter(QObject* _watched, QEvent* _event)
+{
+    if (_watched == window() && m_menuOverlay != nullptr && m_menuOverlay->isVisible()) {
+        switch (_event->type()) {
+        case QEvent::Move:
+        case QEvent::Resize:
+        case QEvent::WindowStateChange:
+            positionOverlay();
+            break;
+        case QEvent::WindowDeactivate:
+            // La app perdió foco → ocultamos el flotante (vuelve con la tuerca / fila del menú).
+            m_menuOverlay->hide();
+            break;
+        default:
+            break;
+        }
+    }
+    return QWidget::eventFilter(_watched, _event);
 }
 
 void OdysseusWorkspaceView::showMenuGear()
@@ -475,6 +577,20 @@ void OdysseusWorkspaceView::applyThemeFromNative(const QString& _bg, const QStri
                          "{bg:'%1',fg:'%2',panel:'%3',accent:'%4',error:'%5',mode:'%6'})")
               .arg(_bg, _fg, _panel, _accent, _error, _mode);
     m_web->page()->runJavaScript(js);
+}
+
+void OdysseusWorkspaceView::applyNativeSettings(const QString& _jsonObject)
+{
+    if (m_web == nullptr || m_web->page() == nullptr || _jsonObject.isEmpty()) {
+        return;
+    }
+    //
+    // _jsonObject ya es un literal de objeto JS válido ({...}); lo pasamos tal cual al global del
+    // SPA (mismo patrón que applyThemeFromNative). El SPA puebla el panel "Aula 122" de ajustes.
+    //
+    m_web->page()->runJavaScript(QStringLiteral("window.aula122ApplyNativeSettings && "
+                                                "window.aula122ApplyNativeSettings(%1)")
+                                     .arg(_jsonObject));
 }
 
 void OdysseusWorkspaceView::setActiveProject(const QString& _path)

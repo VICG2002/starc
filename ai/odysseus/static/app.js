@@ -28,6 +28,7 @@ import hermesModule from './js/hermes.js';
 import guionModule from './js/guion.js';
 import ideaModule from './js/idea.js';
 import aula122TreeModule from './js/aula122-tree.js';
+import './js/aula122-settings.js'; // registra window.aula122ApplyNativeSettings / aula122SettingsRefresh
 import adminModule from './js/admin.js';
 import settingsModule from './js/settings.js';
 // Eagerly bind unified minimize/restore behavior across all tool modals.

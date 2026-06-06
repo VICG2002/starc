@@ -68,6 +68,22 @@ signals:
      *        ventana FLOTANTE encima del editor (verbo /odiseo/floatmenu).
      */
     void floatMenuToggleRequested();
+    /**
+     * @brief Aula 122: el SPA (panel "Aula 122" de ajustes) pide los AJUSTES nativos actuales
+     *        (verbo /settings/native/get). El shell responde empujándolos vía applyNativeSettings.
+     */
+    void nativeSettingsGetRequested();
+    /**
+     * @brief Aula 122: el SPA pidió CAMBIAR un ajuste nativo (verbo /settings/native/set?key=..&value=..).
+     *        El shell lo aplica con la misma lógica que el panel de Ajustes nativo (sin duplicar).
+     */
+    void nativeSettingChangeRequested(const QString& _key, const QString& _value);
+    /**
+     * @brief Aula 122: el menú web pidió una ACCIÓN de app que antes solo estaba en el ☰ nativo
+     *        (verbo /action/<nombre>): import / save-as / create-project / open-project / fullscreen /
+     *        signin / account / assistant / stats / sprint. El shell la enruta al MISMO slot del ☰.
+     */
+    void appActionRequested(const QString& _action);
 
 protected:
     bool acceptNavigationRequest(const QUrl& _url, NavigationType _type,
@@ -113,6 +129,14 @@ public:
                               const QString& _accent, const QString& _error, const QString& _mode);
 
     /**
+     * @brief Aula 122: empuja al SPA los AJUSTES nativos (objeto JSON) para su panel "Aula 122"
+     *        (canal nativo→web, como el tema). Lo dispara ApplicationManager al recibir
+     *        nativeSettingsGetRequested o en loadFinished (timing: el panel pudo pedirlos antes
+     *        de que el SPA cargara). _jsonObject es un literal de objeto JS válido, p. ej. "{...}".
+     */
+    void applyNativeSettings(const QString& _jsonObject);
+
+    /**
      * @brief Aula 122: avisar al SPA qué proyecto (.starc) está abierto en el editor nativo, para
      *        que la barra de Odiseo refleje SU árbol de documentos (y no el más reciente por fecha).
      *        Se llama al abrir/cambiar de proyecto. Canal nativo→web vía runJavaScript.
@@ -151,6 +175,13 @@ public:
      */
     void showMenuGear();
     void hideMenuGear();
+
+protected:
+    /**
+     * @brief Aula 122 (B): mientras el menú flotante está visible, lo reposicionamos cuando la
+     *        ventana principal se mueve/redimensiona/cambia de estado → sigue pegado al editor.
+     */
+    bool eventFilter(QObject* _watched, QEvent* _event) override;
 
 signals:
     /**
@@ -204,12 +235,36 @@ signals:
      */
     void fontRequested(const QString& _family);
 
+    /**
+     * @brief Aula 122: el SPA pidió los ajustes nativos actuales (reenvío de OdysseusPage). El shell
+     *        responde con applyNativeSettings(...). También se emite en loadFinished para refrescar.
+     */
+    void nativeSettingsGetRequested();
+
+    /**
+     * @brief Aula 122: el SPA pidió cambiar un ajuste nativo (reenvío de OdysseusPage). El shell lo
+     *        aplica reusando la lógica del panel de Ajustes nativo.
+     */
+    void nativeSettingChangeRequested(const QString& _key, const QString& _value);
+
+    /**
+     * @brief Aula 122: acción de app pedida desde el menú web (reenvío de OdysseusPage). El shell la
+     *        enruta al MISMO slot que el ☰ nativo (import/save-as/fullscreen/cuenta/stats/sprint…).
+     */
+    void appActionRequested(const QString& _action);
+
 private:
     /**
      * @brief Aula 122: pinta el logo de Aula 122 + "Cargando Odiseo…" DENTRO del webview como HTML
      *        local (PNG embebido), mientras Odiseo arranca — en vez del error del webview.
      */
     void showSplash();
+
+    /**
+     * @brief Aula 122 (B): coloca el menú flotante como una franja a la IZQUIERDA del área de
+     *        contenido de la ventana (sobre el editor y sus pestañas), de alto completo.
+     */
+    void positionOverlay();
 
     QWebEngineView* m_web = nullptr;
     QWidget* m_menuOverlay = nullptr; // Aula 122 (B): ventana flotante del menú, encima del editor.

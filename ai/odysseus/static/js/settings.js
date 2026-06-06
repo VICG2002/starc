@@ -33,6 +33,10 @@ function initTabs() {
       document.body.classList.toggle('settings-appearance-open', tab === 'appearance');
       syncAppearanceOpacity(tab === 'appearance');
       if (tab === 'ai') refreshAiModelEndpoints();
+      // Aula 122: al abrir la pestaña, pedir al shell nativo los ajustes actuales (nativo→web).
+      if (tab === 'aula122' && typeof window.aula122SettingsRefresh === 'function') {
+        window.aula122SettingsRefresh();
+      }
     });
   });
 }

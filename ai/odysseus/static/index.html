@@ -1359,6 +1359,14 @@
       <div class="admin-toggle-sub" style="padding:0 12px 8px;opacity:0.6;font-size:11px;">Toggle on/off visibility of tools and modules across the interface.</div>
       <div class="settings-layout">
         <div class="settings-sidebar">
+          <!-- Aula 122: ajustes NATIVOS de la app (editados inline vía canal nativo↔web) -->
+          <div class="settings-sidebar-label">Aula 122</div>
+          <button class="settings-nav-item" data-settings-tab="aula122">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="4" y1="21" x2="4" y2="14"/><line x1="4" y1="10" x2="4" y2="3"/><line x1="12" y1="21" x2="12" y2="12"/><line x1="12" y1="8" x2="12" y2="3"/><line x1="20" y1="21" x2="20" y2="16"/><line x1="20" y1="12" x2="20" y2="3"/><line x1="1" y1="14" x2="7" y2="14"/><line x1="9" y1="8" x2="15" y2="8"/><line x1="17" y1="16" x2="23" y2="16"/></svg>
+            <span>Aula 122</span>
+          </button>
+          <div class="settings-sidebar-divider"></div>
+          <div class="settings-sidebar-label">Odiseo</div>
           <!-- Section 1: AI plumbing (Add Models → AI Defaults → Search) -->
           <button class="settings-nav-item active" data-settings-tab="services">
             <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="2" width="20" height="8" rx="2"/><rect x="2" y="14" width="20" height="8" rx="2"/><circle cx="6" cy="6" r="1"/><circle cx="6" cy="18" r="1"/></svg>
@@ -1420,6 +1428,78 @@
           </button>
         </div>
         <div class="settings-panels">
+
+        <!-- ═══ AULA 122 TAB (ajustes NATIVOS, editados inline vía canal nativo↔web) ═══ -->
+
+        <div data-settings-panel="aula122" class="hidden">
+          <div class="admin-card">
+            <h2><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;margin-right:5px;opacity:0.6"><circle cx="12" cy="12" r="10"/><path d="M12 2a7 7 0 0 0 0 20 4 4 0 0 1 0-8 4 4 0 0 0 0-8"/></svg>Apariencia</h2>
+            <div class="admin-toggle-sub" style="margin-bottom:8px">Ajustes nativos de Aula 122. El tema lo controla Odiseo (Appearance); aquí se muestra como referencia.</div>
+            <div class="settings-col">
+              <div class="settings-row">
+                <label class="settings-label">Tema</label>
+                <span id="a122s-theme" style="opacity:.7;font-size:12px">—</span>
+              </div>
+              <div class="settings-row">
+                <label class="settings-label">Densidad</label>
+                <select id="a122s-density" class="settings-select">
+                  <option value="0">Normal</option>
+                  <option value="1">Compacta</option>
+                </select>
+              </div>
+              <div class="settings-row">
+                <label class="settings-label">Escala de la interfaz</label>
+                <span style="display:flex;align-items:center;gap:8px">
+                  <input type="range" id="a122s-scale" class="preset-range" min="0.5" max="2" step="0.1" value="1" style="width:120px;margin:0">
+                  <span id="a122s-scale-val" style="opacity:.7;font-size:12px;font-variant-numeric:tabular-nums;min-width:34px;text-align:right">100%</span>
+                </span>
+              </div>
+              <div class="settings-row">
+                <label class="settings-label">Idioma</label>
+                <span id="a122s-language" style="opacity:.7;font-size:12px">—</span>
+              </div>
+            </div>
+          </div>
+          <div class="admin-card">
+            <h2><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;margin-right:5px;opacity:0.6"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/></svg>Edición y respaldos</h2>
+            <div class="settings-col">
+              <div class="settings-row">
+                <label class="settings-label">Autoguardado</label>
+                <label class="admin-switch" style="flex-shrink:0"><input type="checkbox" id="a122s-autosave" /><span class="admin-slider"></span></label>
+              </div>
+              <div class="settings-row">
+                <label class="settings-label">Guardar respaldos</label>
+                <label class="admin-switch" style="flex-shrink:0"><input type="checkbox" id="a122s-backups" /><span class="admin-slider"></span></label>
+              </div>
+              <div class="settings-row">
+                <label class="settings-label">Nº de respaldos</label>
+                <input type="number" id="a122s-backups-qty" min="1" max="99" step="1" value="7" style="flex-shrink:0;width:72px;background:var(--input-bg,var(--panel));color:var(--fg);border:1px solid var(--border);border-radius:6px;padding:4px 6px;font-size:12px;text-align:right;font-variant-numeric:tabular-nums" />
+              </div>
+              <div class="settings-row">
+                <label class="settings-label">Carpeta de respaldos</label>
+                <span id="a122s-backups-folder" style="opacity:.7;font-size:11px;max-width:55%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">—</span>
+              </div>
+              <div class="settings-row">
+                <label class="settings-label">Corrector ortográfico</label>
+                <label class="admin-switch" style="flex-shrink:0"><input type="checkbox" id="a122s-spell" /><span class="admin-slider"></span></label>
+              </div>
+              <div class="settings-row">
+                <label class="settings-label">Idioma del corrector</label>
+                <span id="a122s-spell-lang" style="opacity:.7;font-size:12px">—</span>
+              </div>
+            </div>
+          </div>
+          <div class="admin-card">
+            <h2><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;margin-right:5px;opacity:0.6"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>Avanzado</h2>
+            <div class="settings-col">
+              <div class="settings-row">
+                <label class="settings-label">Registro extendido (logging)</label>
+                <label class="admin-switch" style="flex-shrink:0"><input type="checkbox" id="a122s-logging" /><span class="admin-slider"></span></label>
+              </div>
+            </div>
+            <div class="admin-toggle-sub" style="margin-top:10px">Los ajustes por tipo de documento (Componentes) y los atajos siguen en el panel nativo de Aula 122 (☰ → Ajustes).</div>
+          </div>
+        </div>
 
         <!-- ═══ AI TAB ═══ -->
 
