@@ -1227,6 +1227,14 @@ void BrainProcessManager::startAll()
         hEnv.insert(QStringLiteral("API_SERVER_HOST"), QStringLiteral("127.0.0.1"));
         hEnv.insert(QStringLiteral("API_SERVER_PORT"), QString::number(kHermesPort));
         hEnv.insert(QStringLiteral("API_SERVER_KEY"), d->hermesApiKey());
+        // "Fix profundo" (decisión del usuario): PIN de los MCP esenciales en tool_search
+        // → memoria-creativa (mcp_memoria_mcp_*) y lectura del .starc (mcp_aula122_mcp_*)
+        // NUNCA se difieren, así el 8B local los usa de forma fiable AUNQUE Notion (~22
+        // tools) esté activo y dispare el deferral del resto. Lo lee el patch de
+        // ai/hermes/tools/tool_search.py (_pinned_substrings). Notion queda diferido tras
+        // tool_search (uso ocasional); memoria + guion siempre visibles (uso diario).
+        hEnv.insert(QStringLiteral("HERMES_TOOL_SEARCH_PIN"),
+                    QStringLiteral("mcp_memoria_mcp_,mcp_aula122_mcp_"));
         // npx (para el Notion MCP) en el PATH del gateway.
         hEnv.insert(QStringLiteral("PATH"),
                     QDir::homePath() + QStringLiteral("/.local/bin:")
