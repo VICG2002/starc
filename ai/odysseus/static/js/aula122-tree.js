@@ -398,10 +398,12 @@ function _injectAppActions() {
   if (!ajustes || !ajustes.parentNode) return;
   const box = document.createElement('div');
   box.id = 'aula122-app-actions';
-  // NOTA (M3): el "Menú flotante" (verbo /odiseo/floatmenu) queda DESACTIVADO: un 2º QWebEngineView
-  // en una ventana top-level separada no renderiza en este stack macOS/Qt (sale en blanco). La
-  // ventana en C++ ya se posiciona bien (lista para un menú flotante NATIVO si se decide). Mientras,
-  // el menú lado-a-lado de Odiseo ya da acceso a TODO.
+  // Menú flotante: invoca el menú NATIVO de Aula 122 como ventana ENCIMA del editor y sus pestañas
+  // (el verbo /odiseo/floatmenu → toggleMenuOverlay construye un menú nativo, render fiable en macOS).
+  const floatIc = _ai('<rect x="3" y="3" width="18" height="18" rx="2"/><rect x="3" y="3" width="7" height="18" rx="1"/>');
+  const floatRow = _actionRow('aula122-act-floatmenu', 'Menú flotante', floatIc, '/odiseo/floatmenu');
+  floatRow.title = 'Mostrar el menú de Aula 122 flotando encima del editor';
+  box.appendChild(floatRow);
   _APP_ACTIONS.forEach((a) => {
     const row = _actionRow('aula122-act-' + a.id, a.label, a.icon, '/action/' + a.action);
     box.appendChild(row);

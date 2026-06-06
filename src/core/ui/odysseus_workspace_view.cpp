@@ -1,8 +1,13 @@
 #include "odysseus_workspace_view.h"
 
+#include <functional>
+
 #include <QDir>
 #include <QEvent>
 #include <QFile>
+#include <QHBoxLayout>
+#include <QLabel>
+#include <QScrollArea>
 #include <QNetworkCookie>
 #include <QPushButton>
 #include <QTimer>
@@ -358,10 +363,12 @@ void OdysseusWorkspaceView::reload()
 void OdysseusWorkspaceView::toggleMenuOverlay()
 {
     //
-    // Aula 122 (B): el MENÚ de Odiseo en su PROPIA ventana flotante (frameless, top-level), ENCIMA
-    // del editor de STARC. Es una SEGUNDA vista web que comparte el perfil (misma sesión) → muestra
-    // el SPA autenticado. Su puente se conecta a las MISMAS señales → controla el editor (abrir
-    // documentos/secciones). Al navegar, se oculta y se ve el editor.
+    // Aula 122 (M3): MENÚ FLOTANTE NATIVO, ENCIMA del editor de STARC. Un 2º QWebEngineView en una
+    // ventana top-level separada NO renderiza en macOS/Qt (queda en blanco), así que el flotante es
+    // un menú NATIVO (botones) que emite las MISMAS señales que la barra web → mismos handlers del
+    // ☰. Cubre la navegación por ETAPAS + acciones; los documentos individuales (cada personaje) y
+    // los modales web (Bóveda/Hermes) siguen en la barra lateral. Ventana Qt::Tool (flota), parent
+    // nullptr (no hija constreñida), posicionada sobre el área del editor y siguiendo la ventana.
     //
     if (m_menuOverlay != nullptr && m_menuOverlay->isVisible()) {
         m_menuOverlay->hide();
@@ -369,72 +376,106 @@ void OdysseusWorkspaceView::toggleMenuOverlay()
     }
     if (m_menuOverlay == nullptr) {
         //
-        // FIX macOS: ventana TOP-LEVEL independiente (parent=nullptr). Antes era hija de window()
-        // con Qt::Window → macOS la trataba como ventana-hija constreñida y NO flotaba sobre el
-        // editor. Qt::Tool es la clase correcta de utilidad: flota por encima de las ventanas de la
-        // app y no se vuelve hija. NoDropShadow para que la franja quede limpia.
+        // FIX compositing: el overlay es un WIDGET HIJO de la ventana principal (no una ventana
+        // top-level separada — esas no se componen en este macOS/Qt, salían en blanco). El editor de
+        // STARC es Qt NATIVO, así que un hijo nativo superpuesto y elevado (raise) compone bien
+        // (nativo-sobre-nativo). Se posiciona sobre el ÁREA DEL EDITOR (a la derecha de la barra de
+        // Odiseo si está visible; todo el contenido si el editor está a pantalla completa).
         //
-        m_menuOverlay = new QWidget(nullptr, Qt::Tool | Qt::FramelessWindowHint
-                                        | Qt::WindowStaysOnTopHint | Qt::NoDropShadowWindowHint);
-        auto* l = new QVBoxLayout(m_menuOverlay);
-        l->setContentsMargins(0, 0, 0, 0);
-        l->setSpacing(0);
-        auto* web = new QWebEngineView(m_menuOverlay);
-        auto* page = new OdysseusPage(m_web->page()->profile(), web);
-        web->setPage(page);
-        l->addWidget(web);
-        //
-        // El menú flotante CONTROLA el editor: su puente → las MISMAS señales que la vista principal
-        // (incluidas las acciones de app del ☰ y los ajustes nativos).
-        //
-        connect(page, &OdysseusPage::pipelineRequested, this,
-                &OdysseusWorkspaceView::navigateRequested);
-        connect(page, &OdysseusPage::documentRequested, this,
-                &OdysseusWorkspaceView::documentRequested);
-        connect(page, &OdysseusPage::addDocumentRequested, this,
-                &OdysseusWorkspaceView::addDocumentRequested);
-        connect(page, &OdysseusPage::saveProjectRequested, this,
-                &OdysseusWorkspaceView::saveProjectRequested);
-        connect(page, &OdysseusPage::exportProjectRequested, this,
-                &OdysseusWorkspaceView::exportProjectRequested);
-        connect(page, &OdysseusPage::appActionRequested, this,
-                &OdysseusWorkspaceView::appActionRequested);
-        connect(page, &OdysseusPage::nativeSettingsGetRequested, this,
-                &OdysseusWorkspaceView::nativeSettingsGetRequested);
-        connect(page, &OdysseusPage::nativeSettingChangeRequested, this,
-                &OdysseusWorkspaceView::nativeSettingChangeRequested);
-        //
-        // Al abrir un documento/sección/acción desde el flotante, lo ocultamos → se ve el editor.
-        //
-        const auto hideOverlay = [this] {
+        m_menuOverlay = new QWidget(window());
+        m_menuOverlay->setAutoFillBackground(true);
+        m_menuOverlay->setStyleSheet(QStringLiteral(
+            "QWidget{background:#16161c;color:#e6e6e6;}"
+            "QPushButton{background:transparent;border:none;text-align:left;padding:8px 16px;"
+            "font-size:13px;} QPushButton:hover{background:#2a2a34;}"));
+        auto* outer = new QVBoxLayout(m_menuOverlay);
+        outer->setContentsMargins(0, 0, 0, 0);
+        outer->setSpacing(0);
+
+        // Cabecera: "Aula 122" + cerrar (X).
+        auto* header = new QWidget(m_menuOverlay);
+        auto* hl = new QHBoxLayout(header);
+        hl->setContentsMargins(16, 12, 8, 8);
+        auto* titleLbl = new QLabel(QStringLiteral("Aula 122"), header);
+        titleLbl->setStyleSheet(QStringLiteral("color:#3a6df0;font-weight:800;font-size:14px;"));
+        auto* closeBtn = new QPushButton(QString::fromUtf8("\xE2\x9C\x95"), header);
+        closeBtn->setCursor(Qt::PointingHandCursor);
+        closeBtn->setFixedSize(26, 26);
+        closeBtn->setStyleSheet(QStringLiteral(
+            "QPushButton{background:transparent;color:#8a8a93;border:none;font-size:14px;padding:0;}"
+            "QPushButton:hover{color:#e6e6e6;}"));
+        connect(closeBtn, &QPushButton::clicked, this, [this] {
             if (m_menuOverlay != nullptr) {
                 m_menuOverlay->hide();
             }
+        });
+        hl->addWidget(titleLbl);
+        hl->addStretch(1);
+        hl->addWidget(closeBtn);
+        outer->addWidget(header);
+
+        auto* scroll = new QScrollArea(m_menuOverlay);
+        scroll->setWidgetResizable(true);
+        scroll->setFrameShape(QFrame::NoFrame);
+        scroll->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+        auto* content = new QWidget(scroll);
+        auto* col = new QVBoxLayout(content);
+        col->setContentsMargins(0, 0, 0, 10);
+        col->setSpacing(0);
+
+        const auto addSection = [content, col](const QString& _t) {
+            auto* lbl = new QLabel(_t, content);
+            lbl->setStyleSheet(QStringLiteral(
+                "color:#8a8a93;font-size:11px;font-weight:700;padding:12px 16px 4px;"));
+            col->addWidget(lbl);
         };
-        connect(page, &OdysseusPage::documentRequested, this, hideOverlay);
-        connect(page, &OdysseusPage::pipelineRequested, this, hideOverlay);
-        connect(page, &OdysseusPage::addDocumentRequested, this, hideOverlay);
-        connect(page, &OdysseusPage::appActionRequested, this, hideOverlay);
-        // La tuerca/X DENTRO del menú flotante también lo cierra (mismo verbo /odiseo/floatmenu).
-        connect(page, &OdysseusPage::floatMenuToggleRequested, this,
-                &OdysseusWorkspaceView::toggleMenuOverlay);
+        const auto addItem
+            = [this, content, col](const QString& _label, std::function<void()> _act) {
+                  auto* b = new QPushButton(_label, content);
+                  b->setCursor(Qt::PointingHandCursor);
+                  connect(b, &QPushButton::clicked, this, [this, _act] {
+                      _act();
+                      if (m_menuOverlay != nullptr) {
+                          m_menuOverlay->hide();
+                      }
+                  });
+                  col->addWidget(b);
+              };
+
+        addSection(tr("Documentos"));
+        addItem(tr("Guion"), [this] { emit navigateRequested(QStringLiteral("guion")); });
+        addItem(tr("Sinopsis / Idea"), [this] { emit navigateRequested(QStringLiteral("idea")); });
+        addItem(tr("Personajes"), [this] { emit navigateRequested(QStringLiteral("personajes")); });
+        addItem(tr("Locaciones"), [this] { emit navigateRequested(QStringLiteral("locaciones")); });
+        addItem(tr("Añadir documento"), [this] { emit addDocumentRequested(); });
+        addSection(tr("Producción"));
+        addItem(tr("Desglose"), [this] { emit navigateRequested(QStringLiteral("desglose")); });
+        addItem(tr("Plan de rodaje"),
+                [this] { emit navigateRequested(QStringLiteral("plan-rodaje")); });
+        addSection(tr("Proyecto"));
+        addItem(tr("Proyectos"), [this] { emit navigateRequested(QStringLiteral("proyectos")); });
+        addItem(tr("Guardar"), [this] { emit saveProjectRequested(); });
+        addItem(tr("Exportar"), [this] { emit exportProjectRequested(); });
+        addItem(tr("Importar…"), [this] { emit appActionRequested(QStringLiteral("import")); });
+        addItem(tr("Guardar como…"),
+                [this] { emit appActionRequested(QStringLiteral("save-as")); });
+        addItem(tr("Ajustes"), [this] { emit navigateRequested(QStringLiteral("ajustes")); });
+        addSection(tr("App"));
+        addItem(tr("Pantalla completa"),
+                [this] { emit appActionRequested(QStringLiteral("fullscreen")); });
+        addItem(tr("Asistente"), [this] { emit appActionRequested(QStringLiteral("assistant")); });
+        addItem(tr("Estadísticas"), [this] { emit appActionRequested(QStringLiteral("stats")); });
+        addItem(tr("Sprint de escritura"),
+                [this] { emit appActionRequested(QStringLiteral("sprint")); });
+        addItem(tr("Cuenta"), [this] { emit appActionRequested(QStringLiteral("account")); });
+        col->addStretch(1);
+        scroll->setWidget(content);
+        outer->addWidget(scroll, 1);
+
         // Seguir la ventana principal: reposicionar el flotante cuando se mueva/redimensione.
         if (auto* w = window()) {
             w->installEventFilter(this);
         }
-        //
-        // FIX render: MOSTRAR la ventana (y el webview) ANTES de cargar el SPA. Si se carga con la
-        // ventana aún oculta, el 2º QWebEngineView en una ventana top-level separada puede quedarse
-        // en blanco en macOS (su superficie GPU no se realiza). Mostrar primero la realiza.
-        //
-        positionOverlay();
-        m_menuOverlay->show();
-        web->show();
-        // ?aula122float=1 → el SPA muestra la X (cerrar) en vez de la tuerca, y se enfoca en el menú.
-        web->load(QUrl(kOdysseusUrl + QStringLiteral("?aula122float=1")));
-        m_menuOverlay->raise();
-        m_menuOverlay->activateWindow();
-        return;
     }
     positionOverlay();
     m_menuOverlay->show();
@@ -452,27 +493,36 @@ void OdysseusWorkspaceView::positionOverlay()
         return;
     }
     //
-    // geometry() de un top-level = área de CONTENIDO en coords de pantalla (excluye la barra de
-    // título) → sin el "+28" mágico de antes. Franja angosta a la izquierda, alto completo: flota
-    // sobre el editor y sus pestañas. El editor queda visible/usable a su derecha.
+    // El overlay es HIJO de la ventana principal → coords RELATIVAS a su área de contenido. Lo
+    // pegamos al ÁREA DEL EDITOR: si la barra de Odiseo (este widget, dentro de odiseoHost) está
+    // visible, empezamos a SU DERECHA (sobre el editor, no sobre la barra web que no se compondría);
+    // si el editor está a pantalla completa (Odiseo oculto), cubrimos desde el borde izquierdo.
     //
-    const QRect c = w->geometry();
     constexpr int kOverlayWidth = 320;
-    m_menuOverlay->setGeometry(c.x(), c.y(), qMin(kOverlayWidth, c.width()), c.height());
+    int left = 0;
+    int top = 0;
+    int height = w->height();
+    QWidget* host = parentWidget(); // odiseoHost (panel de Odiseo)
+    if (host != nullptr && host->isVisible() && host->width() > 0) {
+        const QPoint tr = host->mapTo(w, QPoint(host->width(), 0));
+        left = tr.x();
+        top = tr.y();
+        height = host->height();
+    }
+    const int width = qMin(kOverlayWidth, qMax(0, w->width() - left));
+    m_menuOverlay->setGeometry(left, top, width, height);
+    m_menuOverlay->raise();
 }
 
 bool OdysseusWorkspaceView::eventFilter(QObject* _watched, QEvent* _event)
 {
     if (_watched == window() && m_menuOverlay != nullptr && m_menuOverlay->isVisible()) {
         switch (_event->type()) {
-        case QEvent::Move:
         case QEvent::Resize:
         case QEvent::WindowStateChange:
+            // El overlay (hijo) se mueve con la ventana solo; al redimensionar hay que recolocarlo
+            // sobre el editor.
             positionOverlay();
-            break;
-        case QEvent::WindowDeactivate:
-            // La app perdió foco → ocultamos el flotante (vuelve con la tuerca / fila del menú).
-            m_menuOverlay->hide();
             break;
         default:
             break;
