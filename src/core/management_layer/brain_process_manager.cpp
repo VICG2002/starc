@@ -621,6 +621,9 @@ struct BrainProcessManager::Implementation {
             = QDir(brainRoot()).absoluteFilePath(QStringLiteral("memoria-mcp/server.py"));
         // Notion MCP (Diez50): el token va por OPENAPI_MCP_HEADERS (entorno), no aquí.
         const QString npx = QDir::homePath() + QStringLiteral("/.local/bin/npx");
+        // Índice RAG real (poblado) que debe usar memoria-mcp para buscar_memoria.
+        const QString chromaMcpPath
+            = QDir(odysseusRunDir).absoluteFilePath(QStringLiteral("data/chroma"));
 
         // F2: ajustes EDITABLES por el usuario (panel del SPA). Solo de bajo riesgo.
         const QJsonObject us = readHermesUserSettings();
@@ -689,6 +692,18 @@ struct BrainProcessManager::Implementation {
                              "    command: \"%3\"\n"
                              "    args:\n"
                              "    - \"%5\"\n"
+                             // CLAVE para que la MEMORIA funcione: el server.py de memoria-mcp
+                             // corre con el código de odysseus DEL BUNDLE → su get_chroma_client()
+                             // resolvería el índice a <bundle>/odysseus/data/chroma (VACÍO: data/
+                             // se excluye al empaquetar) y buscar_memoria daría "sin coincidencias".
+                             // Hermes FILTRA el env de los MCP (solo _SAFE_ENV_KEYS + el 'env' del
+                             // server), así que pasamos por aquí: CHROMADB_PATH → índice REAL
+                             // poblado (odysseus-runtime, 45 MB con la bóveda); EMBEDDING_URL a un
+                             // puerto muerto fuerza el MISMO FastEmbed con que se construyó (otro
+                             // modelo de embeddings → espacio vectorial distinto → basura).
+                             "    env:\n"
+                             "      CHROMADB_PATH: \"%12\"\n"
+                             "      EMBEDDING_URL: \"http://127.0.0.1:1/v1/embeddings\"\n"
                              "    enabled: %10\n"
                              "  notion:\n"
                              "    command: \"%6\"\n"
@@ -707,7 +722,8 @@ struct BrainProcessManager::Implementation {
                   .arg(toolSearch)    // %8
                   .arg(aulaEnabled)   // %9
                   .arg(memEnabled)    // %10
-                  .arg(notionEnabled);// %11
+                  .arg(notionEnabled) // %11
+                  .arg(chromaMcpPath);// %12 (env CHROMADB_PATH de memoria-mcp)
         // El bloque de toolsets (dinámico) va por centinela, no por .arg posicional.
         cfg.replace(QStringLiteral("__TS_BLOCK__"), tsBlock);
         QFile f(QDir(home).absoluteFilePath(QStringLiteral("config.yaml")));
