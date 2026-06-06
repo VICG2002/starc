@@ -217,6 +217,11 @@ private:
     QTimer* m_pollTimer = nullptr;
     bool m_loaded = false;
     bool m_spaLoaded = false;
+    // Aula 122 (Etapa 1): estado de chat colapsado recordado para RE-APLICARLO cuando el
+    // SPA termina de cargar (showProject puede pedirlo ANTES de que el SPA exista → la
+    // llamada nativo→web se perdería). m_chatCollapsedSet evita tocar nada si nunca se pidió.
+    bool m_chatCollapsed = false;
+    bool m_chatCollapsedSet = false;
 };
 
 } // namespace Ui

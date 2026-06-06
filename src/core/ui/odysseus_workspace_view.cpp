@@ -204,6 +204,17 @@ OdysseusWorkspaceView::OdysseusWorkspaceView(QWidget* _parent)
             if (m_web->page() != nullptr) {
                 m_web->page()->runJavaScript(
                     QStringLiteral("window.__aula122PushTheme && window.__aula122PushTheme()"));
+                //
+                // Aula 122 (Etapa 1): re-aplicar el estado de chat colapsado pedido ANTES de que
+                // el SPA cargara (showProject) → el editor-first del proyecto se respeta y el FAB
+                // del SPA queda en el estado correcto (sincronizado con el split nativo).
+                //
+                if (m_chatCollapsedSet) {
+                    m_web->page()->runJavaScript(
+                        QStringLiteral(
+                            "window.aula122SetChatCollapsed && window.aula122SetChatCollapsed(%1)")
+                            .arg(m_chatCollapsed ? 1 : 0));
+                }
             }
             return;
         }
@@ -492,6 +503,12 @@ void OdysseusWorkspaceView::setMenuCollapsed(bool _collapsed)
 
 void OdysseusWorkspaceView::setChatCollapsed(bool _collapsed)
 {
+    //
+    // Recordamos el estado para RE-APLICARLO en loadFinished: showProject puede pedir el
+    // colapso ANTES de que el SPA cargue (~varios s) → esta llamada nativo→web se perdería.
+    //
+    m_chatCollapsed = _collapsed;
+    m_chatCollapsedSet = true;
     if (m_web == nullptr || m_web->page() == nullptr) {
         return;
     }

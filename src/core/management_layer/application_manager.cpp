@@ -1038,6 +1038,14 @@ void ApplicationManager::Implementation::showProjects()
     menuView->checkProjects();
     showContent(projectsManager.data());
     applicationView->showOdiseoBeside();  // Aula 122 / M6: Proyectos al lado de Odiseo
+    //
+    // Aula 122 (Etapa 1): en la LISTA de proyectos no hay editor que priorizar → el chat de
+    // Odiseo/Rita es lo útil. Lo restauramos visible (revierte el colapso editor-first del proyecto).
+    //
+    applicationView->setOdiseoChatCollapsed(false);
+    if (odysseusView != nullptr) {
+        odysseusView->setChatCollapsed(false);
+    }
     saveLastContent(projectsManager.data());
 
     projectsManager->view()->setFocus();
@@ -1055,6 +1063,17 @@ void ApplicationManager::Implementation::showProject()
     //
     showContent(projectManager.data());
     applicationView->showOdiseoBeside();
+    //
+    // Aula 122 (Etapa 1, editor-first): en la vista de PROYECTO el editor es lo primario →
+    // arrancamos con el chat de Odiseo COLAPSADO (el menú se queda; el chat vuelve con el FAB).
+    // Va DESPUÉS de showOdiseoBeside (que aplica el estado recordado) para fijar colapsado aquí.
+    // Native = encoge el split; web (odysseusView) = sincroniza la clase/FAB del SPA (con
+    // re-aplicación en loadFinished por si el SPA aún no cargó).
+    //
+    applicationView->setOdiseoChatCollapsed(true);
+    if (odysseusView != nullptr) {
+        odysseusView->setChatCollapsed(true);
+    }
     saveLastContent(projectManager.data());
 }
 
