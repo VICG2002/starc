@@ -1034,7 +1034,10 @@ void StageplayTextView::setTranslatedDocument(const QVector<QString>& _text)
 
             case BusinessLayer::TextModelItemType::Text: {
                 auto textItem = static_cast<BusinessLayer::TextModelTextItem*>(item);
-                if (!textItem->text().isEmpty()) {
+                // Aula 122 (fix de crash): exige que queden líneas — la respuesta de
+                // traduccion puede traer menos entradas que items de texto (al enviar se
+                // concatenan por escena) -> takeFirst() en vacio reventaba.
+                if (!textItem->text().isEmpty() && !lines.isEmpty()) {
                     textItem->setText(lines.takeFirst());
                     textItem->setFormats({});
                     d->model->updateItem(textItem);

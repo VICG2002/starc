@@ -365,8 +365,16 @@ void MindMapModel::removeNodeConnection(const QUuid& _fromNodeUuid, const QUuid&
     // Уведомляем об обновлении ячеек после того, как соединения были удалены из обеих ячеек
     //
     emit nodeConnectionRemoved(fromNodeUuid, toNodeUuid);
-    emit nodeUpdated(d->nodes[fromNodeIndex]);
-    emit nodeUpdated(d->nodes[toNodeIndex]);
+    // Aula 122 (fix de crash): si un UUID no se encontró, su índice quedó == nodes.size()
+    // (loop agotado sin match) y d->nodes[idx] sería un acceso fuera de rango. Pasa con
+    // una conexión "colgante" (un .starc corrupto/editado a mano o un merge colaborativo)
+    // recorrida por undo/redo o sync. Guardamos el rango antes de emitir.
+    if (fromNodeIndex < d->nodes.size()) {
+        emit nodeUpdated(d->nodes[fromNodeIndex]);
+    }
+    if (toNodeIndex < d->nodes.size()) {
+        emit nodeUpdated(d->nodes[toNodeIndex]);
+    }
 }
 
 void MindMapModel::addNodeGroup(const MindMapNodeGroup& _group)

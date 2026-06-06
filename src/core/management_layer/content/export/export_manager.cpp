@@ -286,7 +286,13 @@ void ExportManager::Implementation::exportScreenplays(
                     //
                     // Выбираем файл для экспорта
                     //
-                    auto model = _models.at(screenplayExportDialog->selectedDraftIndex()).second;
+                    // Aula 122 (fix de crash): selectedDraftIndex() = currentIndex().row()
+                    // puede ser -1 (draft stale/sin selección) -> _models.at(-1) reventaba.
+                    const auto draftIndex = screenplayExportDialog->selectedDraftIndex();
+                    if (draftIndex < 0 || draftIndex >= _models.size()) {
+                        return;
+                    }
+                    auto model = _models.at(draftIndex).second;
                     const auto textModel = qobject_cast<BusinessLayer::ScreenplayTextModel*>(model);
                     auto exportOptions = screenplayExportDialog->exportOptions();
                     const auto exportFilePath = buildExportFilePath(
@@ -420,7 +426,12 @@ void ExportManager::Implementation::exportComicBooks(
                     //
                     // Выбираем файл для экспорта
                     //
-                    auto model = _models.at(comicBookExportDialog->selectedDraftIndex()).second;
+                    // Aula 122 (fix de crash): índice de draft puede ser -1 -> .at(-1).
+                    const auto draftIndex = comicBookExportDialog->selectedDraftIndex();
+                    if (draftIndex < 0 || draftIndex >= _models.size()) {
+                        return;
+                    }
+                    auto model = _models.at(draftIndex).second;
                     const auto textModel = qobject_cast<BusinessLayer::ComicBookTextModel*>(model);
                     auto exportOptions = comicBookExportDialog->exportOptions();
                     const auto exportFilePath = buildExportFilePath(
@@ -534,7 +545,12 @@ void ExportManager::Implementation::exportAudioplays(
                     //
                     // Выбираем файл для экспорта
                     //
-                    auto model = _models.at(audioplayExportDialog->selectedDraftIndex()).second;
+                    // Aula 122 (fix de crash): índice de draft puede ser -1 -> .at(-1).
+                    const auto draftIndex = audioplayExportDialog->selectedDraftIndex();
+                    if (draftIndex < 0 || draftIndex >= _models.size()) {
+                        return;
+                    }
+                    auto model = _models.at(draftIndex).second;
                     const auto textModel = qobject_cast<BusinessLayer::AudioplayTextModel*>(model);
                     auto exportOptions = audioplayExportDialog->exportOptions();
                     const auto exportFilePath = buildExportFilePath(
@@ -654,7 +670,12 @@ void ExportManager::Implementation::exportStageplays(
                     //
                     // Выбираем файл для экспорта
                     //
-                    auto model = _models.at(stageplayExportDialog->selectedDraftIndex()).second;
+                    // Aula 122 (fix de crash): índice de draft puede ser -1 -> .at(-1).
+                    const auto draftIndex = stageplayExportDialog->selectedDraftIndex();
+                    if (draftIndex < 0 || draftIndex >= _models.size()) {
+                        return;
+                    }
+                    auto model = _models.at(draftIndex).second;
                     const auto textModel = qobject_cast<BusinessLayer::StageplayTextModel*>(model);
                     auto exportOptions = stageplayExportDialog->exportOptions();
                     const auto exportFilePath = buildExportFilePath(
@@ -773,7 +794,12 @@ void ExportManager::Implementation::exportNovels(
                     //
                     // Выбираем файл для экспорта
                     //
-                    auto model = _models.at(novelExportDialog->selectedDraftIndex()).second;
+                    // Aula 122 (fix de crash): índice de draft puede ser -1 -> .at(-1).
+                    const auto draftIndex = novelExportDialog->selectedDraftIndex();
+                    if (draftIndex < 0 || draftIndex >= _models.size()) {
+                        return;
+                    }
+                    auto model = _models.at(draftIndex).second;
                     const auto textModel = qobject_cast<BusinessLayer::NovelTextModel*>(model);
                     auto exportOptions = novelExportDialog->exportOptions();
                     const auto exportFilePath = buildExportFilePath(
