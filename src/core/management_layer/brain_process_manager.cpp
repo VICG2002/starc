@@ -368,6 +368,11 @@ struct BrainProcessManager::Implementation {
         const QString home = hermesHome();
         QDir().mkpath(home);
         const QString model = QFileInfo(modelPath).completeBaseName();
+        // C-1 (cross-wire): Hermes recibe aula122-mcp (stdio) → lee el .starc
+        // (escenas, personajes, desglose, plan…). El server.py corre con el
+        // python del bundle (mismo que usa odysseus).
+        const QString serverPy
+            = QDir(brainRoot()).absoluteFilePath(QStringLiteral("aula122-mcp/server.py"));
         const QString cfg
             = QStringLiteral("model:\n"
                              "  default: \"%1\"\n"
@@ -377,9 +382,17 @@ struct BrainProcessManager::Implementation {
                              "  context_length: 65536\n"
                              "platforms:\n"
                              "  api_server:\n"
+                             "    enabled: true\n"
+                             "mcp_servers:\n"
+                             "  aula122-mcp:\n"
+                             "    command: \"%3\"\n"
+                             "    args:\n"
+                             "    - \"%4\"\n"
                              "    enabled: true\n")
                   .arg(model)
-                  .arg(kLlamaPort);
+                  .arg(kLlamaPort)
+                  .arg(pythonBin)
+                  .arg(serverPy);
         QFile f(QDir(home).absoluteFilePath(QStringLiteral("config.yaml")));
         if (f.open(QIODevice::WriteOnly | QIODevice::Truncate)) {
             f.write(cfg.toUtf8());
@@ -388,9 +401,10 @@ struct BrainProcessManager::Implementation {
     }
 
     /**
-     * Cross-wire (Fase C, lado MCP): registra el MCP server de Hermes
-     * (stdio: `hermes mcp serve`) en odysseus, idempotente, con la cookie admin.
+     * Cross-wire (Fase C): registra el api_server de Hermes como ModelEndpoint
+     * en odysseus (delegación Odiseo→Hermes), idempotente, con la cookie admin.
      * Espera (acotado) a que el gateway de Hermes esté sano antes de registrar.
+     * (Hermes recibe las tools de Odiseo vía mcp_servers en su config: writeHermesConfig.)
      */
     void registerHermes()
     {
@@ -422,41 +436,46 @@ struct BrainProcessManager::Implementation {
         const QString cookieArg = QStringLiteral("odysseus_session=") + cookie;
         const QString base = QStringLiteral("http://127.0.0.1:%1").arg(kOdysseusPort);
 
-        // Idempotencia: ¿ya existe un server "hermes"?
+        // Idempotencia: ¿ya existe el endpoint "hermes-agent"?
         QProcess get;
         get.setProgram(QStringLiteral("/usr/bin/curl"));
         get.setArguments({ QStringLiteral("-s"), QStringLiteral("-m"), QStringLiteral("8"),
                            QStringLiteral("-b"), cookieArg,
-                           base + QStringLiteral("/api/mcp/servers") });
+                           base + QStringLiteral("/api/model-endpoints") });
         get.setStandardInputFile(QProcess::nullDevice());
         get.start();
         get.waitForFinished(10000);
         if (QString::fromUtf8(get.readAllStandardOutput())
-                .contains(QStringLiteral("\"hermes\""))) {
+                .contains(QStringLiteral("hermes-agent"))) {
             return;
         }
 
-        const QByteArray argsJson
-            = QJsonDocument(QJsonArray{ QStringLiteral("mcp"), QStringLiteral("serve") })
-                  .toJson(QJsonDocument::Compact);
+        // C-2b: registrar el api_server de Hermes como ModelEndpoint (delegación
+        // Odiseo→Hermes). skip_probe: el endpoint exige Bearer; lo marcamos
+        // tool-capable para que un preset de Odiseo pueda delegarle tareas.
         QProcess post;
         post.setProgram(QStringLiteral("/usr/bin/curl"));
         post.setArguments({ QStringLiteral("-s"), QStringLiteral("-m"), QStringLiteral("25"),
                             QStringLiteral("-X"), QStringLiteral("POST"),
                             QStringLiteral("-b"), cookieArg,
-                            base + QStringLiteral("/api/mcp/servers"),
+                            base + QStringLiteral("/api/model-endpoints"),
                             QStringLiteral("--data-urlencode"),
-                            QStringLiteral("name=hermes"),
+                            QStringLiteral("name=hermes-agent"),
                             QStringLiteral("--data-urlencode"),
-                            QStringLiteral("transport=stdio"),
+                            QStringLiteral("base_url=http://127.0.0.1:%1/v1")
+                                .arg(kHermesPort),
                             QStringLiteral("--data-urlencode"),
-                            QStringLiteral("command=") + hermesBin,
+                            QStringLiteral("api_key=") + hermesApiKey(),
                             QStringLiteral("--data-urlencode"),
-                            QStringLiteral("args=") + QString::fromUtf8(argsJson) });
+                            QStringLiteral("supports_tools=true"),
+                            QStringLiteral("--data-urlencode"),
+                            QStringLiteral("skip_probe=true"),
+                            QStringLiteral("--data-urlencode"),
+                            QStringLiteral("shared=true") });
         post.setStandardInputFile(QProcess::nullDevice());
         post.start();
         post.waitForFinished(30000);
-        emit q->log(QObject::tr("Hermes (MCP) registrado en el cerebro."));
+        emit q->log(QObject::tr("Hermes registrado como ModelEndpoint (delegación)."));
     }
 
     /**
