@@ -235,4 +235,15 @@ export function initSectionDrag(Storage, loadUIVis) {
       });
     }
   } catch (e) {}
+
+  // Aula 122: la sección del producto SIEMPRE va al TOPE de las secciones (por encima
+  // de Chats/Email/Tools/etc. y de cualquier orden guardado del usuario) — para que el
+  // menú lea como "Aula 122", no como "Odiseo con un panel". Decisión de Victor.
+  try {
+    const aula = document.getElementById('aula122-section');
+    const firstSection = sidebarInner.querySelector('.section');
+    if (aula && firstSection && firstSection !== aula) {
+      sidebarInner.insertBefore(aula, firstSection);
+    }
+  } catch (e) {}
 }
