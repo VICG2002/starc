@@ -22,6 +22,7 @@ namespace {
 // un Ollama externo durante el desarrollo sin chocar.
 const int kOdysseusPort = 7860; // 7860, no 7000 — macOS AirPlay Receiver toma 7000.
 const int kLlamaPort = 8533;
+const int kHermesPort = 8765; // Hermes gateway (api_server OpenAI-compat), loopback libre.
 // (ChromaDB ya no usa puerto: corre EMBEBIDO dentro de odysseus — decisión Fase 2.)
 
 const int kHealthIntervalMs = 1000;
@@ -79,17 +80,33 @@ struct BrainProcessManager::Implementation {
         const QString data = dataRoot();
         chromaDataDir = QDir(data).absoluteFilePath(QStringLiteral("chromadb"));
         odysseusRunDir = QDir(data).absoluteFilePath(QStringLiteral("odysseus-runtime"));
+        // Hermes (4º servicio): venv aislado + HERMES_HOME en zona mutable.
+        hermesRunDir = QDir(data).absoluteFilePath(QStringLiteral("hermes-runtime"));
+        hermesBin
+            = QDir(hermesRunDir).absoluteFilePath(QStringLiteral(".venv/bin/hermes"));
 
-        // Modelo: el default materializado por fetch-model.sh, o el primer .gguf
-        // que haya en …/brain/models.
+        // Modelo: cerebro COMPARTIDO Hermes-3-8B (decisión del test de RAM); si no
+        // está, el qwen2.5 previo; si no, el primer .gguf de …/brain/models.
         QDir modelsDir(QDir(data).absoluteFilePath(QStringLiteral("models")));
-        modelPath = modelsDir.absoluteFilePath(QStringLiteral("qwen2.5_14b.gguf"));
-        if (!QFileInfo::exists(modelPath)) {
+        const QStringList preferredModels{
+            QStringLiteral("Hermes-3-Llama-3.1-8B-Q4_K_M.gguf"),
+            QStringLiteral("qwen2.5_14b.gguf")
+        };
+        modelPath.clear();
+        for (const QString& candidate : preferredModels) {
+            const QString p = modelsDir.absoluteFilePath(candidate);
+            if (QFileInfo::exists(p)) {
+                modelPath = p;
+                break;
+            }
+        }
+        if (modelPath.isEmpty()) {
             const QStringList ggufs
                 = modelsDir.entryList({ QStringLiteral("*.gguf") }, QDir::Files);
-            if (!ggufs.isEmpty()) {
-                modelPath = modelsDir.absoluteFilePath(ggufs.first());
-            }
+            modelPath = ggufs.isEmpty()
+                ? modelsDir.absoluteFilePath(
+                      QStringLiteral("Hermes-3-Llama-3.1-8B-Q4_K_M.gguf"))
+                : modelsDir.absoluteFilePath(ggufs.first());
         }
 
         // Habilitado si el bundle trae python + llama-server + el código de odysseus.
@@ -307,6 +324,142 @@ struct BrainProcessManager::Implementation {
     }
 
     /**
+     * Clave del api_server de Hermes. Hermes EXIGE API_SERVER_KEY aunque escuche
+     * solo en loopback (se niega a arrancar sin ella). Se genera una vez (chmod
+     * 600); la usan el gateway (env) y, en Fase C, el ModelEndpoint en odysseus.
+     */
+    QString hermesApiKey()
+    {
+        const QString path
+            = QDir(QStandardPaths::writableLocation(QStandardPaths::AppDataLocation))
+                  .absoluteFilePath(QStringLiteral("hermes_api_key"));
+        QFile f(path);
+        if (f.open(QIODevice::ReadOnly)) {
+            const QString k = QString::fromUtf8(f.readAll()).trimmed();
+            f.close();
+            if (!k.isEmpty()) {
+                return k;
+            }
+        }
+        const QString k = QStringLiteral("hk-")
+            + QString::number(QRandomGenerator::system()->generate64(), 36)
+            + QString::number(QRandomGenerator::system()->generate64(), 36);
+        if (f.open(QIODevice::WriteOnly | QIODevice::Truncate)) {
+            f.write(k.toUtf8());
+            f.close();
+            QFile::setPermissions(path, QFileDevice::ReadOwner | QFileDevice::WriteOwner);
+        }
+        return k;
+    }
+
+    /** HERMES_HOME: estado mutable de Hermes (config, skills, cron, kanban). */
+    QString hermesHome() const
+    {
+        return QDir(hermesRunDir).absoluteFilePath(QStringLiteral("home"));
+    }
+
+    /**
+     * Escribe config.yaml en HERMES_HOME: provider OpenAI local (:8533, el
+     * llama-server compartido), contexto 64K (Hermes lo exige) y la plataforma
+     * api_server habilitada (su servidor OpenAI en kHermesPort).
+     */
+    void writeHermesConfig()
+    {
+        const QString home = hermesHome();
+        QDir().mkpath(home);
+        const QString model = QFileInfo(modelPath).completeBaseName();
+        const QString cfg
+            = QStringLiteral("model:\n"
+                             "  default: \"%1\"\n"
+                             "  provider: \"custom\"\n"
+                             "  base_url: \"http://127.0.0.1:%2/v1\"\n"
+                             "  api_key: \"sk-local-noauth\"\n"
+                             "  context_length: 65536\n"
+                             "platforms:\n"
+                             "  api_server:\n"
+                             "    enabled: true\n")
+                  .arg(model)
+                  .arg(kLlamaPort);
+        QFile f(QDir(home).absoluteFilePath(QStringLiteral("config.yaml")));
+        if (f.open(QIODevice::WriteOnly | QIODevice::Truncate)) {
+            f.write(cfg.toUtf8());
+            f.close();
+        }
+    }
+
+    /**
+     * Cross-wire (Fase C, lado MCP): registra el MCP server de Hermes
+     * (stdio: `hermes mcp serve`) en odysseus, idempotente, con la cookie admin.
+     * Espera (acotado) a que el gateway de Hermes esté sano antes de registrar.
+     */
+    void registerHermes()
+    {
+        if (hermesBin.isEmpty() || !QFileInfo(hermesBin).isExecutable()) {
+            return;
+        }
+        bool up = false;
+        for (int i = 0; i < 16 && !up; ++i) {
+            QTcpSocket socket;
+            socket.connectToHost(QStringLiteral("127.0.0.1"), kHermesPort);
+            up = socket.waitForConnected(500);
+            socket.abort();
+        }
+        if (!up) {
+            emit q->log(QObject::tr("Aviso: Hermes no respondió en :%1; sin registrar.")
+                            .arg(kHermesPort));
+            return;
+        }
+        QString cookie;
+        QFile cf(QDir(QStandardPaths::writableLocation(QStandardPaths::AppDataLocation))
+                     .absoluteFilePath(QStringLiteral("odysseus_session")));
+        if (cf.open(QIODevice::ReadOnly)) {
+            cookie = QString::fromUtf8(cf.readAll()).trimmed();
+            cf.close();
+        }
+        if (cookie.isEmpty()) {
+            return;
+        }
+        const QString cookieArg = QStringLiteral("odysseus_session=") + cookie;
+        const QString base = QStringLiteral("http://127.0.0.1:%1").arg(kOdysseusPort);
+
+        // Idempotencia: ¿ya existe un server "hermes"?
+        QProcess get;
+        get.setProgram(QStringLiteral("/usr/bin/curl"));
+        get.setArguments({ QStringLiteral("-s"), QStringLiteral("-m"), QStringLiteral("8"),
+                           QStringLiteral("-b"), cookieArg,
+                           base + QStringLiteral("/api/mcp/servers") });
+        get.setStandardInputFile(QProcess::nullDevice());
+        get.start();
+        get.waitForFinished(10000);
+        if (QString::fromUtf8(get.readAllStandardOutput())
+                .contains(QStringLiteral("\"hermes\""))) {
+            return;
+        }
+
+        const QByteArray argsJson
+            = QJsonDocument(QJsonArray{ QStringLiteral("mcp"), QStringLiteral("serve") })
+                  .toJson(QJsonDocument::Compact);
+        QProcess post;
+        post.setProgram(QStringLiteral("/usr/bin/curl"));
+        post.setArguments({ QStringLiteral("-s"), QStringLiteral("-m"), QStringLiteral("25"),
+                            QStringLiteral("-X"), QStringLiteral("POST"),
+                            QStringLiteral("-b"), cookieArg,
+                            base + QStringLiteral("/api/mcp/servers"),
+                            QStringLiteral("--data-urlencode"),
+                            QStringLiteral("name=hermes"),
+                            QStringLiteral("--data-urlencode"),
+                            QStringLiteral("transport=stdio"),
+                            QStringLiteral("--data-urlencode"),
+                            QStringLiteral("command=") + hermesBin,
+                            QStringLiteral("--data-urlencode"),
+                            QStringLiteral("args=") + QString::fromUtf8(argsJson) });
+        post.setStandardInputFile(QProcess::nullDevice());
+        post.start();
+        post.waitForFinished(30000);
+        emit q->log(QObject::tr("Hermes (MCP) registrado en el cerebro."));
+    }
+
+    /**
      * Sincroniza el código de odysseus desde el bundle (read-only dentro del .app
      * firmado) a una copia MUTABLE en datos de usuario, donde odysseus sí puede
      * escribir su data dir (DB, uploads, chroma…). rsync idempotente; preserva
@@ -407,6 +560,7 @@ struct BrainProcessManager::Implementation {
                     healthTimer->stop();
                     cacheAdminSession();
                     registerProjectMcp();
+                    registerHermes();
                     emit q->log(QStringLiteral("Cerebro listo (odysseus en :%1).")
                                     .arg(kOdysseusPort));
                     emit q->ready();
@@ -449,6 +603,8 @@ struct BrainProcessManager::Implementation {
     QString llamaServerBin;
     QString odysseusDir;     // código de odysseus en el bundle (read-only en el .app firmado)
     QString odysseusRunDir;  // copia mutable donde odysseus corre y escribe su data
+    QString hermesRunDir;    // venv aislado + HERMES_HOME de Hermes (skills/cron/kanban)
+    QString hermesBin;       // <hermesRunDir>/.venv/bin/hermes
     QString modelPath;
     QString chromaDataDir;
 
@@ -456,6 +612,7 @@ struct BrainProcessManager::Implementation {
     QProcess* chroma = nullptr;
     QProcess* llama = nullptr;
     QProcess* odysseus = nullptr;
+    QProcess* hermes = nullptr;
 
     // Health-check.
     QTimer* healthTimer = nullptr;
@@ -556,7 +713,11 @@ void BrainProcessManager::startAll()
                                 // nube (Gemini) que a su vez fallaba por thought_signature → respuesta
                                 // vacía. Qwen2.5-7B admite 32k nativo; 16384 da holgura y cabe en 18 GB
                                 // (7B≈5.7 GB, 14b≈11.5 GB con KV fp16). -fa on mantiene el KV chico.
-                                QStringLiteral("16384"),
+                                // 65536 (antes 16384): Hermes EXIGE contexto >=64K y
+                                // Odiseo lo comparte. El KV grande se contiene con -np 1
+                                // (abajo): un solo slot → KV = 1×64K, no 4×. Cabe en 18 GB
+                                // con Hermes-3-8B (~4.6 GB pesos + KV q8_0).
+                                QStringLiteral("65536"),
                                 //
                                 // M3 / 18 GB: -fa on = flash attention en Metal (más rápido + menos
                                 // RAM de KV-cache). NOTA: --mlock se QUITÓ — forzar el modelo residente
@@ -568,7 +729,10 @@ void BrainProcessManager::startAll()
                                 // idéntica. Hace viable el Qwen2.5-14b@16384 en 18 GB (~10 GB vs
                                 // ~11.6) y deja más holgura al 7B. Requiere -fa on (arriba).
                                 QStringLiteral("-ctk"), QStringLiteral("q8_0"),
-                                QStringLiteral("-ctv"), QStringLiteral("q8_0") };
+                                QStringLiteral("-ctv"), QStringLiteral("q8_0"),
+                                // -np 1: un solo slot de contexto → KV = 1×64K (no 4×).
+                                // Decisivo para que Hermes-3-8B@64K quepa en 18 GB.
+                                QStringLiteral("-np"), QStringLiteral("1") };
         d->llama = d->spawn(QStringLiteral("llama"), d->llamaServerBin, args, QString(),
                             baseEnv);
     }
@@ -600,6 +764,29 @@ void BrainProcessManager::startAll()
                                d->odysseusRunDir, env);
     }
 
+    //
+    // 4) Hermes — 4º servicio: su gateway expone el api_server OpenAI en
+    //    kHermesPort y corre cron + kanban + skills, todo como cliente del mismo
+    //    llama-server :8533. Estado mutable (HERMES_HOME, venv) en hermes-runtime.
+    //    Solo si el venv está materializado; si no, el cerebro corre sin Hermes.
+    //
+    if (QFileInfo(d->hermesBin).isExecutable()) {
+        d->writeHermesConfig();
+        QProcessEnvironment hEnv = baseEnv;
+        hEnv.insert(QStringLiteral("HERMES_HOME"), d->hermesHome());
+        hEnv.insert(QStringLiteral("API_SERVER_HOST"), QStringLiteral("127.0.0.1"));
+        hEnv.insert(QStringLiteral("API_SERVER_PORT"), QString::number(kHermesPort));
+        hEnv.insert(QStringLiteral("API_SERVER_KEY"), d->hermesApiKey());
+        const QStringList hArgs{ QStringLiteral("gateway"), QStringLiteral("run"),
+                                 QStringLiteral("-q") };
+        d->hermes = d->spawn(QStringLiteral("hermes"), d->hermesBin, hArgs,
+                             d->hermesRunDir, hEnv);
+        emit log(tr("Arrancando Hermes (4º servicio, gateway api_server :%1)…")
+                     .arg(kHermesPort));
+    } else {
+        emit log(tr("Hermes no materializado (sin venv); el cerebro corre sin el 4º servicio."));
+    }
+
     // B3: apuntar el cliente IA al llama-server local.
     d->writeOdysseusEndpoint();
 
@@ -615,7 +802,8 @@ void BrainProcessManager::stopAll()
     if (d->healthTimer != nullptr) {
         d->healthTimer->stop();
     }
-    // Orden inverso al arranque: primero el agente, luego sus dependencias.
+    // Orden inverso al arranque: primero los agentes, luego sus dependencias.
+    d->killProcess(d->hermes, QStringLiteral("hermes"));
     d->killProcess(d->odysseus, QStringLiteral("odysseus"));
     d->killProcess(d->llama, QStringLiteral("llama-server"));
     d->killProcess(d->chroma, QStringLiteral("chroma"));
