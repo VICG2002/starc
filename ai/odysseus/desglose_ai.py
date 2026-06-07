@@ -1,28 +1,28 @@
 """desglose_ai.py — Sugerencia de recursos de desglose (breakdown) por escena, con IA.
 
 Dada UNA escena de guion, devuelve sus recursos clasificados por categoria, como dict
-JSON limpio. Pensado para alimentar el desglose nativo de Aula 122 (boton "Sugerir con IA").
+JSON limpio. Pensado para alimentar el desglose nativo de Aula 122.
 
-Robusto a propio del modelo local 8B (leccion aprendida): limpia bloques <tool_call> y
-fences markdown, extrae el primer objeto {...} balanceado, y si todo falla devuelve el
-dict con listas vacias + "_error" (nunca revienta). Solo usa la biblioteca estandar.
+La llamada a la IA pasa por **ai_gateway** (Claude por defecto, 8B local opcional). La
+limpieza tolerante del JSON se mantiene aqui (sobre todo util con el 8B, que arrastra
+<tool_call> y fences): se limpian esos bloques, se extrae el primer objeto {...} balanceado,
+y si todo falla se devuelve el dict con listas vacias + "_error" (nunca revienta). Solo
+biblioteca estandar.
 
 Uso:
     from desglose_ai import sugerir_recursos
-    rec = sugerir_recursos("INT. COCINA - DIA. ...")
+    rec = sugerir_recursos("INT. COCINA - DIA. ...")            # backend por defecto (Claude)
+    rec = sugerir_recursos("...", backend="local")              # forzar 8B offline
 
 CLI de prueba:
-    python3 desglose_ai.py
+    python3 desglose_ai.py                    # usa el backend por defecto
+    AULA122_AI_BACKEND=local python3 desglose_ai.py
 """
 
 import json
-import os
 import re
-import urllib.request
 
-DEFAULT_ENDPOINT = os.environ.get(
-    "AULA122_LLM_ENDPOINT", "http://127.0.0.1:8533/v1/chat/completions"
-)
+import ai_gateway
 
 CATEGORIAS = [
     "personajes", "props", "vestuario", "vehiculos",
@@ -32,38 +32,6 @@ CATEGORIAS = [
 
 def _vacio():
     return {c: [] for c in CATEGORIAS}
-
-
-def _modelo_local(endpoint):
-    """Pide el id del modelo cargado en el endpoint OpenAI-compatible (o None)."""
-    try:
-        murl = endpoint.replace("/chat/completions", "/models")
-        req = urllib.request.Request(murl, headers={"Authorization": "Bearer x"})
-        with urllib.request.urlopen(req, timeout=10) as r:
-            return json.loads(r.read().decode("utf-8"))["data"][0]["id"]
-    except Exception:
-        return None
-
-
-def _llm(endpoint, model, system, user, timeout):
-    body = json.dumps({
-        "model": model,
-        "messages": [
-            {"role": "system", "content": system},
-            {"role": "user", "content": user},
-        ],
-        "temperature": 0.2,
-        "max_tokens": 700,
-        "stream": False,
-    }).encode("utf-8")
-    req = urllib.request.Request(
-        endpoint, data=body,
-        headers={"Authorization": "Bearer x", "Content-Type": "application/json"},
-        method="POST",
-    )
-    with urllib.request.urlopen(req, timeout=timeout) as r:
-        d = json.loads(r.read().decode("utf-8"))
-    return d["choices"][0]["message"]["content"]
 
 
 def _extract_json(text):
@@ -93,14 +61,16 @@ def _extract_json(text):
     return None
 
 
-def sugerir_recursos(escena_texto, endpoint=DEFAULT_ENDPOINT, model=None, timeout=120):
-    """Devuelve dict con las 7 categorias (listas de strings). Nunca lanza excepcion."""
+def sugerir_recursos(escena_texto, *, backend=None, timeout=120, endpoint=None, model=None):
+    """Devuelve dict con las 7 categorias (listas de strings). Nunca lanza excepcion.
+
+    backend: 'claude' | 'local' | None (auto, via ai_gateway). endpoint/model solo
+    aplican al backend local.
+    """
     out = _vacio()
     if not (escena_texto or "").strip():
         out["_error"] = "escena vacia"
         return out
-    if model is None:
-        model = _modelo_local(endpoint) or "local"
     system = (
         "Eres un asistente de desglose (breakdown) de produccion cinematografica. "
         "Analizas UNA escena y listas sus recursos por categoria. Responde "
@@ -118,13 +88,15 @@ def sugerir_recursos(escena_texto, endpoint=DEFAULT_ENDPOINT, model=None, timeou
         "Devuelve SOLO el objeto JSON con esas 7 claves."
     )
     try:
-        content = _llm(endpoint, model, system, user, timeout)
+        content = ai_gateway.complete(
+            system, user, backend=backend, timeout=timeout, endpoint=endpoint, model=model
+        )
     except Exception as e:
-        out["_error"] = "fallo la llamada al modelo: %s" % e
+        out["_error"] = "fallo la llamada a la IA: %s" % e
         return out
     data = _extract_json(content)
     if not isinstance(data, dict):
-        out["_error"] = "el modelo no devolvio JSON parseable"
+        out["_error"] = "la IA no devolvio JSON parseable"
         out["_raw"] = (content or "")[:400]
         return out
     for c in CATEGORIAS:
@@ -139,6 +111,6 @@ def sugerir_recursos(escena_texto, endpoint=DEFAULT_ENDPOINT, model=None, timeou
 if __name__ == "__main__":
     escena = ("INT. COCINA - DIA. Roman corta cebollas con un cuchillo. "
               "Su perro ladra. Suena el telefono.")
-    print("Endpoint:", DEFAULT_ENDPOINT)
+    print("Backend:", ai_gateway.resolve_backend())
     print("Escena:", escena)
     print(json.dumps(sugerir_recursos(escena), ensure_ascii=False, indent=2))

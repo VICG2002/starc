@@ -28,10 +28,14 @@ def setup_desglose_routes() -> APIRouter:
         escena = (payload or {}).get("escena", "")
         if not isinstance(escena, str) or not escena.strip():
             raise HTTPException(400, "Falta 'escena' (el texto de la escena a desglosar).")
-        # Override opcional de endpoint/modelo (por defecto: modelo local del cerebro).
+        kwargs = {}
+        # Backend de IA: "claude" (default del gateway) | "local" (8B offline).
+        backend = (payload or {}).get("backend")
+        if isinstance(backend, str) and backend.strip():
+            kwargs["backend"] = backend.strip().lower()
+        # Override opcional de endpoint/modelo (solo aplica al backend local).
         endpoint = (payload or {}).get("endpoint")
         model = (payload or {}).get("model")
-        kwargs = {}
         if isinstance(endpoint, str) and endpoint.strip():
             kwargs["endpoint"] = endpoint.strip()
         if isinstance(model, str) and model.strip():
