@@ -6,6 +6,7 @@
 #include <business_layer/model/screenplay/text/screenplay_text_model_scene_item.h>
 #include <business_layer/model/text/text_model_folder_item.h>
 #include <business_layer/model/text/text_model_group_item.h>
+#include <business_layer/model/text/text_model_text_item.h>
 #include <business_layer/templates/text_template.h>
 #include <ui/design_system/design_system.h>
 
@@ -151,6 +152,48 @@ void collectScenes(BusinessLayer::TextModelItem* _item,
             collectScenes(child, _out);
         }
     }
+}
+
+/**
+ * @brief Recolecta recursivamente el TEXTO plano de una escena (cabecera + accion +
+ *        dialogo) de sus items de tipo Text. Acotado a _maxChars para no inflar el
+ *        prompt que se manda a Claude.
+ */
+void collectSceneText(BusinessLayer::TextModelItem* _item, QString& _out, int _maxChars)
+{
+    if (_item == nullptr || _out.length() >= _maxChars) {
+        return;
+    }
+    for (int i = 0; i < _item->childCount(); ++i) {
+        if (_out.length() >= _maxChars) {
+            return;
+        }
+        auto* child = _item->childAt(i);
+        if (child->type() == BusinessLayer::TextModelItemType::Text) {
+            const auto* textItem = static_cast<BusinessLayer::TextModelTextItem*>(child);
+            const QString s = textItem->text().trimmed();
+            if (!s.isEmpty()) {
+                _out += s;
+                _out += QLatin1Char('\n');
+            }
+        } else {
+            collectSceneText(child, _out, _maxChars);
+        }
+    }
+}
+
+/**
+ * @brief Texto de una escena (para alimentar a Claude), capado a _maxChars.
+ */
+QString sceneText(BusinessLayer::TextModelItem* _scene, int _maxChars = 700)
+{
+    QString out;
+    collectSceneText(_scene, out, _maxChars);
+    out = out.trimmed();
+    if (out.length() > _maxChars) {
+        out = out.left(_maxChars).trimmed() + QStringLiteral("…");
+    }
+    return out;
 }
 
 /**
@@ -752,14 +795,24 @@ void ScreenplayBreakdownNativeView::onAutoExtractClicked()
     //
     // Construir resumen de escenas para enviar a Claude
     //
-    QStringList sceneLines;
+    // Aula 122: ahora enviamos, por escena, su cabecera Y su CONTENIDO real (accion +
+    // dialogo, capado por escena) en vez de solo la cabecera → la inferencia de recursos
+    // de Claude es mucho mas precisa (ve lo que de verdad pasa en la escena).
+    QStringList sceneBlocks;
     int idx = 1;
     for (auto* scene : d->sceneCache) {
         if (scene == nullptr) {
             ++idx;
             continue;
         }
-        sceneLines << QStringLiteral("%1. %2").arg(idx++).arg(scene->heading());
+        const int n = idx++;
+        QString block = QStringLiteral("=== Escena %1: %2 ===").arg(n).arg(scene->heading());
+        const QString contenido = sceneText(scene);
+        if (!contenido.isEmpty()) {
+            block += QLatin1Char('\n');
+            block += contenido;
+        }
+        sceneBlocks << block;
     }
 
     //
@@ -767,20 +820,20 @@ void ScreenplayBreakdownNativeView::onAutoExtractClicked()
     //
     const QString prompt
         = QStringLiteral(
-              "Eres un asistente de pre-producción cinematográfica. Te paso la "
-              "lista de cabeceras de las escenas de un guion. Para cada escena, "
-              "infiere qué recursos físicos serían necesarios (props notables, "
-              "vestuario distintivo, vehículos, armas, animales, efectos, "
-              "música cue). Responde ÚNICAMENTE con líneas CSV en este formato "
-              "exacto, sin cabecera ni comentarios ni markdown:\n\n"
+              "Eres un asistente de pre-producción cinematográfica. Te paso, por escena, "
+              "su cabecera y su CONTENIDO (acción y diálogo). Para cada escena, lista los "
+              "recursos físicos que REALMENTE aparecen o se mencionan en el contenido "
+              "(props notables, vestuario distintivo, vehículos, armas, animales, efectos, "
+              "música cue). Responde ÚNICAMENTE con líneas CSV en este formato exacto, sin "
+              "cabecera ni comentarios ni markdown:\n\n"
               "numero_escena,categoria,recurso,cantidad,detalle\n\n"
               "Donde categoria es una de: Props, Vestuario, Vehículos, Animales, "
               "Maquillaje/SFX, VFX, Armas, Música, Stunts, Otros. "
               "Si una escena no necesita recursos físicos especiales, no la "
               "incluyas. Sé conservador — solo lo que realmente se vea o se "
-              "mencione, no inventes.\n\n"
+              "mencione en el contenido, no inventes.\n\n"
               "Escenas del guion:\n%1")
-              .arg(sceneLines.join(QStringLiteral("\n")));
+              .arg(sceneBlocks.join(QStringLiteral("\n\n")));
 
     AutoExtractDialog dialog(cliPath, prompt, this);
     if (dialog.exec() == QDialog::Accepted) {
