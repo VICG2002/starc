@@ -37,10 +37,25 @@ from routes.chat_helpers import (
 )
 from src.action_intents import message_needs_tools as _message_needs_tools
 
+import ai_gateway  # Aula 122: gateway de IA (Claude por defecto en chat normal, 8B fallback)
+
 logger = logging.getLogger(__name__)
 
 # Track active streams for partial-save safety net
 _active_streams: Dict[str, dict] = {}
+
+
+async def _sse_from_text(text: str):
+    """Emite un texto ya completo como chunks SSE estilo stream_llm (delta + [DONE]).
+
+    Usado cuando el chat normal se resuelve via el gateway (Claude CLI), que devuelve
+    la respuesta completa de una vez. Se trocea para dar sensacion de escritura.
+    """
+    text = text or ""
+    step = 120
+    for i in range(0, len(text), step):
+        yield "data: " + json.dumps({"delta": text[i:i + step]}) + "\n\n"
+    yield "data: [DONE]\n\n"
 
 
 def _stream_set(session_id: str, **fields) -> None:
@@ -168,15 +183,28 @@ def setup_chat_routes(
             except Exception as e:
                 logger.error(f"Research failed: {e}")
 
-        reply = await llm_call_async(
-            sess.endpoint_url,
-            sess.model,
-            ctx.messages,
-            headers=sess.headers,
-            temperature=ctx.preset.temperature,
-            max_tokens=ctx.preset.max_tokens,
-            prompt_type=preset_id,
-        )
+        # Aula 122: chat normal -> Claude por defecto (gateway CLI, costo 0); si Claude
+        # no esta o falla, fallback transparente al modelo local. El modo agente no pasa
+        # por aqui (tiene su propio loop con tools sobre el 8B).
+        reply = None
+        if ai_gateway.resolve_backend() == "claude":
+            try:
+                reply = await asyncio.to_thread(
+                    ai_gateway.complete_messages, ctx.messages, timeout=180
+                )
+            except Exception as _e:
+                logger.warning("Claude gateway falló en /api/chat, fallback al modelo local: %s", _e)
+                reply = None
+        if not reply:
+            reply = await llm_call_async(
+                sess.endpoint_url,
+                sess.model,
+                ctx.messages,
+                headers=sess.headers,
+                temperature=ctx.preset.temperature,
+                max_tokens=ctx.preset.max_tokens,
+                prompt_type=preset_id,
+            )
         _clean_reply, _clean_md = clean_thinking_for_save(reply, {"model": sess.model})
         sess.add_message(ChatMessage("assistant", _clean_reply, metadata=_clean_md))
 
@@ -640,9 +668,14 @@ def setup_chat_routes(
             except Exception:
                 _fallback_candidates = []
 
-            # Send model name early so the frontend can show it during streaming
+            # Send model name early so the frontend can show it during streaming.
+            # Aula 122: el chat normal lo resuelve Claude (gateway CLI); mostrar la
+            # etiqueta real para que el usuario sepa qué cerebro respondió (el modo
+            # agente sigue en el modelo local de la sesión).
+            _chat_uses_claude = (chat_mode == "chat" and ai_gateway.resolve_backend() == "claude")
+            _brain_label = "Claude (CLI)" if _chat_uses_claude else sess.model
             _model_suffix = "Research" if do_research else None
-            _model_info = {"type": "model_info", "model": sess.model}
+            _model_info = {"type": "model_info", "model": _brain_label}
             if _model_suffix:
                 _model_info["suffix"] = _model_suffix
             if ctx.preset.character_name:
@@ -705,22 +738,36 @@ def setup_chat_routes(
                 return
             elif chat_mode == "chat":
                 _chat_start = time.time()
-                # ── Chat mode: call stream_llm directly, NO tools, NO document access ──
+                # ── Chat mode: Claude por defecto (gateway CLI, costo 0); fallback al ──
+                #    modelo local. SIN tools. El modo agente NO pasa por aqui.
                 try:
-                    _chat_candidates = [(sess.endpoint_url, sess.model, sess.headers)] + _fallback_candidates
-                    async for chunk in stream_llm_with_fallback(
-                        _chat_candidates,
-                        messages,
-                        temperature=ctx.preset.temperature,
-                        # Respect the preset; 0/unset = let the server decide (no
-                        # cap), matching agent mode. The old hard 4096 fallback
-                        # truncated reasoning models mid-<think> — they'd burn the
-                        # whole budget thinking and never emit the answer (seen in
-                        # Compare on heavy generation prompts).
-                        max_tokens=ctx.preset.max_tokens,
-                        prompt_type=preset_id,
-                        tools=None,
-                    ):
+                    _chat_source = None
+                    if ai_gateway.resolve_backend() == "claude":
+                        try:
+                            _claude_text = await asyncio.to_thread(
+                                ai_gateway.complete_messages, messages, timeout=180
+                            )
+                        except Exception as _e:
+                            logger.warning("Claude gateway falló en chat_stream, fallback al 8B: %s", _e)
+                            _claude_text = None
+                        if _claude_text:
+                            _chat_source = _sse_from_text(_claude_text)
+                    if _chat_source is None:
+                        _chat_candidates = [(sess.endpoint_url, sess.model, sess.headers)] + _fallback_candidates
+                        _chat_source = stream_llm_with_fallback(
+                            _chat_candidates,
+                            messages,
+                            temperature=ctx.preset.temperature,
+                            # Respect the preset; 0/unset = let the server decide (no
+                            # cap), matching agent mode. The old hard 4096 fallback
+                            # truncated reasoning models mid-<think> — they'd burn the
+                            # whole budget thinking and never emit the answer (seen in
+                            # Compare on heavy generation prompts).
+                            max_tokens=ctx.preset.max_tokens,
+                            prompt_type=preset_id,
+                            tools=None,
+                        )
+                    async for chunk in _chat_source:
                         if chunk.startswith("data: ") and not chunk.startswith("data: [DONE]"):
                             try:
                                 data = json.loads(chunk[6:])
@@ -758,7 +805,7 @@ def setup_chat_routes(
                                     "tokens_per_second": _tps,
                                     "context_percent": _ctx_pct,
                                     "context_length": ctx.context_length,
-                                    "model": sess.model,
+                                    "model": _brain_label,
                                     "usage_source": "estimated",
                                 }
                                 yield f'data: {json.dumps({"type": "metrics", "data": last_metrics})}\n\n'

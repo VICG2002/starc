@@ -151,6 +151,46 @@ def complete(system, user, *, backend=None, timeout=120, endpoint=None, model=No
     raise ValueError("backend de IA desconocido: %s" % b)
 
 
+def _messages_split(messages):
+    """Aplana una lista de mensajes estilo OpenAI en (system, conversacion).
+
+    Los mensajes 'system' se juntan; el resto se renderiza como turnos etiquetados
+    (Usuario/Asistente) — formato que el CLI de Claude responde bien en --print.
+    """
+    sys_parts, convo = [], []
+    for m in messages or []:
+        role = m.get("role")
+        content = m.get("content") or ""
+        if isinstance(content, list):  # multimodal: quedarnos con las partes de texto
+            content = " ".join(
+                p.get("text", "") for p in content if isinstance(p, dict) and p.get("text")
+            )
+        content = (content or "").strip()
+        if not content:
+            continue
+        if role == "system":
+            sys_parts.append(content)
+        else:
+            label = "Usuario" if role == "user" else "Asistente"
+            convo.append("%s: %s" % (label, content))
+    return "\n\n".join(sys_parts), "\n\n".join(convo)
+
+
+def complete_messages(messages, *, backend=None, timeout=120):
+    """Como complete(), pero recibe una conversacion (lista de mensajes OpenAI).
+
+    Usado por el chat normal de Odiseo para enrutar a Claude (CLI). Nunca usado en
+    modo agente (ese conserva su propio loop con tools sobre el 8B).
+    """
+    b = resolve_backend(backend)
+    system, convo = _messages_split(messages)
+    if b == "claude":
+        return _complete_claude(system, convo, timeout)
+    if b == "local":
+        return _complete_local(system, convo, timeout)
+    raise ValueError("backend de IA desconocido: %s" % b)
+
+
 if __name__ == "__main__":
     print("backends disponibles:", available_backends())
     print("backend por defecto:", default_backend())
