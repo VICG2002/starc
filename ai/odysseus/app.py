@@ -520,6 +520,10 @@ app.include_router(setup_idea_routes())
 from routes.hermes_routes import setup_hermes_routes
 app.include_router(setup_hermes_routes())
 
+# Desglose con IA: sugiere recursos por escena (alimenta el desglose nativo de Aula 122).
+from routes.desglose_routes import setup_desglose_routes
+app.include_router(setup_desglose_routes())
+
 # Chat
 from routes.chat_routes import setup_chat_routes
 app.include_router(setup_chat_routes(
