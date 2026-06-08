@@ -93,19 +93,37 @@ def locate_claude_cli():
     return shutil.which("claude")
 
 
-def _complete_claude(system, user, timeout):
+def _complete_claude(system, user, timeout, allow_web=False):
     cli = locate_claude_cli()
     if not cli:
         raise RuntimeError("CLI de claude no encontrado (instalar + 'claude auth login --claudeai')")
+    if allow_web:
+        # El system prompt de Odiseo (rita) lo enmarca como asistente local y hace que
+        # Claude crea que no tiene internet. Esta instruccion explicita lo corrige: SI
+        # tiene WebSearch/WebFetch (pre-aprobadas abajo) y debe usarlas SOLO, sin avisar.
+        _web = ("IMPORTANTE: tienes las herramientas WebSearch y WebFetch disponibles y "
+                "funcionando. Cuando la pregunta requiera informacion actual, reciente, "
+                "posterior a tu entrenamiento, o que no sepas con certeza, USALAS de forma "
+                "AUTONOMA (sin pedir permiso ni avisar) y cita las fuentes. NUNCA digas que "
+                "no tienes acceso a internet: si lo necesitas, navega.")
+        system = (system + "\n\n" + _web) if system else _web
     prompt = (system + "\n\n" + user) if system else user
     #
     # Patron YA PROBADO (lado C++, AutoExtractDialog): --print --output-format text,
     # SIN --bare, stdin a /dev/null. stdout es el resultado; error solo si exitcode != 0
     # y stdout vacio. Trampas documentadas en ~/Developer/starc-fork/CLAUDE.md.
     #
+    args = [cli, "--print", "--output-format", "text"]
+    if allow_web:
+        # Pre-aprobar SOLO las tools web: en modo --print (no interactivo) Claude no
+        # puede pedir permiso, asi que sin esto NUNCA navega aunque la pregunta lo
+        # amerite. Acotado a WebSearch/WebFetch -> nada de Bash/archivos.
+        # OJO: --allowedTools es variadic; si el prompt va como argumento posicional se
+        # lo come. Por eso el prompt va por STDIN (input=), no como posicional.
+        args += ["--allowedTools", "WebSearch,WebFetch"]
     proc = subprocess.run(
-        [cli, "--print", "--output-format", "text", prompt],
-        stdin=subprocess.DEVNULL,
+        args,
+        input=prompt,
         capture_output=True,
         timeout=timeout,
         text=True,
@@ -145,16 +163,16 @@ def resolve_backend(backend=None):
 
 
 def complete(system, user, *, backend=None, timeout=120, endpoint=None, model=None,
-             response_format=None):
+             response_format=None, allow_web=False):
     """Devuelve el texto de la respuesta de la IA. Lanza excepcion clara ante fallo.
 
     backend: 'claude' | 'local' | None (auto). endpoint/model y response_format solo
     aplican a 'local' (Claude ya devuelve JSON limpio cuando se le pide; el grammar es
-    el arreglo para el 8B).
+    el arreglo para el 8B). allow_web solo aplica a 'claude' (pre-aprueba WebSearch/WebFetch).
     """
     b = resolve_backend(backend)
     if b == "claude":
-        return _complete_claude(system, user, timeout)
+        return _complete_claude(system, user, timeout, allow_web=allow_web)
     if b == "local":
         return _complete_local(system, user, timeout, endpoint=endpoint, model=model,
                                response_format=response_format)
@@ -186,16 +204,17 @@ def _messages_split(messages):
     return "\n\n".join(sys_parts), "\n\n".join(convo)
 
 
-def complete_messages(messages, *, backend=None, timeout=120):
+def complete_messages(messages, *, backend=None, timeout=120, allow_web=False):
     """Como complete(), pero recibe una conversacion (lista de mensajes OpenAI).
 
     Usado por el chat normal de Odiseo para enrutar a Claude (CLI). Nunca usado en
-    modo agente (ese conserva su propio loop con tools sobre el 8B).
+    modo agente (ese conserva su propio loop con tools sobre el 8B). allow_web pre-aprueba
+    WebSearch/WebFetch para que Claude navegue cuando la pregunta lo amerite.
     """
     b = resolve_backend(backend)
     system, convo = _messages_split(messages)
     if b == "claude":
-        return _complete_claude(system, convo, timeout)
+        return _complete_claude(system, convo, timeout, allow_web=allow_web)
     if b == "local":
         return _complete_local(system, convo, timeout)
     raise ValueError("backend de IA desconocido: %s" % b)

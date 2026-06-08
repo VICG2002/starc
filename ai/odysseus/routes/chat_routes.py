@@ -190,7 +190,7 @@ def setup_chat_routes(
         if ai_gateway.resolve_backend() == "claude":
             try:
                 reply = await asyncio.to_thread(
-                    ai_gateway.complete_messages, ctx.messages, timeout=180
+                    ai_gateway.complete_messages, ctx.messages, timeout=180, allow_web=True
                 )
             except Exception as _e:
                 logger.warning("Claude gateway falló en /api/chat, fallback al modelo local: %s", _e)
@@ -745,7 +745,7 @@ def setup_chat_routes(
                     if ai_gateway.resolve_backend() == "claude":
                         try:
                             _claude_text = await asyncio.to_thread(
-                                ai_gateway.complete_messages, messages, timeout=180
+                                ai_gateway.complete_messages, messages, timeout=180, allow_web=True
                             )
                         except Exception as _e:
                             logger.warning("Claude gateway falló en chat_stream, fallback al 8B: %s", _e)
