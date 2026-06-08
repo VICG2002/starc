@@ -122,20 +122,30 @@ el plugin del asistente. Ver `~/memoria-asistente-escritura/metodologia/anatomia
 - **`/Applications/Story Architect.app`** — esa es la app oficial del
   usuario, sigue intacta para uso normal. Aula_122.app convive sin pisarla.
 
-## Dónde vive el código del asistente
+## Dónde vive el código del asistente (actualizado 2026-06-07)
 
-Decisión cerrada en Fase 1 (2026-05-24): **opción C — plugin nativo en
-el plugin system de STARC.**
+El asistente es **Odiseo**, una SPA web (FastAPI + estáticos) embebida en un
+`QWebEngineView` al lado del editor nativo. NO es un plugin de documento.
 
-- `src/core/management_layer/plugins/writing_assistant/` — el plugin del
-  asistente, como uno más de los plugins existentes.
-- `writing_assistant_manager.cpp` — `IDocumentManager` (carga + ciclo de vida).
-- `writing_assistant_view.cpp/.h` — UI del chat (`QTextEdit` + `QLineEdit` + botón).
-- `claude_client.cpp/.h` — cliente que invoca el CLI `claude` por `QProcess`.
+- `src/core/ui/odysseus_workspace_view.cpp/.h` — el host nativo: carga la SPA
+  (`http://127.0.0.1:7860`), inyecta la cookie de sesión, y hace de puente
+  native↔web (verbos `http://aula122.bridge/<verbo>` interceptados en
+  `OdysseusPage::acceptNavigationRequest`; native→web vía `runJavaScript`).
+- `src/core/management_layer/brain_process_manager.cpp` — lanza/mata el cerebro
+  local (llama-server :8533 + odysseus :7860) embebido en el `.app`.
+- `ai/odysseus/` — el código de la SPA (Python/JS), vendado y desplegado al bundle
+  (`…/Contents/Resources/brain/odysseus/`) por rsync. Activado desde el menú
+  lateral, botón "Odiseo".
 
-Compilado a `Aula_122.app/Contents/PlugIns/libwritingassistantplugin.dylib`.
-Activado desde el menú lateral con el botón "Writing assistant" (icono
-lápiz, U+F0CB6). MIME interno `app/x-diez50/writing-assistant`.
+**Punto único de IA — `ai/odysseus/ai_gateway.py`** (`AIGateway`): toda llamada a IA
+pasa por aquí, con **Claude por defecto** (vía CLI, costo 0) y el **8B local de
+fallback** (env `AULA122_AI_BACKEND`). Lo consumen: el chat de Odiseo (modo "chat";
+el modo agente con tools/MCP sigue en el 8B), el desglose Python (`/api/desglose/sugerir`),
+y el core nativo C++ vía HTTP (`/api/ai/complete`, p.ej. el "Auto-extraer con Claude" del
+desglose). Para cambiar backend/modelo se toca **un solo archivo**.
+
+**El antiguo `writing_assistant` (plugin nativo con `claude_client.cpp`) se ELIMINÓ**
+el 2026-06-07 (commit `af4a6cf8`): era redundante con Odiseo. No lo busques.
 
 ## Trampas conocidas (lecciones de Fase 0)
 
@@ -155,15 +165,16 @@ Antes de tocar el código, conocer estas:
    qmake -o Makefile <subdir>.pro` automáticamente. Para forzar regeneración,
    borrar los Makefiles y volver a hacer `make`.
 
-4. **El plugin del asistente NO usa la API de Anthropic** (que cuesta dinero).
-   `claude_client.cpp` invoca el CLI `claude` por subproceso
-   (`claude --print --output-format json`), reutilizando la suscripción
-   Claude Code del usuario. Tres trampas heredadas:
+4. **La IA NO usa la API de Anthropic** (que cuesta dinero). El backend Claude del
+   gateway (`ai/odysseus/ai_gateway.py`, `_complete_claude`) invoca el CLI `claude`
+   por subproceso (`claude --print --output-format text`), reutilizando la suscripción
+   Claude Code del usuario. (El C++ del desglose usa el mismo patrón en
+   `screenplay_breakdown_native_view.cpp`, `AutoExtractDialog`.) Trampas heredadas:
    - **NO pasar `--bare`** → ese flag bloquea OAuth/keychain, dice "Not logged in".
-   - **Redirigir stdin a `/dev/null`** (`setStandardInputFile(QProcess::nullDevice())`)
+   - **Redirigir stdin a `/dev/null`** (`stdin=DEVNULL` / `setStandardInputFile(nullDevice())`)
      → sin esto, el CLI espera 3 s con warning "no stdin data received".
-   - **Parsear el JSON antes del exit code** — `is_error: true` viene con
-     JSON válido, hay que extraer `.result` para mensaje legible.
+   - **`--output-format text`**: stdout ES el resultado (con `json` habría que extraer
+     `.result`; `is_error: true` igual trae JSON válido).
 
    Setup del usuario (una vez): `claude auth login --claudeai`. Detalle en
    `~/memoria-asistente-escritura/lecciones/patrones-exitosos.md`.
