@@ -29,6 +29,25 @@ CATEGORIAS = [
     "animales", "efectos_especiales", "extras",
 ]
 
+# Esquema para forzar la salida del backend local (8B) con constrained decoding.
+# Garantiza un objeto con EXACTAMENTE las 7 categorias, cada una lista de strings.
+# El backend Claude lo ignora (ya devuelve JSON limpio).
+_DESGLOSE_SCHEMA = {
+    "type": "json_schema",
+    "json_schema": {
+        "name": "desglose",
+        "strict": True,
+        "schema": {
+            "type": "object",
+            "properties": {
+                c: {"type": "array", "items": {"type": "string"}} for c in CATEGORIAS
+            },
+            "required": list(CATEGORIAS),
+            "additionalProperties": False,
+        },
+    },
+}
+
 
 def _vacio():
     return {c: [] for c in CATEGORIAS}
@@ -89,7 +108,8 @@ def sugerir_recursos(escena_texto, *, backend=None, timeout=120, endpoint=None, 
     )
     try:
         content = ai_gateway.complete(
-            system, user, backend=backend, timeout=timeout, endpoint=endpoint, model=model
+            system, user, backend=backend, timeout=timeout, endpoint=endpoint, model=model,
+            response_format=_DESGLOSE_SCHEMA,
         )
     except Exception as e:
         out["_error"] = "fallo la llamada a la IA: %s" % e

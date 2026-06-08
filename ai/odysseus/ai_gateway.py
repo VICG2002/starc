@@ -46,11 +46,11 @@ def _modelo_local(endpoint):
         return None
 
 
-def _complete_local(system, user, timeout, endpoint=None, model=None):
+def _complete_local(system, user, timeout, endpoint=None, model=None, response_format=None):
     endpoint = endpoint or DEFAULT_LOCAL_ENDPOINT
     if model is None:
         model = _modelo_local(endpoint) or "local"
-    body = json.dumps({
+    body_dict = {
         "model": model,
         "messages": [
             {"role": "system", "content": system},
@@ -59,7 +59,13 @@ def _complete_local(system, user, timeout, endpoint=None, model=None):
         "temperature": 0.2,
         "max_tokens": 700,
         "stream": False,
-    }).encode("utf-8")
+    }
+    # Salida forzada (constrained decoding de llama.cpp): con response_format
+    # json_schema el 8B NO puede devolver basura (mata el <tool_call> alucinado y el
+    # JSON roto). Solo se pasa cuando el consumidor pide estructura (p.ej. el desglose).
+    if response_format:
+        body_dict["response_format"] = response_format
+    body = json.dumps(body_dict).encode("utf-8")
     req = urllib.request.Request(
         endpoint, data=body,
         headers={"Authorization": "Bearer x", "Content-Type": "application/json"},
@@ -138,16 +144,20 @@ def resolve_backend(backend=None):
     return default_backend()
 
 
-def complete(system, user, *, backend=None, timeout=120, endpoint=None, model=None):
+def complete(system, user, *, backend=None, timeout=120, endpoint=None, model=None,
+             response_format=None):
     """Devuelve el texto de la respuesta de la IA. Lanza excepcion clara ante fallo.
 
-    backend: 'claude' | 'local' | None (auto). endpoint/model solo aplican a 'local'.
+    backend: 'claude' | 'local' | None (auto). endpoint/model y response_format solo
+    aplican a 'local' (Claude ya devuelve JSON limpio cuando se le pide; el grammar es
+    el arreglo para el 8B).
     """
     b = resolve_backend(backend)
     if b == "claude":
         return _complete_claude(system, user, timeout)
     if b == "local":
-        return _complete_local(system, user, timeout, endpoint=endpoint, model=model)
+        return _complete_local(system, user, timeout, endpoint=endpoint, model=model,
+                               response_format=response_format)
     raise ValueError("backend de IA desconocido: %s" % b)
 
 
