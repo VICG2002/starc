@@ -141,8 +141,12 @@ def _complete_claude(system, user, timeout, allow_web=False):
 # ---------------------------------------------------------------------------
 
 def default_backend():
-    """'claude' si el CLI esta disponible; si no, 'local'."""
-    return "claude" if locate_claude_cli() else "local"
+    """Default SOBERANO: el modelo local interno (8B). Diez50 corre con su PROPIA IA;
+    Claude NO es el cerebro del runtime. Claude solo si se pide explicito (backend='claude'
+    o env AULA122_AI_BACKEND=claude) — queda como herramienta de desarrollo / fallback.
+    Decision de Victor 2026-06-07: 'el chat no deberia ser de claude; usa las herramientas
+    internas, tu solo supervisas'."""
+    return "local"
 
 
 def available_backends():
