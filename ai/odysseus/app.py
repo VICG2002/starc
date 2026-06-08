@@ -524,6 +524,10 @@ app.include_router(setup_hermes_routes())
 from routes.desglose_routes import setup_desglose_routes
 app.include_router(setup_desglose_routes())
 
+# Punto unico de IA (AIGateway por HTTP) — lo consume tambien el core nativo C++.
+from routes.ai_routes import setup_ai_routes
+app.include_router(setup_ai_routes())
+
 # Chat
 from routes.chat_routes import setup_chat_routes
 app.include_router(setup_chat_routes(
