@@ -56,7 +56,6 @@ public:
     QAction* importProject = nullptr;
     QAction* fullScreen = nullptr;
     QAction* settings = nullptr;
-    QAction* assistant = nullptr;
     QAction* breakdown = nullptr;
     QAction* production = nullptr;
     // Aula 122 / Fase 4 — workspace completo de Odiseo (odysseus) embebido
@@ -112,7 +111,6 @@ MenuView::Implementation::Implementation(MenuView* _parent)
     , importProject(new QAction)
     , fullScreen(new QAction)
     , settings(new QAction)
-    , assistant(new QAction)
     , breakdown(new QAction)
     , production(new QAction)
     , odysseus(new QAction)
@@ -169,7 +167,6 @@ MenuView::Implementation::Implementation(MenuView* _parent)
         drawer->addAction(production);  // Plan de rodaje (activo)
         drawer->addAction(callSheet);
         drawer->addAction(characters);
-        drawer->addAction(assistant);   // Asistente IA
         drawer->addAction(odysseus);    // Odiseo (workspace IA completo)
 
         drawer->setAccountActions({
@@ -226,13 +223,6 @@ MenuView::Implementation::Implementation(MenuView* _parent)
         settings->setVisible(true);
         settings->setSeparator(true);
         //
-        // Asistente de escritura (plugin Diez50)
-        //
-        assistant->setIconText(u8"\U000F0CB6"); // pencil-outline (Material Design Icons, garantizado)
-        assistant->setCheckable(true);
-        assistant->setVisible(true);
-        assistant->setSeparator(true);
-        //
         // Aula 122 / Bloque 5: desglose nativo del guion
         //
         breakdown->setIconText(u8"\U000F0B2A"); // format-list-checks (MDI)
@@ -267,7 +257,6 @@ MenuView::Implementation::Implementation(MenuView* _parent)
         actions->addAction(projects);
         actions->addAction(project);
         actions->addAction(settings);
-        actions->addAction(assistant);
         actions->addAction(breakdown);
         actions->addAction(production);
         actions->addAction(odysseus);
@@ -360,7 +349,6 @@ MenuView::MenuView(QWidget* _parent)
             &MenuView::exportCurrentDocumentPressed);
     connect(d->fullScreen, &QAction::triggered, this, &MenuView::fullscreenPressed);
     connect(d->settings, &QAction::triggered, this, &MenuView::settingsPressed);
-    connect(d->assistant, &QAction::triggered, this, &MenuView::assistantPressed);
     connect(d->breakdown, &QAction::triggered, this, &MenuView::breakdownPressed);
     connect(d->production, &QAction::triggered, this, &MenuView::productionPressed);
     connect(d->odysseus, &QAction::triggered, this, &MenuView::odysseusPressed);
@@ -391,7 +379,6 @@ MenuView::MenuView(QWidget* _parent)
     connect(this, &MenuView::exportCurrentDocumentPressed, this, &MenuView::closeMenu);
     connect(this, &MenuView::fullscreenPressed, this, &MenuView::closeMenu);
     connect(this, &MenuView::settingsPressed, this, &MenuView::closeMenu);
-    connect(this, &MenuView::assistantPressed, this, &MenuView::closeMenu);
     connect(this, &MenuView::breakdownPressed, this, &MenuView::closeMenu);
     connect(this, &MenuView::productionPressed, this, &MenuView::closeMenu);
     connect(this, &MenuView::odysseusPressed, this, &MenuView::closeMenu);
@@ -496,12 +483,6 @@ void MenuView::checkSettings()
 {
     QSignalBlocker signalBlocker(this);
     d->importProject->setChecked(true);
-}
-
-void MenuView::checkAssistant()
-{
-    QSignalBlocker signalBlocker(this);
-    d->assistant->setChecked(true);
 }
 
 void MenuView::checkBreakdown()
@@ -671,7 +652,6 @@ void MenuView::updateTranslations()
     d->fullScreen->setWhatsThis(
         QKeySequence(QKeySequence::FullScreen).toString(QKeySequence::NativeText));
     d->settings->setText(tr("Application settings"));
-    d->assistant->setText(tr("Asistente IA"));
     d->breakdown->setText(tr("Desglose del guion"));
     d->production->setText(tr("Plan de rodaje"));
     d->odysseus->setText(tr("Odiseo"));

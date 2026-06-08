@@ -193,11 +193,6 @@ public:
     void showSettings();
 
     /**
-     * @brief Mostrar la página del asistente de escritura (plugin Aula 122)
-     */
-    void showAssistant();
-
-    /**
      * @brief Mostrar la página del desglose nativo del guion (plugin Aula 122 / Bloque 5)
      */
     void showBreakdown();
@@ -1122,45 +1117,6 @@ void ApplicationManager::Implementation::showSettings()
     applicationView->showOdiseoBeside(/*hideNativeNavigator=*/false);
 }
 
-void ApplicationManager::Implementation::showAssistant()
-{
-    Log::info("Show writing assistant screen");
-    menuView->checkAssistant();
-
-    const QString assistantMime = "app/x-diez50/writing-assistant";
-    if (!pluginsBuilder.initPlugin(assistantMime)) {
-        Log::warning("Failed to init writing assistant plugin");
-        return;
-    }
-    auto* plugin = pluginsBuilder.plugin(assistantMime);
-    if (plugin == nullptr) {
-        Log::warning("Writing assistant plugin not found after init");
-        return;
-    }
-    //
-    // Aula 122 / Bloque 3: pasar el primer script model del proyecto activo
-    // (si hay uno abierto) al plugin del asistente, para que Claude conozca
-    // el contexto del guion (personajes, locaciones, escenas). Si no hay
-    // proyecto, view(nullptr) deja el chat genérico sin contexto.
-    //
-    auto* scriptModel = projectManager->firstScriptModel();
-    auto* view = plugin->view(scriptModel);
-    if (view == nullptr) {
-        Log::warning("Writing assistant view is null");
-        return;
-    }
-
-    //
-    // Iteración 2b: toolbar y navigator vacíos (placeholders) ya que el
-    // plugin solo expone view via IDocumentManager. Iteraciones futuras
-    // podrían añadirlos si el dock crece.
-    //
-    static auto* emptyToolbar = new QWidget;
-    static auto* emptyNavigator = new QWidget;
-
-    applicationView->showContent(emptyToolbar, emptyNavigator, view->asQWidget());
-}
-
 void ApplicationManager::Implementation::showOdysseus()
 {
     Log::info("Show Odiseo workspace");
@@ -1413,8 +1369,6 @@ void ApplicationManager::Implementation::showOdysseus()
                                  accountManager->signIn();
                              } else if (_action == QLatin1String("account")) {
                                  showAccount();
-                             } else if (_action == QLatin1String("assistant")) {
-                                 showAssistant();
                              } else if (_action == QLatin1String("stats")) {
 #ifdef CLOUD_SERVICE_MANAGER
                                  cloudServiceManager->askSessionStatistics(
@@ -3495,7 +3449,6 @@ void ApplicationManager::initConnections()
             [this] { d->exportCurrentDocument(); });
     connect(d->menuView, &Ui::MenuView::fullscreenPressed, this, [this] { d->toggleFullScreen(); });
     connect(d->menuView, &Ui::MenuView::settingsPressed, this, [this] { d->showSettings(); });
-    connect(d->menuView, &Ui::MenuView::assistantPressed, this, [this] { d->showAssistant(); });
     connect(d->menuView, &Ui::MenuView::breakdownPressed, this, [this] { d->showBreakdown(); });
     connect(d->menuView, &Ui::MenuView::productionPressed, this,
             [this] { d->showProductionSchedule(); });

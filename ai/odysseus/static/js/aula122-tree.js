@@ -372,8 +372,6 @@ const _APP_ACTIONS = [
     icon: _ai('<path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/>') },
   { id: 'pantalla-completa', label: 'Pantalla completa', action: 'fullscreen',
     icon: _ai('<path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"/>') },
-  { id: 'asistente', label: 'Asistente', action: 'assistant',
-    icon: _ai('<path d="M12 8V4H8"/><rect x="4" y="8" width="16" height="12" rx="2"/><path d="M2 14h2M20 14h2M15 13v2M9 13v2"/>') },
   { id: 'estadisticas', label: 'Estadísticas', action: 'stats',
     icon: _ai('<path d="M3 3v18h18"/><path d="M18 17V9M13 17V5M8 17v-3"/>') },
   { id: 'sprint', label: 'Sprint de escritura', action: 'sprint',

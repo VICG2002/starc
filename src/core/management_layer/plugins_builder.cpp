@@ -242,10 +242,6 @@ const QHash<QString, QString> kMimeToPlugin
     = { { "application/x-starc/editor/project/information", "*projectinformationplugin*" },
         { kProjectCollaboratorsMime, "*projectcollaboratorsplugin*" },
         //
-        // Aula 122 — asistente de escritura (plugin custom del fork)
-        //
-        { "app/x-diez50/writing-assistant", "*writingassistantplugin*" },
-        //
         // Aula 122 — desglose de guion nativo (reemplazo open source del
         // plugin closed source screenplay_breakdown del Story Architect oficial)
         //
