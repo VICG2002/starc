@@ -1791,12 +1791,23 @@ void ApplicationManager::Implementation::applyThemeFromOdiseo(const QString& _bg
 
     //
     // Orden obligatorio: Custom antes de setColor (el 2º hace early-return si el tema no es
-    // Custom). Flag anti-eco para no rebotar el cambio a Odiseo. No persistimos: Odiseo es
-    // el maestro y re-empuja su tema en cada arranque/recarga.
+    // Custom). Flag anti-eco para no rebotar el cambio a Odiseo.
     //
     applyingExternalTheme = true;
     setDesignSystemTheme(Ui::ApplicationTheme::Custom);
     setDesignSystemCustomThemeColors(Ui::DesignSystem::Color(hash));
+    //
+    // Aula 122: SÍ persistimos lo empujado (antes decía "Odiseo re-empuja en cada
+    // recarga" y no se guardaba) — varios flujos nativos re-leen el tema de
+    // QSettings (arranque, applicationThemeChanged, apertura de proyecto) y SIN
+    // persistir pisaban el tema de Odiseo con el viejo guardado. Visto en vivo:
+    // al abrir un proyecto, el editor volvía a los colores del tema anterior
+    // aunque Odiseo ya hubiera empujado el nuevo (reporte de Victor 2026-06-09:
+    // "cambié la tipografía/tema y se quedó igual").
+    //
+    setSettingsValue(DataStorageLayer::kApplicationThemeKey,
+                     static_cast<int>(Ui::ApplicationTheme::Custom));
+    setSettingsValue(DataStorageLayer::kApplicationCustomThemeColorsKey, hash);
     applyingExternalTheme = false;
 }
 
@@ -3593,6 +3604,14 @@ void ApplicationManager::initConnections()
             d->accountManager.data(), &AccountManager::buyCredits);
     connect(d->projectManager.data(), &ProjectManager::contentsChanged, this,
             [this] { d->markChangesSaved(false); });
+    //
+    // Aula 122: sprint y pantalla completa desde la barra de borradores del editor
+    // (mismos slots que /action/sprint y /action/fullscreen del puente de Odiseo)
+    //
+    connect(d->projectManager.data(), &ProjectManager::writingSprintRequested, this,
+            [this] { d->writingSessionManager->showSprintPanel(); });
+    connect(d->projectManager.data(), &ProjectManager::fullscreenRequested, this,
+            [this] { d->toggleFullScreen(); });
     //
     // Aula 122: tras añadir un documento, refrescamos la barra de Odiseo para que aparezca (al
     // nivel superior, junto al Guion). OJO: el endpoint de la barra lee la ESTRUCTURA del .starc EN

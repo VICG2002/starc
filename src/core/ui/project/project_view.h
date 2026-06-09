@@ -71,11 +71,35 @@ public:
     int currentDraft() const;
     void setCurrentDraft(int _index);
 
+    /**
+     * @brief Aula 122: controlar la visibilidad del botón "+" de crear borrador
+     *        (visible solo en documentos de texto con permisos de edición)
+     */
+    void setDraftCreationEnabled(bool _enabled);
+
+    /**
+     * @brief Aula 122: reflejar el modo pantalla completa en el botón ⛶ de la
+     *        barra de borradores (cambia a icono/tooltip de "salir" en fullscreen)
+     */
+    void setFullScreenMode(bool _isFullScreen);
+
 signals:
     /**
      * @brief Пользователь нажал кнопку создания нового проекта
      */
     void createNewItemPressed();
+
+    /**
+     * @brief Aula 122: el usuario pulsó el botón "+" para crear un borrador
+     */
+    void createNewDraftPressed();
+
+    /**
+     * @brief Aula 122: botones de la barra de borradores junto al "+" —
+     *        sprint de escritura y pantalla completa (antes en el sidebar)
+     */
+    void sprintPressed();
+    void fullscreenPressed();
 
     /**
      * @brief Пользователь хочет отобразить драфт с заданным индексом

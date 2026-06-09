@@ -296,16 +296,26 @@ function _injectGuionParts() {
   if (document.getElementById('aula122-guion-parts')) return;
   const guionBtn = document.getElementById('aula122-guion-btn');
   if (!guionBtn || !guionBtn.parentNode) return;
+  // Aula 122 (reorden 2026-06-09): las partes "de lectura" (Página de Título ·
+  // Sinopsis · Tratamiento) van ANTES del Guion — orden natural del documento.
+  // Las Estadísticas se renderizan aparte, en #aula122-guion-stats (tras los
+  // documentos del usuario; el contenedor lo crea _injectDocActions).
   const box = document.createElement('div');
   box.id = 'aula122-guion-parts';
-  guionBtn.parentNode.insertBefore(box, guionBtn.nextSibling);
+  guionBtn.parentNode.insertBefore(box, guionBtn);
 }
 
+const _GUION_STATS_KIND = 'screenplay/statistics';
 function _renderGuionParts() {
   const box = document.getElementById('aula122-guion-parts');
   if (!box) return;
+  const statsBox = document.getElementById('aula122-guion-stats');
   box.innerHTML = '';
-  _guionParts().forEach((doc) => box.appendChild(_docRow(doc)));
+  if (statsBox) statsBox.innerHTML = '';
+  _guionParts().forEach((doc) => {
+    const target = (doc.kind === _GUION_STATS_KIND && statsBox) ? statsBox : box;
+    target.appendChild(_docRow(doc));
+  });
   _applyActive();
 }
 
@@ -335,51 +345,84 @@ function _actionRow(id, label, iconSvg, path, extraClass) {
 
 function _injectDocActions() {
   if (document.getElementById('aula122-add-doc-btn')) return;
+  const guionBtn = document.getElementById('aula122-guion-btn');
+  const persBtn = document.getElementById('aula122-personajes-btn');
   const locBtn = document.getElementById('aula122-locaciones-btn');
-  const anchor = document.getElementById('aula122-locaciones-btn-children') || locBtn;
-  if (!anchor || !anchor.parentNode) return;
-  const parent = anchor.parentNode;
-  const after = anchor.nextSibling;
+  const locAnchor = document.getElementById('aula122-locaciones-btn-children') || locBtn;
+  const ajustes = document.getElementById('aula122-ajustes-btn');
+  if (!guionBtn || !persBtn || !locAnchor || !ajustes || !guionBtn.parentNode) return;
+  const parent = guionBtn.parentNode;
 
-  // Contenedor de documentos sueltos de nivel superior (sin sangría → mismo nivel que el Guion).
+  // Aula 122 (reorden 2026-06-09, pedido de Victor). Orden de la sección:
+  //   Proyectos · [Página de Título · Sinopsis · Tratamiento] · Guion ·
+  //   [documentos del usuario] · Estadísticas · Personajes · Locaciones ·
+  //   Añadir documento · ── configuración ── Guardar · Guardar como ·
+  //   Importar · Exportar · Ajustes (último).
+  // (Sprint y Pantalla completa viven en la barra de borradores del editor.)
+
+  // [1] Documentos sueltos del usuario (p.ej. "Propuesta de dirección") — tras el Guion.
   const loose = document.createElement('div');
   loose.id = 'aula122-loose-docs';
+  parent.insertBefore(loose, guionBtn.nextSibling);
 
+  // [2] Estadísticas del guion — tras los documentos del usuario, antes de Personajes.
+  const stats = document.createElement('div');
+  stats.id = 'aula122-guion-stats';
+  parent.insertBefore(stats, persBtn);
+
+  // [3] Añadir documento — tras Locaciones (y sus hijos desplegados).
   const add = _actionRow('aula122-add-doc-btn', 'Añadir documento', _ADD_IC,
     '/open/add-document', 'a122-add');
   add.title = 'Añadir un documento al proyecto (queda al mismo nivel que el Guion)';
+  parent.insertBefore(add, locAnchor.nextSibling);
+
+  // [4] Bloque de CONFIGURACIÓN al final: archivo + Ajustes (Ajustes ya es el
+  //     último ítem estático; estas filas se insertan justo antes).
   const save = _actionRow('aula122-save-btn', 'Guardar', _SAVE_IC, '/project/save');
   save.title = 'Guardar el proyecto';
+  const saveAs = _actionRow('aula122-act-guardar-como', 'Guardar como…',
+    _ai('<path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/>'),
+    '/action/save-as');
+  saveAs.title = 'Guardar el proyecto con otro nombre';
+  const imp = _actionRow('aula122-act-importar', 'Importar…',
+    _ai('<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/>'),
+    '/action/import');
+  imp.title = 'Importar un guion o documento al proyecto';
   const exp = _actionRow('aula122-export-btn', 'Exportar', _EXPORT_IC, '/project/export');
   exp.title = 'Exportar el documento actual (PDF, DOCX, FDX…)';
-
-  // Orden tras Locaciones: [documentos sueltos] · Añadir documento · Guardar · Exportar.
-  [loose, add, save, exp].forEach((el) => parent.insertBefore(el, after));
+  [save, saveAs, imp, exp].forEach((el) => parent.insertBefore(el, ajustes));
 }
 
 // ── Acciones de APP (antes solo en el ☰ nativo) — ahora desde el menú ÚNICO de Odiseo ──────
 // Cada fila navega a /action/<nombre>; el shell la enruta al MISMO slot del ☰ (paridad total, el
-// ☰ y la barra de macOS siguen como respaldo). Se agrupan al final, tras "Ajustes".
+// ☰ y la barra de macOS siguen como respaldo). Se insertan ANTES de "Ajustes":
+// Ajustes queda como ÚLTIMO ítem de la sección (reorden 2026-06-09, pedido de Victor).
 function _ai(inner) {
   return '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" ' +
     'stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0;opacity:.6;">' +
     inner + '</svg>';
 }
 const _APP_ACTIONS = [
-  { id: 'importar', label: 'Importar…', action: 'import',
-    icon: _ai('<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/>') },
-  { id: 'guardar-como', label: 'Guardar como…', action: 'save-as',
-    icon: _ai('<path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/>') },
-  { id: 'pantalla-completa', label: 'Pantalla completa', action: 'fullscreen',
-    icon: _ai('<path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"/>') },
-  { id: 'estadisticas', label: 'Estadísticas', action: 'stats',
-    icon: _ai('<path d="M3 3v18h18"/><path d="M18 17V9M13 17V5M8 17v-3"/>') },
-  { id: 'sprint', label: 'Sprint de escritura', action: 'sprint',
-    icon: _ai('<circle cx="12" cy="13" r="8"/><path d="M12 9v4l2 2M5 3 2 6M22 6l-3-3"/>') },
-  { id: 'cuenta', label: 'Cuenta', action: 'account',
-    icon: _ai('<path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/>') },
+  // Aula 122 (reorden 2026-06-09): 'importar' y 'guardar-como' se MUDARON al
+  // grupo de operaciones de archivo (_injectDocActions), junto a Guardar/Exportar.
+  // 'pantalla-completa' y 'sprint' se MUDARON a la barra de borradores del editor
+  // nativo, junto al "+" (ProjectView: sprintButton/fullscreenButton).
+  // Filas ocultas (poda de duplicados):
+  //  - 'estadisticas' duplicaba la fila "Estadísticas" del guion (screenplay/statistics).
+  //  - 'cuenta' es de la nube de STARC, no aplica al fork local.
+  // El routing nativo /action/* sigue vivo en application_manager.cpp.
+  // Para reactivar una fila: descomentar la entrada.
+  // { id: 'estadisticas', label: 'Estadísticas', action: 'stats',
+  //   icon: _ai('<path d="M3 3v18h18"/><path d="M18 17V9M13 17V5M8 17v-3"/>') },
+  // { id: 'cuenta', label: 'Cuenta', action: 'account',
+  //   icon: _ai('<path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/>') },
+  // { id: 'pantalla-completa', label: 'Pantalla completa', action: 'fullscreen',
+  //   icon: _ai('<path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"/>') },
+  // { id: 'sprint', label: 'Sprint de escritura', action: 'sprint',
+  //   icon: _ai('<circle cx="12" cy="13" r="8"/><path d="M12 9v4l2 2M5 3 2 6M22 6l-3-3"/>') },
 ];
 function _injectAppActions() {
+  if (!_APP_ACTIONS.length) return; // hoy todas las acciones viven en otro lado
   if (document.getElementById('aula122-app-actions')) return;
   const ajustes = document.getElementById('aula122-ajustes-btn');
   if (!ajustes || !ajustes.parentNode) return;
@@ -389,8 +432,8 @@ function _injectAppActions() {
     const row = _actionRow('aula122-act-' + a.id, a.label, a.icon, '/action/' + a.action);
     box.appendChild(row);
   });
-  // Tras "Ajustes" (último ítem de la sección Aula 122).
-  ajustes.parentNode.insertBefore(box, ajustes.nextSibling);
+  // ANTES de "Ajustes" → Ajustes cierra la sección Aula 122.
+  ajustes.parentNode.insertBefore(box, ajustes);
 }
 
 async function _load() {

@@ -2,6 +2,7 @@
 
 #include <business_layer/model/structure/structure_model_item.h>
 #include <ui/design_system/design_system.h>
+#include <ui/widgets/icon_button/icon_button.h>
 #include <ui/widgets/label/label.h>
 #include <ui/widgets/label/link_label.h>
 #include <ui/widgets/tab_bar/tab_bar.h>
@@ -35,6 +36,19 @@ public:
     Widget* documentEditorPage = nullptr;
     TabBar* documentDrafts = nullptr;
     QVariantAnimation documentDraftsHeightAnimation;
+    //
+    // Aula 122: botón "+" junto a la barra de borradores para crear uno nuevo
+    // (visible en todo documento de texto editable, aunque aún no haya borradores)
+    //
+    IconButton* createDraftButton = nullptr;
+    bool draftCreationEnabled = false;
+    //
+    // Aula 122: sprint de escritura y pantalla completa viven junto al "+"
+    // (pedido de Victor 2026-06-09; antes eran filas del sidebar de Odiseo)
+    //
+    IconButton* sprintButton = nullptr;
+    IconButton* fullscreenButton = nullptr;
+    bool isFullScreenMode = false;
     StackWidget* documentEditor = nullptr;
 
     Widget* overlay = nullptr;
@@ -54,6 +68,9 @@ ProjectView::Implementation::Implementation(QWidget* _parent)
     , notImplementedPageBodyLabel(new Body1Label(notImplementedPage))
     , documentEditorPage(new Widget(_parent))
     , documentDrafts(new TabBar(documentEditorPage))
+    , createDraftButton(new IconButton(documentEditorPage))
+    , sprintButton(new IconButton(documentEditorPage))
+    , fullscreenButton(new IconButton(documentEditorPage))
     , documentEditor(new StackWidget(documentEditorPage))
     , overlay(new Widget(_parent))
 {
@@ -65,6 +82,12 @@ ProjectView::Implementation::Implementation(QWidget* _parent)
     notImplementedPageBodyLabel->setAlignment(Qt::AlignCenter);
     documentDrafts->hide();
     documentDrafts->setContextMenuPolicy(Qt::CustomContextMenu);
+    createDraftButton->setIcon(u8"\U000F0415"); // plus (MDI)
+    createDraftButton->hide();
+    sprintButton->setIcon(u8"\U000F13AB"); // timer/sprint (MDI, mismo del ☰)
+    sprintButton->hide();
+    fullscreenButton->setIcon(u8"\U000F0293"); // fullscreen (MDI, mismo del ☰)
+    fullscreenButton->hide();
     documentEditor->setAnimationType(AnimationType::FadeThrough);
     overlay->setAttribute(Qt::WA_TransparentForMouseEvents);
     overlay->hide();
@@ -126,7 +149,17 @@ ProjectView::Implementation::Implementation(QWidget* _parent)
         auto layout = new QVBoxLayout(documentEditorPage);
         layout->setContentsMargins({});
         layout->setSpacing(0);
-        layout->addWidget(documentDrafts);
+        //
+        // Aula 122: fila de borradores = barra de pestañas + botón "+"
+        //
+        auto draftsLayout = new QHBoxLayout;
+        draftsLayout->setContentsMargins({});
+        draftsLayout->setSpacing(0);
+        draftsLayout->addWidget(documentDrafts, 1);
+        draftsLayout->addWidget(createDraftButton, 0, Qt::AlignVCenter);
+        draftsLayout->addWidget(sprintButton, 0, Qt::AlignVCenter);
+        draftsLayout->addWidget(fullscreenButton, 0, Qt::AlignVCenter);
+        layout->addLayout(draftsLayout);
         layout->addWidget(documentEditor, 1);
     }
 
@@ -154,6 +187,11 @@ ProjectView::ProjectView(QWidget* _parent)
 
     connect(d->defaultPageAddItemButton, &Body1LinkLabel::clicked, this,
             &ProjectView::createNewItemPressed);
+    // Aula 122: botones de la barra de borradores ("+", sprint, pantalla completa)
+    connect(d->createDraftButton, &IconButton::clicked, this,
+            &ProjectView::createNewDraftPressed);
+    connect(d->sprintButton, &IconButton::clicked, this, &ProjectView::sprintPressed);
+    connect(d->fullscreenButton, &IconButton::clicked, this, &ProjectView::fullscreenPressed);
     connect(d->documentDrafts, &TabBar::currentIndexChanged, this, &ProjectView::showDraftPressed);
     connect(d->documentDrafts, &TabBar::customContextMenuRequested, this,
             [this](const QPoint _position) {
@@ -238,10 +276,12 @@ void ProjectView::setActive(bool _active)
 
 void ProjectView::setDocumentDrafts(const BusinessLayer::StructureModelItem* _item)
 {
-    if (d->documentDrafts->count() == 1 && _item->drafts().isEmpty()) {
-        setDraftsVisible(false);
-        return;
-    }
+    //
+    // Aula 122: aquí había un early-return que ocultaba la barra cuando el
+    // documento no tenía borradores. Se quitó (2026-06-09): la visibilidad la
+    // decide el manager (showView y compañía) — con el botón "+" la barra ahora
+    // puede mostrarse con la única pestaña del borrador actual.
+    //
 
     //
     // Блокируем сигналы, чтобы менеджер не думал, что мы переключаемся тут между разными драфтами
@@ -264,11 +304,36 @@ void ProjectView::setDocumentDrafts(const BusinessLayer::StructureModelItem* _it
 
     d->documentDraftsHeightAnimation.setStartValue(0);
     d->documentDraftsHeightAnimation.setEndValue(d->documentDrafts->sizeHint().height());
+
+    //
+    // Aula 122: dimensionar aquí el botón "+" — el sizeHint del TabBar es 0
+    // SIN pestañas, así que el designSystemChangeEvent del arranque (proyecto
+    // restaurado, barra aún vacía) lo dejaba en 0x0 e invisible para siempre.
+    // Tras reconstruir las pestañas el alto ya es real.
+    //
+    const int draftsBarHeight = d->documentDrafts->sizeHint().height();
+    if (draftsBarHeight > 0) {
+        d->createDraftButton->setFixedSize(draftsBarHeight, draftsBarHeight);
+        d->sprintButton->setFixedSize(draftsBarHeight, draftsBarHeight);
+        d->fullscreenButton->setFixedSize(draftsBarHeight, draftsBarHeight);
+    }
 }
 
 void ProjectView::setDraftsVisible(bool _visible)
 {
-    if (d->documentDraftsHeightAnimation.state() == QVariantAnimation::Running) {
+    //
+    // Aula 122: los botones acompañan a la barra. Al ocultar se esconden de
+    // inmediato (si quedaran visibles, la fila no colapsaría con la animación
+    // de altura de la barra). El "+" además exige creación habilitada; sprint
+    // y pantalla completa se muestran siempre que la barra esté visible.
+    //
+    d->createDraftButton->setVisible(_visible && d->draftCreationEnabled);
+    d->sprintButton->setVisible(_visible);
+    d->fullscreenButton->setVisible(_visible);
+
+    const bool wasAnimationInterrupted
+        = d->documentDraftsHeightAnimation.state() == QVariantAnimation::Running;
+    if (wasAnimationInterrupted) {
         if ((d->documentDraftsHeightAnimation.direction() == QVariantAnimation::Forward && _visible)
             || (d->documentDraftsHeightAnimation.direction() == QVariantAnimation::Backward
                 && !_visible)) {
@@ -277,11 +342,19 @@ void ProjectView::setDraftsVisible(bool _visible)
         d->documentDraftsHeightAnimation.stop();
     }
 
-    if (d->documentDrafts->isVisible() == _visible) {
+    //
+    // Aula 122 (fix barra congelada): tras interrumpir la animación contraria
+    // NO basta comparar isVisible() — la barra queda "visible" pero con altura
+    // fija parcial (~0px) y todas las llamadas posteriores con true rebotaban
+    // aquí, dejándola invisible para siempre (visto con los borradores de EDLP
+    // al restaurar el proyecto). Tras una interrupción SIEMPRE se relanza la
+    // animación en la dirección correcta.
+    //
+    if (!wasAnimationInterrupted && d->documentDrafts->isVisible() == _visible) {
         return;
     }
 
-    if (_visible) {
+    if (_visible && !d->documentDrafts->isVisible()) {
         d->documentDrafts->setFixedHeight(0);
         d->documentDrafts->show();
     }
@@ -298,6 +371,21 @@ int ProjectView::currentDraft() const
 void ProjectView::setCurrentDraft(int _index)
 {
     d->documentDrafts->setCurrentTab(_index);
+}
+
+void ProjectView::setDraftCreationEnabled(bool _enabled)
+{
+    d->draftCreationEnabled = _enabled;
+    d->createDraftButton->setVisible(_enabled && d->documentDrafts->isVisible());
+}
+
+void ProjectView::setFullScreenMode(bool _isFullScreen)
+{
+    d->isFullScreenMode = _isFullScreen;
+    d->fullscreenButton->setIcon(_isFullScreen ? u8"\U000F0294"   // fullscreen-exit (MDI)
+                                               : u8"\U000F0293"); // fullscreen (MDI)
+    d->fullscreenButton->setToolTip(_isFullScreen ? tr("Salir de pantalla completa")
+                                                  : tr("Pantalla completa"));
 }
 
 void ProjectView::resizeEvent(QResizeEvent* _event)
@@ -322,6 +410,11 @@ void ProjectView::updateTranslations()
         tr("Ooops... looks like editor of this document not implemented yet."));
     d->notImplementedPageBodyLabel->setText(
         tr("But don't worry, it will be here in one of the future updates!"));
+
+    d->createDraftButton->setToolTip(tr("Nuevo borrador"));
+    d->sprintButton->setToolTip(tr("Sprint de escritura"));
+    d->fullscreenButton->setToolTip(d->isFullScreenMode ? tr("Salir de pantalla completa")
+                                                        : tr("Pantalla completa"));
 }
 
 void ProjectView::designSystemChangeEvent(DesignSystemChangeEvent* _event)
@@ -372,6 +465,21 @@ void ProjectView::designSystemChangeEvent(DesignSystemChangeEvent* _event)
     d->documentEditorPage->setBackgroundColor(DesignSystem::color().surface());
     d->documentDrafts->setBackgroundColor(ColorHelper::nearby(DesignSystem::color().background()));
     d->documentDrafts->setTextColor(DesignSystem::color().onBackground());
+    //
+    // Aula 122: el botón "+" comparte estilo con la barra de borradores y se
+    // acota a su misma altura para que la fila no crezca
+    //
+    for (auto button : { d->createDraftButton, d->sprintButton, d->fullscreenButton }) {
+        button->setBackgroundColor(ColorHelper::nearby(DesignSystem::color().background()));
+        button->setTextColor(DesignSystem::color().onBackground());
+    }
+    // (el alto real se fija en setDocumentDrafts; aquí solo si ya hay pestañas)
+    const int draftsBarHeight = d->documentDrafts->sizeHint().height();
+    if (draftsBarHeight > 0) {
+        for (auto button : { d->createDraftButton, d->sprintButton, d->fullscreenButton }) {
+            button->setFixedSize(draftsBarHeight, draftsBarHeight);
+        }
+    }
     d->documentEditor->setBackgroundColor(DesignSystem::color().surface());
 
     d->overlay->setBackgroundColor(backgroundColor());

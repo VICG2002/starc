@@ -224,16 +224,23 @@ MenuView::Implementation::Implementation(MenuView* _parent)
         settings->setSeparator(true);
         //
         // Aula 122 / Bloque 5: desglose nativo del guion
+        // Aula 122: pre-producción OCULTA del menú (decisión 2026-06-09). El plugin
+        // screenplay_breakdown_native sigue compilado y showBreakdown() vivo; para
+        // reactivar: setVisible(true) aquí + quitar `hidden` a #aula122-desglose-btn
+        // en ai/odysseus/static/index.html.
         //
         breakdown->setIconText(u8"\U000F0B2A"); // format-list-checks (MDI)
         breakdown->setCheckable(true);
-        breakdown->setVisible(true);
+        breakdown->setVisible(false);
         //
         // Aula 122 / Bloque 7: plan de rodaje (strip board + crew + call sheets)
+        // Aula 122: oculto del menú (decisión 2026-06-09), mismo criterio que el
+        // desglose; el plugin production_schedule sigue compilado. Para reactivar:
+        // setVisible(true) + quitar `hidden` a #aula122-plan-rodaje-btn en index.html.
         //
         production->setIconText(u8"\U000F00ED"); // calendar-clock (MDI)
         production->setCheckable(true);
-        production->setVisible(true);
+        production->setVisible(false);
         //
         // Aula 122 / Fase 4: Odiseo — workspace IA completo (odysseus) embebido
         //
@@ -241,17 +248,19 @@ MenuView::Implementation::Implementation(MenuView* _parent)
         odysseus->setCheckable(true);
         odysseus->setVisible(true);
         //
-        // Aula 122 — etapas del pipeline sin plugin propio: visibles pero deshabilitadas
-        // (codepoints MDI válidos cosechados de document_object.cpp). Se habilitan al portar su vista.
+        // Aula 122 — etapas del pipeline sin plugin propio: OCULTAS (decisión
+        // 2026-06-09: el menú vuelve a lo propio de STARC; la pre-producción
+        // regresará cuando se mejore). Eran placeholders deshabilitados; para
+        // reactivar alguna: setVisible(true).
         //
-        idea->setIconText(u8"\U000F021A");       idea->setVisible(true);       idea->setEnabled(false);
-        crew->setIconText(u8"\U000F0004");       crew->setVisible(true);       crew->setEnabled(false);
-        budget->setIconText(u8"\U000F0127");     budget->setVisible(true);     budget->setEnabled(false);
-        shotList->setIconText(u8"\U000F024F");   shotList->setVisible(true);   shotList->setEnabled(false);
-        locations->setIconText(u8"\U000F0DD4");  locations->setVisible(true);  locations->setEnabled(false);
-        casting->setIconText(u8"\U000F0004");    casting->setVisible(true);    casting->setEnabled(false);
-        callSheet->setIconText(u8"\U000F00BE");  callSheet->setVisible(true);  callSheet->setEnabled(false);
-        characters->setIconText(u8"\U000F0849"); characters->setVisible(true); characters->setEnabled(false);
+        idea->setIconText(u8"\U000F021A");       idea->setVisible(false);       idea->setEnabled(false);
+        crew->setIconText(u8"\U000F0004");       crew->setVisible(false);       crew->setEnabled(false);
+        budget->setIconText(u8"\U000F0127");     budget->setVisible(false);     budget->setEnabled(false);
+        shotList->setIconText(u8"\U000F024F");   shotList->setVisible(false);   shotList->setEnabled(false);
+        locations->setIconText(u8"\U000F0DD4");  locations->setVisible(false);  locations->setEnabled(false);
+        casting->setIconText(u8"\U000F0004");    casting->setVisible(false);    casting->setEnabled(false);
+        callSheet->setIconText(u8"\U000F00BE");  callSheet->setVisible(false);  callSheet->setEnabled(false);
+        characters->setIconText(u8"\U000F0849"); characters->setVisible(false); characters->setEnabled(false);
 
         QActionGroup* actions = new QActionGroup(_parent);
         actions->addAction(projects);

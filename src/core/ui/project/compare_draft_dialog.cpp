@@ -26,6 +26,10 @@ public:
 
     QHBoxLayout* buttonsLayout = nullptr;
     Button* cancelButton = nullptr;
+    //
+    // Aula 122: comparar lado a lado en split view (borrador viejo izq / nuevo der)
+    //
+    Button* sideBySideButton = nullptr;
     Button* compareButton = nullptr;
 };
 
@@ -37,14 +41,20 @@ CompareDraftDialog::Implementation::Implementation(QWidget* _parent)
     , rhsDraftModel(new QStringListModel(lhsDraft))
     , buttonsLayout(new QHBoxLayout)
     , cancelButton(new Button(_parent))
+    , sideBySideButton(new Button(_parent))
     , compareButton(new Button(_parent))
 {
     lhsDraft->setModel(lhsDraftModel);
     rhsDraft->setModel(rhsDraftModel);
 
+    // Aula 122: oculto por defecto; el manager lo habilita solo cuando se
+    // comparan borradores del MISMO documento (setSideBySideAvailable)
+    sideBySideButton->hide();
+
     buttonsLayout->setContentsMargins({});
     buttonsLayout->addStretch();
     buttonsLayout->addWidget(cancelButton);
+    buttonsLayout->addWidget(sideBySideButton);
     buttonsLayout->addWidget(compareButton);
 }
 
@@ -70,6 +80,10 @@ CompareDraftDialog::CompareDraftDialog(QWidget* _parent)
     connect(d->compareButton, &Button::clicked, this, [this] {
         emit comparePressed(d->lhsDraft->currentIndex().row(), d->rhsDraft->currentIndex().row());
     });
+    connect(d->sideBySideButton, &Button::clicked, this, [this] {
+        emit compareSideBySidePressed(d->lhsDraft->currentIndex().row(),
+                                      d->rhsDraft->currentIndex().row());
+    });
     connect(d->cancelButton, &Button::clicked, this, &CompareDraftDialog::hideDialog);
 }
 
@@ -90,6 +104,11 @@ void CompareDraftDialog::setDrafts(const QString& _lhsName, const QStringList& _
     d->rhsDraft->setCurrentText(_rhsDrafts.at(_selectRhsDraftIndex));
 }
 
+void CompareDraftDialog::setSideBySideAvailable(bool _available)
+{
+    d->sideBySideButton->setVisible(_available);
+}
+
 QWidget* CompareDraftDialog::focusedWidgetAfterShow() const
 {
     return d->lhsDraft;
@@ -106,6 +125,7 @@ void CompareDraftDialog::updateTranslations()
 
     d->draftHint->setText(tr("Select drafts to compare."));
     d->cancelButton->setText(tr("Cancel"));
+    d->sideBySideButton->setText(tr("Lado a lado"));
     d->compareButton->setText(tr("Compare"));
 }
 
@@ -129,6 +149,7 @@ void CompareDraftDialog::designSystemChangeEvent(DesignSystemChangeEvent* _event
     }
 
     UiHelper::initColorsFor(d->cancelButton, UiHelper::DialogDefault);
+    UiHelper::initColorsFor(d->sideBySideButton, UiHelper::DialogDefault);
     UiHelper::initColorsFor(d->compareButton, UiHelper::DialogAccept);
 
     d->buttonsLayout->setContentsMargins(

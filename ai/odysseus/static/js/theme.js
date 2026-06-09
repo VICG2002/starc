@@ -8,6 +8,11 @@ import { makeWindowDraggable } from './windowDrag.js';
 import { snapModalToZone } from './tileManager.js';
 
 export const THEMES = {
+  // Aula 122: tema de la casa — el negro del logo + los primarios de Tales
+  // (Tiempo cian #00b0e0 · Energía rojo #f01020 · Materia amarillo #f0f000).
+  // brandColor (accent) viaja al shell nativo vía _pushThemeToShell.
+  aula122:    { bg:'#0a0a0c', fg:'#cfeefb', panel:'#101014', border:'#0e5d7a', red:'#f01020',
+                advanced: { brandColor: '#00b0e0' } },
   dark:       { bg:'#282c34', fg:'#9cdef2', panel:'#111111', border:'#355a66', red:'#e06c75' },
   light:      { bg:'#f0ebe3', fg:'#5a5248', panel:'#faf6f0', border:'#d4cdc2', red:'#c47d5a' },
   midnight:   { bg:'#0d1117', fg:'#c9d1d9', panel:'#161b22', border:'#30363d', red:'#f85149' },
@@ -1153,7 +1158,7 @@ export function initThemeUI() {
         const fg = currentColors.fg || '#9cdef2';
         ec.value = fg;
         applyBgEffectColor('');
-        const s = getSaved(); if (s) _saveFull(s.name, s.colors);
+        const s = getSaved() || { name: DEFAULT_THEME, colors: THEMES[DEFAULT_THEME] }; _saveFull(s.name, s.colors); // Aula 122: persistir aunque no hubiera tema guardado (antes el ajuste se perdía al recargar)
       }
     });
   });
@@ -1203,7 +1208,7 @@ export function initThemeUI() {
     nf.value = _initFont;
     nf.addEventListener('change', () => {
       applyFontDensity(nf.value, document.getElementById('theme-density-select').value);
-      const s = getSaved(); if (s) _saveFull(s.name, s.colors);
+      const s = getSaved() || { name: DEFAULT_THEME, colors: THEMES[DEFAULT_THEME] }; _saveFull(s.name, s.colors); // Aula 122: persistir aunque no hubiera tema guardado (antes el ajuste se perdía al recargar)
     });
     // Fetch custom fonts from local folder and populate dropdown
     fetch('/api/fonts/custom', { credentials: 'same-origin' })
@@ -1229,7 +1234,7 @@ export function initThemeUI() {
     nd.value = _initDensity;
     nd.addEventListener('change', () => {
       applyFontDensity(document.getElementById('theme-font-select').value, nd.value);
-      const s = getSaved(); if (s) _saveFull(s.name, s.colors);
+      const s = getSaved() || { name: DEFAULT_THEME, colors: THEMES[DEFAULT_THEME] }; _saveFull(s.name, s.colors); // Aula 122: persistir aunque no hubiera tema guardado (antes el ajuste se perdía al recargar)
     });
   }
   if (patternSelect) {
@@ -1237,7 +1242,7 @@ export function initThemeUI() {
     np.value = _initPattern;
     np.addEventListener('change', () => {
       applyBgPattern(np.value);
-      const s = getSaved(); if (s) _saveFull(s.name, s.colors);
+      const s = getSaved() || { name: DEFAULT_THEME, colors: THEMES[DEFAULT_THEME] }; _saveFull(s.name, s.colors); // Aula 122: persistir aunque no hubiera tema guardado (antes el ajuste se perdía al recargar)
     });
   }
 
@@ -1246,7 +1251,7 @@ export function initThemeUI() {
     effectColorPicker.value = _initEffectColor || currentColors.fg || '#9cdef2';
     effectColorPicker.addEventListener('input', () => {
       applyBgEffectColor(effectColorPicker.value);
-      const s = getSaved(); if (s) _saveFull(s.name, s.colors);
+      const s = getSaved() || { name: DEFAULT_THEME, colors: THEMES[DEFAULT_THEME] }; _saveFull(s.name, s.colors); // Aula 122: persistir aunque no hubiera tema guardado (antes el ajuste se perdía al recargar)
     });
   }
 
@@ -1255,7 +1260,7 @@ export function initThemeUI() {
     intensitySlider.value = String(Math.round(_initEffectIntensity * 100));
     intensitySlider.addEventListener('input', () => {
       applyBgEffectIntensity(parseFloat(intensitySlider.value) / 100);
-      const s = getSaved(); if (s) _saveFull(s.name, s.colors);
+      const s = getSaved() || { name: DEFAULT_THEME, colors: THEMES[DEFAULT_THEME] }; _saveFull(s.name, s.colors); // Aula 122: persistir aunque no hubiera tema guardado (antes el ajuste se perdía al recargar)
     });
   }
 
@@ -1264,7 +1269,7 @@ export function initThemeUI() {
     sizeSlider.value = String(Math.round(_initEffectSize * 100));
     sizeSlider.addEventListener('input', () => {
       applyBgEffectSize(parseFloat(sizeSlider.value) / 100);
-      const s = getSaved(); if (s) _saveFull(s.name, s.colors);
+      const s = getSaved() || { name: DEFAULT_THEME, colors: THEMES[DEFAULT_THEME] }; _saveFull(s.name, s.colors); // Aula 122: persistir aunque no hubiera tema guardado (antes el ajuste se perdía al recargar)
     });
   }
 
@@ -1273,7 +1278,7 @@ export function initThemeUI() {
     frostedToggle.checked = _initFrosted;
     frostedToggle.addEventListener('change', () => {
       applyFrostedGlass(frostedToggle.checked);
-      const s = getSaved(); if (s) _saveFull(s.name, s.colors);
+      const s = getSaved() || { name: DEFAULT_THEME, colors: THEMES[DEFAULT_THEME] }; _saveFull(s.name, s.colors); // Aula 122: persistir aunque no hubiera tema guardado (antes el ajuste se perdía al recargar)
     });
   }
 

@@ -309,6 +309,11 @@ public:
      * @brief Сравнить документы с заданными индексами
      */
     void compareTextDocuments(const QModelIndex& _lhs, const QModelIndex& _rhs);
+    //
+    // Aula 122: comparar borradores del MISMO documento lado a lado en split view
+    // (_lhsTab/_rhsTab son posiciones de pestaña: 0 = borrador actual, i = drafts()[i-1])
+    //
+    void compareTextDocumentsSideBySide(const QModelIndex& _itemIndex, int _lhsTab, int _rhsTab);
     void compareTextDocumentsItems(BusinessLayer::StructureModelItem* _lhsItem,
                                    BusinessLayer::StructureModelItem* _rhsItem);
 
@@ -2058,6 +2063,39 @@ void ProjectManager::Implementation::compareTextDocuments(const QModelIndex& _lh
 
                     compareTextDocumentsItems(lhsItem, rhsItem);
                 });
+        //
+        // Aula 122: modo "Lado a lado" — solo cuando se comparan borradores del
+        // MISMO documento (el split view muestra dos borradores de un documento)
+        //
+        if (_lhs == _rhs) {
+            dialog->setSideBySideAvailable(true);
+            connect(dialog, &Ui::CompareDraftDialog::compareSideBySidePressed, view.active,
+                    [this, _lhs, dialog](int _lhsIndex, int _rhsIndex) {
+                        dialog->hideDialog();
+
+                        //
+                        // El índice del diálogo recorre solo borradores NO-comparación;
+                        // se traduce a posición de pestaña (que sí incluye comparaciones)
+                        //
+                        const auto item = aliasedItemForIndex(_lhs);
+                        const auto tabIndexFor = [item](int _dialogIndex) {
+                            if (_dialogIndex == 0) {
+                                return 0;
+                            }
+                            int index = 0;
+                            for (int draftIndex = 0; draftIndex < _dialogIndex;) {
+                                if (!item->drafts().at(index)->isComparison()) {
+                                    ++draftIndex;
+                                }
+                                ++index;
+                            }
+                            return index;
+                        };
+
+                        compareTextDocumentsSideBySide(_lhs, tabIndexFor(_lhsIndex),
+                                                       tabIndexFor(_rhsIndex));
+                    });
+        }
         connect(dialog, &Ui::CompareDraftDialog::disappeared, dialog,
                 &Ui::CreateDraftDialog::deleteLater);
 
@@ -2124,6 +2162,60 @@ void ProjectManager::Implementation::compareTextDocumentsItems(
     // Открыть получившийся драфт в режиме отображения дифа
     //
     view.active->setCurrentDraft(comparisonDraftHostItem->drafts().size());
+}
+
+void ProjectManager::Implementation::compareTextDocumentsSideBySide(const QModelIndex& _itemIndex,
+                                                                    int _lhsTab, int _rhsTab)
+{
+    //
+    // Aula 122: borrador "viejo" en el panel IZQUIERDO y "nuevo" en el DERECHO.
+    // Reusa el split view (F2) y el mecanismo de pestañas de borradores por panel;
+    // no toca el differ (la comparación inline con marcas sigue disponible).
+    //
+    if (!_itemIndex.isValid()) {
+        return;
+    }
+
+    //
+    // Activar el split si no está activo (mismo camino que el botón F2; el
+    // handler del toggle corre síncrono y deja el panel derecho visible)
+    //
+    if (!splitScreenAction->isChecked()) {
+        splitScreenAction->setChecked(true);
+    }
+
+    const auto itemProxyIndex = projectStructureProxyModel->mapFromSource(_itemIndex);
+
+    //
+    // Apuntar un panel al documento (si el split ya existía con otro documento)
+    // y fijar su borrador. El navegador debe apuntar al documento ANTES de
+    // cambiar la pestaña: el handler de showDraftPressed resuelve el item
+    // desde navigator->currentIndex().
+    //
+    const auto showDraftInActiveView = [this, &_itemIndex, &itemProxyIndex](int _draftTab) {
+        if (view.activeIndex != _itemIndex) {
+            q->showView(itemProxyIndex);
+        }
+        {
+            QSignalBlocker signalBlocker(navigator);
+            navigator->setCurrentIndex(itemProxyIndex);
+        }
+        view.active->setCurrentDraft(_draftTab);
+    };
+
+    //
+    // Panel IZQUIERDO = borrador viejo (lhs)
+    //
+    if (view.active != view.left) {
+        switchViews();
+    }
+    showDraftInActiveView(_lhsTab);
+
+    //
+    // Panel DERECHO = borrador nuevo (rhs) — queda activo para seguir trabajando
+    //
+    switchViews();
+    showDraftInActiveView(_rhsTab);
 }
 
 void ProjectManager::Implementation::emptyRecycleBin()
@@ -2807,9 +2899,16 @@ ProjectManager::ProjectManager(QObject* _parent, QWidget* _parentWidget,
             [this] { d->view.active->setDraftsVisible(true); });
     connect(d->projectStructureModel, &BusinessLayer::StructureModel::draftRemoved, this,
             [this](const QUuid& _uuid) {
-                const auto draftsCount
-                    = d->projectStructureModel->itemForUuid(_uuid)->drafts().count();
-                d->view.active->setDraftsVisible(draftsCount > 0);
+                //
+                // Aula 122: en documentos de texto editables la barra permanece
+                // visible (pestaña del borrador actual + botón "+") aunque se
+                // borre el último borrador
+                //
+                const auto item = d->projectStructureModel->itemForUuid(_uuid);
+                const bool canCreateDraft = item != nullptr && isTextItem(item)
+                    && d->documentEditingMode(item) == DocumentEditingMode::Edit;
+                const auto draftsCount = item != nullptr ? item->drafts().count() : 0;
+                d->view.active->setDraftsVisible(draftsCount > 0 || canCreateDraft);
             });
 
     //
@@ -2817,6 +2916,27 @@ ProjectManager::ProjectManager(QObject* _parent, QWidget* _parentWidget,
     //
     for (auto view : { d->view.left, d->view.right }) {
         connect(view, &Ui::ProjectView::createNewItemPressed, this, [this] { d->addDocument(); });
+        //
+        // Aula 122: botón "+" de la barra de borradores → MISMO flujo que la
+        // opción "Create draft" del menú contextual
+        //
+        connect(view, &Ui::ProjectView::createNewDraftPressed, this, [this] {
+            const auto currentItemIndex
+                = d->projectStructureProxyModel->mapToSource(d->navigator->currentIndex());
+            if (!currentItemIndex.isValid()) {
+                return;
+            }
+            d->createNewDraft(currentItemIndex);
+        });
+        //
+        // Aula 122: sprint y pantalla completa desde la barra de borradores —
+        // se re-emiten para que ApplicationManager los enrute a los MISMOS
+        // slots que las acciones del ☰ / del puente de Odiseo
+        //
+        connect(view, &Ui::ProjectView::sprintPressed, this,
+                &ProjectManager::writingSprintRequested);
+        connect(view, &Ui::ProjectView::fullscreenPressed, this,
+                &ProjectManager::fullscreenRequested);
         connect(view, &Ui::ProjectView::showDraftPressed, this, [this](int _draftIndex) {
             const auto currentItemIndex
                 = d->projectStructureProxyModel->mapToSource(d->navigator->currentIndex());
@@ -3522,6 +3642,15 @@ void ProjectManager::toggleFullScreen(bool _isFullScreen)
     d->splitScreenAction->setEnabled(!_isFullScreen);
 
     //
+    // Aula 122: el botón ⛶ de la barra de borradores refleja el modo — en
+    // pantalla completa cambia al icono/tooltip de "salir" (es el único botón
+    // de salida visible desde que se quitó el flotante de ApplicationView)
+    //
+    for (auto view : { d->view.left, d->view.right }) {
+        view->setFullScreenMode(_isFullScreen);
+    }
+
+    //
     // При переходе в полноэкранный режим, если активировано разделение экрана, то скроем неактивный
     // редактор и запомним состояние разделения
     //
@@ -3530,7 +3659,13 @@ void ProjectManager::toggleFullScreen(bool _isFullScreen)
             d->view.stateBeforeFullscreen = d->view.container->saveState();
             d->view.inactive->hide();
         }
-        d->view.active->setDraftsVisible(false);
+        //
+        // Aula 122: la barra de borradores ya NO se oculta en pantalla completa
+        // (decisión de Victor 2026-06-09): ahí viven el cambio de borrador, el
+        // "+", el sprint y el propio botón para SALIR de pantalla completa —
+        // ocultarla dejaba al usuario sin esos controles. (Antes upstream hacía
+        // setDraftsVisible(false) aquí.)
+        //
     }
 
     //
@@ -3553,7 +3688,14 @@ void ProjectManager::toggleFullScreen(bool _isFullScreen)
         }
 
         const auto item = d->aliasedItemForIndex(d->view.activeIndex);
-        d->view.active->setDraftsVisible(item->drafts().count() > 0);
+        //
+        // Aula 122: misma condición que showView — el botón "+" reaparece al
+        // salir de pantalla completa en documentos de texto editables
+        //
+        const bool canCreateDraft = item != nullptr && isTextItem(item)
+            && d->documentEditingMode(item) == DocumentEditingMode::Edit;
+        d->view.active->setDraftsVisible((item != nullptr && item->drafts().count() > 0)
+                                         || canCreateDraft);
     }
 }
 
@@ -5773,8 +5915,13 @@ void ProjectManager::showView(const QModelIndex& _itemIndex, const QString& _vie
 
     //
     // Установим видимость панели драфтов
+    // Aula 122: la barra también se muestra (pestaña única + botón "+") en
+    // documentos de texto editables sin borradores, para poder crear el primero
     //
-    d->view.active->setDraftsVisible(aliasedItem->drafts().count() > 0);
+    const bool canCreateDraft = isTextItem(aliasedItem)
+        && d->documentEditingMode(aliasedItem) == DocumentEditingMode::Edit;
+    d->view.active->setDraftCreationEnabled(canCreateDraft);
+    d->view.active->setDraftsVisible(aliasedItem->drafts().count() > 0 || canCreateDraft);
 
     //
     // Настроим уведомления плагина

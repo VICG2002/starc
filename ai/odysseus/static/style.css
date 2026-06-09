@@ -34461,3 +34461,9 @@ body.theme-frosted .modal {
   background-color: color-mix(in srgb, var(--accent, var(--red)) 10%, transparent);
   transform: translateX(1px);
 }
+
+/* Aula 122: el atributo `hidden` debe ganar SIEMPRE. Las reglas tipo
+   `.list-item { display: flex }` / `.settings-nav-item { display: flex }` lo
+   pisaban (especificidad), y las filas ocultas del sidebar (pre-producción) y
+   la pestaña "Aula 122" del modal de ajustes seguían visibles. Reset estándar. */
+[hidden] { display: none !important; }
