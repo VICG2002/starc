@@ -268,6 +268,13 @@ signals:
     void menuRequested();
 
     /**
+     * @brief Aula 122: botones de la barra de borradores junto al "+" —
+     *        sprint de escritura y pantalla completa (re-emitidos desde ProjectView)
+     */
+    void writingSprintRequested();
+    void fullscreenRequested();
+
+    /**
      * @brief Запрос на апгрейд аккаунта из одного из плагинов
      */
     void upgradeToProRequested();
