@@ -30,14 +30,28 @@
 
 #include <QAction>
 #include <QCoreApplication>
+#include <QDialog>
+#include <QDialogButtonBox>
 #include <QDir>
+#include <QFile>
+#include <QJsonArray>
+#include <QJsonDocument>
+#include <QJsonObject>
+#include <QLabel>
 #include <QLocale>
 #include <QMenu>
 #include <QMimeData>
+#include <QNetworkAccessManager>
+#include <QNetworkCookie>
+#include <QNetworkCookieJar>
+#include <QNetworkReply>
+#include <QNetworkRequest>
 #include <QPainter>
 #include <QPointer>
+#include <QTextEdit>
 #include <QTextTable>
 #include <QTimer>
+#include <QVBoxLayout>
 
 using BusinessLayer::TemplatesFacade;
 using BusinessLayer::TextBlockStyle;
@@ -47,6 +61,177 @@ namespace Ui {
 
 namespace {
 const QLatin1String kMarkdownMimeType("text/markdown");
+
+//
+// Aula 122 — Revisión RAE (contextual): manda texto al punto único de IA
+// (POST /api/ai/proofread del gateway de Odiseo) y muestra las sugerencias.
+// Mismo patrón de autenticación que el desglose (cookie odysseus_session).
+//
+
+/**
+ * @brief Tope local de texto a revisar (el endpoint también capa en 12K)
+ */
+constexpr int kProofreadMaxChars = 12000;
+
+/**
+ * @brief Lee el token de sesión de Odiseo (mismo archivo que usa el workspace web)
+ */
+QString readOdysseusToken()
+{
+    QFile f(QDir::homePath()
+            + QStringLiteral("/Library/Application Support/Diez50/Aula 122/odysseus_session"));
+    if (!f.open(QIODevice::ReadOnly | QIODevice::Text)) {
+        return {};
+    }
+    return QString::fromUtf8(f.readAll()).trimmed();
+}
+
+/**
+ * @brief Texto de la escena que contiene al bloque dado (del encabezado de la
+ *        escena hasta el siguiente encabezado), para revisar con contexto
+ */
+QString sceneTextAroundBlock(const QTextBlock& _block)
+{
+    //
+    // ... retroceder hasta el encabezado de la escena (o el inicio del documento)
+    //
+    auto startBlock = _block;
+    while (startBlock.isValid()
+           && TextBlockStyle::forBlock(startBlock) != TextParagraphType::SceneHeading
+           && startBlock.previous().isValid()) {
+        startBlock = startBlock.previous();
+    }
+
+    //
+    // ... concatenar los bloques hasta el siguiente encabezado de escena
+    //
+    QString result;
+    for (auto block = startBlock; block.isValid(); block = block.next()) {
+        if (block != startBlock
+            && TextBlockStyle::forBlock(block) == TextParagraphType::SceneHeading) {
+            break;
+        }
+        if (!block.text().isEmpty()) {
+            result += block.text();
+            result += QLatin1Char('\n');
+        }
+        if (result.size() > kProofreadMaxChars) {
+            break;
+        }
+    }
+    return result;
+}
+
+/**
+ * @brief Modal de progreso + resultado de la revisión RAE contextual.
+ *        Solo propone: el autor aplica a mano lo que le convenza.
+ */
+class ProofreadDialog : public QDialog
+{
+public:
+    ProofreadDialog(const QString& _text, QWidget* _parent)
+        : QDialog(_parent)
+    {
+        setWindowTitle(QObject::tr("Revisión RAE (contextual)"));
+        // setMinimumSize y no resize(): con open() el layout re-encogía la
+        // ventana a su mínimo (~150px) — visto en la verificación en GUI
+        setMinimumSize(700, 500);
+
+        m_statusLabel = new QLabel(QObject::tr("Revisando con la IA... puede tardar unos segundos."),
+                                   this);
+        m_outputEdit = new QTextEdit(this);
+        m_outputEdit->setReadOnly(true);
+
+        auto* buttons = new QDialogButtonBox(QDialogButtonBox::Close, this);
+        connect(buttons, &QDialogButtonBox::rejected, this, &QDialog::reject);
+
+        auto* layout = new QVBoxLayout(this);
+        layout->addWidget(m_statusLabel);
+        layout->addWidget(m_outputEdit, 1);
+        layout->addWidget(buttons);
+
+        start(_text);
+    }
+
+private:
+    void start(const QString& _text)
+    {
+        const QString token = readOdysseusToken();
+        if (token.isEmpty()) {
+            m_statusLabel->setText(QObject::tr("El gateway de IA no está disponible."));
+            m_outputEdit->setPlainText(
+                QObject::tr("No se encontró la sesión de Odiseo. Abre Odiseo (botón del menú) "
+                            "y vuelve a intentar."));
+            return;
+        }
+
+        m_net = new QNetworkAccessManager(this);
+        QNetworkCookie cookie(QByteArrayLiteral("odysseus_session"), token.toUtf8());
+        cookie.setDomain(QStringLiteral("127.0.0.1"));
+        cookie.setPath(QStringLiteral("/"));
+        m_net->cookieJar()->insertCookie(cookie);
+
+        QNetworkRequest req(QUrl(QStringLiteral("http://127.0.0.1:7860/api/ai/proofread")));
+        req.setHeader(QNetworkRequest::ContentTypeHeader, QStringLiteral("application/json"));
+        req.setTransferTimeout(300000);
+        QJsonObject reqBody;
+        reqBody.insert(QStringLiteral("text"), _text);
+        QNetworkReply* reply
+            = m_net->post(req, QJsonDocument(reqBody).toJson(QJsonDocument::Compact));
+        connect(reply, &QNetworkReply::finished, this, [this, reply] {
+            reply->deleteLater();
+            const int status = reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt();
+            if (reply->error() != QNetworkReply::NoError || status != 200) {
+                m_statusLabel->setText(QObject::tr("Falló la revisión."));
+                m_outputEdit->setPlainText(QObject::tr("El gateway de IA no respondió (¿Odiseo "
+                                                       "está corriendo?). Detalle: %1")
+                                               .arg(reply->errorString()));
+                return;
+            }
+            showSuggestions(QJsonDocument::fromJson(reply->readAll()).object());
+        });
+    }
+
+    void showSuggestions(const QJsonObject& _response)
+    {
+        const auto suggestions = _response.value(QStringLiteral("suggestions")).toArray();
+        const auto raw = _response.value(QStringLiteral("raw")).toString();
+        const auto backend = _response.value(QStringLiteral("backend")).toString();
+
+        if (suggestions.isEmpty()) {
+            m_statusLabel->setText(QObject::tr("Listo (revisado con %1).").arg(backend));
+            m_outputEdit->setPlainText(
+                raw.trimmed().isEmpty()
+                    ? QObject::tr("Sin correcciones: el texto se ve bien según la RAE.")
+                    : raw);
+            return;
+        }
+
+        QString report;
+        int number = 1;
+        for (const auto& suggestionValue : suggestions) {
+            const auto suggestion = suggestionValue.toObject();
+            report += QStringLiteral("%1. «%2» → «%3»\n")
+                          .arg(QString::number(number++),
+                               suggestion.value(QStringLiteral("original")).toString(),
+                               suggestion.value(QStringLiteral("correccion")).toString());
+            const auto tipo = suggestion.value(QStringLiteral("tipo")).toString();
+            const auto explicacion = suggestion.value(QStringLiteral("explicacion")).toString();
+            if (!tipo.isEmpty() || !explicacion.isEmpty()) {
+                report += QStringLiteral("   [%1] %2\n").arg(tipo, explicacion);
+            }
+            report += QLatin1Char('\n');
+        }
+        m_statusLabel->setText(QObject::tr("%1 sugerencias (revisado con %2). Aplica a mano "
+                                           "las que te convenzan.")
+                                   .arg(QString::number(suggestions.size()), backend));
+        m_outputEdit->setPlainText(report);
+    }
+
+    QLabel* m_statusLabel = nullptr;
+    QTextEdit* m_outputEdit = nullptr;
+    QNetworkAccessManager* m_net = nullptr;
+};
 }
 
 class ScreenplayTextEdit::Implementation
@@ -1817,6 +2002,32 @@ ContextMenu* ScreenplayTextEdit::createContextMenu(const QPoint& _position, QWid
     for (auto action : std::as_const(formattingActions)) {
         action->setParent(formattingMenu);
     }
+
+    //
+    // Aula 122: revisión ortotipográfica CONTEXTUAL conforme a la RAE vigente,
+    // vía el punto único de IA (gateway de Odiseo). Revisa la selección o, sin
+    // selección, la escena completa bajo el cursor. Solo propone — no aplica.
+    //
+    auto proofreadAction = new QAction(this);
+    proofreadAction->setSeparator(true);
+    proofreadAction->setText(tr("Revisión RAE (contextual)"));
+    proofreadAction->setIconText(u8"\U000F04C6"); // spellcheck (MDI)
+    connect(proofreadAction, &QAction::triggered, this, [this] {
+        const BusinessLayer::TextCursor currentCursor = textCursor();
+        QString textToReview = currentCursor.selectedText();
+        textToReview.replace(QChar(QChar::ParagraphSeparator), QLatin1Char('\n'));
+        if (textToReview.trimmed().isEmpty()) {
+            textToReview = sceneTextAroundBlock(currentCursor.block());
+        }
+        if (textToReview.trimmed().isEmpty()) {
+            return;
+        }
+        auto dialog = new ProofreadDialog(textToReview.left(kProofreadMaxChars), window());
+        dialog->setAttribute(Qt::WA_DeleteOnClose);
+        dialog->open();
+    });
+    actions.append(proofreadAction);
+
     menu->setActions(actions);
 
     return menu;
