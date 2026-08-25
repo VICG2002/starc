@@ -72,6 +72,12 @@ const QLatin1String kMarkdownMimeType("text/markdown");
 constexpr int kProofreadMaxChars = 12000;
 
 /**
+ * @brief Espera antes de abrir el diálogo, para que el menú contextual termine
+ *        su animación de cierre (ver el comentario en la acción del menú).
+ */
+constexpr int kProofreadDialogDelayMs = 350;
+
+/**
  * @brief Instrucciones de la revisión (portadas del antiguo gateway de IA)
  */
 const QLatin1String kProofreadSystem(
@@ -277,11 +283,22 @@ private:
     void showSuggestions(const QJsonArray& _suggestions, const QString& _raw)
     {
         if (_suggestions.isEmpty()) {
-            m_statusLabel->setText(QObject::tr("Listo (revisado con Claude)."));
-            m_outputEdit->setPlainText(
-                _raw.trimmed().isEmpty() || _raw.trimmed() == QStringLiteral("[]")
-                    ? QObject::tr("Sin correcciones: el texto se ve bien según la RAE.")
-                    : _raw);
+            //
+            // Sin sugerencias hay dos casos muy distintos: el texto está bien, o
+            // el CLI devolvió algo que no es la lista JSON (típicamente un error
+            // de sesión: "OAuth access token has expired"). Anunciar ambos como
+            // "Listo" haría pasar un fallo por un texto impecable.
+            //
+            const QString raw = _raw.trimmed();
+            if (raw.isEmpty() || raw == QStringLiteral("[]")) {
+                m_statusLabel->setText(QObject::tr("Listo (revisado con Claude)."));
+                m_outputEdit->setPlainText(
+                    QObject::tr("Sin correcciones: el texto se ve bien según la RAE."));
+            } else {
+                m_statusLabel->setText(
+                    QObject::tr("Claude no devolvió correcciones. Respuesta cruda:"));
+                m_outputEdit->setPlainText(raw);
+            }
             return;
         }
 
@@ -2100,9 +2117,27 @@ ContextMenu* ScreenplayTextEdit::createContextMenu(const QPoint& _position, QWid
         if (textToReview.trimmed().isEmpty()) {
             return;
         }
-        auto dialog = new ProofreadDialog(textToReview.left(kProofreadMaxChars), window());
-        dialog->setAttribute(Qt::WA_DeleteOnClose);
-        dialog->open();
+        //
+        // El diálogo se crea DESPUÉS de que el menú contextual termine de cerrarse.
+        // Creándolo dentro del triggered, la ventana nacía con geometría correcta
+        // pero nunca se mapeaba a pantalla: el cierre animado del ContextMenu se
+        // come el orden de ventanas (diagnosticado en GUI el 2026-08-25 —
+        // CGWindowList mostraba la ventana con onscreen=false).
+        //
+        const QString texto = textToReview.left(kProofreadMaxChars);
+        QTimer::singleShot(kProofreadDialogDelayMs, this, [texto] {
+            //
+            // SIN padre: con la ventana principal como padre, la ventana nacía con
+            // geometría correcta pero nunca llegaba a la pantalla (CGWindowList la
+            // reportaba onscreen=false). Al ser top-level independiente se mapea
+            // normalmente. WA_DeleteOnClose se encarga de destruirla al cerrar.
+            //
+            auto dialog = new ProofreadDialog(texto, nullptr);
+            dialog->setAttribute(Qt::WA_DeleteOnClose);
+            dialog->show();
+            dialog->raise();
+            dialog->activateWindow();
+        });
     });
     actions.append(proofreadAction);
 
