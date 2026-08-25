@@ -47,7 +47,7 @@ con estos nombres (el código usa el código de idioma como nombre de archivo):
 ## Actualizar
 
 ```bash
-cd ai/seed/hunspell
+cd tools/hunspell-es
 for f in es_MX.aff es_MX.dic es_ES.aff es_ES.dic; do
   curl -fsSL -o "$f" "https://raw.githubusercontent.com/LibreOffice/dictionaries/master/es/$f"
 done
