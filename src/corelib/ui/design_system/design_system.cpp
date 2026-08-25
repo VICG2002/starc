@@ -324,15 +324,15 @@ public:
     QFont brandsBig = QFont("Font Awesome 6 Brands");
 };
 
-// Aula 122: familia de fuente de la UI nativa, sincronizable con Odiseo en vivo (setUiFontFamily()).
-// Por defecto Fira Code (la fuente de Odiseo). El texto de GUION/SINOPSIS NO usa esta familia (usa su
+// Aula 122: familia de fuente de la UI nativa, cambiable en runtime (setUiFontFamily()).
+// Por defecto Fira Code. El texto de GUION/SINOPSIS NO usa esta familia (usa su
 // plantilla Courier Prime), así que cambiar esto NO afecta el guion.
 static QString s_uiFontFamily = QStringLiteral("Fira Code");
 
 DesignSystem::Font::Implementation::Implementation(qreal _scaleFactor)
 {
-    // Aula 122: la UI nativa usa la familia sincronizada con Odiseo (Fira Code por defecto), con
-    // Roboto de respaldo para los glifos que falten.
+    // Aula 122: la UI nativa usa Fira Code por defecto, con Roboto de respaldo
+    // para los glifos que falten.
     QStringList fontFamilies = { s_uiFontFamily.trimmed().isEmpty() ? QStringLiteral("Fira Code")
                                                                     : s_uiFontFamily.trimmed(),
                                  QStringLiteral("Roboto") };
@@ -734,7 +734,7 @@ public:
     QSizeF bigIconSize = { 40.0, 40.0 };
     qreal iconsSpacing = 24.0;
     qreal leftTitleMargin = 72.0;
-    qreal shadowRadius = 6.0; // Aula 122: barra superior más plana (Material 12 → 6), look Odiseo
+    qreal shadowRadius = 6.0; // Aula 122: barra superior más plana (Material 12 → 6)
     QPointF shadowOffset = { 0.0, 3.0 };
 };
 

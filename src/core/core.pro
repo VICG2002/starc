@@ -9,7 +9,7 @@ TEMPLATE = lib
 CONFIG += plugin c++1z
 CONFIG += force_debug_info
 CONFIG += separate_debug_info
-QT += concurrent widgets multimedia network sql xml webenginewidgets
+QT += concurrent widgets multimedia network sql xml
 
 TARGET = coreplugin
 
@@ -49,7 +49,6 @@ DEPENDPATH += $$PWD/../3rd_party/webloader
 
 SOURCES += \
     management_layer/application_manager.cpp \
-    management_layer/brain_process_manager.cpp \
     management_layer/content/account/account_manager.cpp \
     management_layer/content/export/export_manager.cpp \
     management_layer/content/import/import_manager.cpp \
@@ -106,7 +105,6 @@ SOURCES += \
     ui/import/import_dialog.cpp \
     ui/import/import_file_delegate.cpp \
     ui/menu_view.cpp \
-    ui/odysseus_workspace_view.cpp \
     ui/notifications/credits_view.cpp \
     ui/notifications/release_view.cpp \
     ui/notifications/subscription_view.cpp \
@@ -150,7 +148,6 @@ SOURCES += \
 HEADERS += \
     core_global.h \
     management_layer/application_manager.h \
-    management_layer/brain_process_manager.h \
     management_layer/content/account/account_manager.h \
     management_layer/content/export/export_manager.h \
     management_layer/content/import/import_manager.h \
@@ -207,7 +204,6 @@ HEADERS += \
     ui/import/import_dialog.h \
     ui/import/import_file_delegate.h \
     ui/menu_view.h \
-    ui/odysseus_workspace_view.h \
     ui/notifications/credits_view.h \
     ui/notifications/release_view.h \
     ui/notifications/subscription_view.h \

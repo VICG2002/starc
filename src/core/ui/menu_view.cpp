@@ -58,8 +58,6 @@ public:
     QAction* settings = nullptr;
     QAction* breakdown = nullptr;
     QAction* production = nullptr;
-    // Aula 122 / Fase 4 — workspace completo de Odiseo (odysseus) embebido
-    QAction* odysseus = nullptr;
     // Aula 122 — etapas del pipeline aún sin plugin propio (placeholders)
     QAction* idea = nullptr;
     QAction* crew = nullptr;
@@ -113,7 +111,6 @@ MenuView::Implementation::Implementation(MenuView* _parent)
     , settings(new QAction)
     , breakdown(new QAction)
     , production(new QAction)
-    , odysseus(new QAction)
     , idea(new QAction)
     , crew(new QAction)
     , budget(new QAction)
@@ -167,7 +164,6 @@ MenuView::Implementation::Implementation(MenuView* _parent)
         drawer->addAction(production);  // Plan de rodaje (activo)
         drawer->addAction(callSheet);
         drawer->addAction(characters);
-        drawer->addAction(odysseus);    // Odiseo (workspace IA completo)
 
         drawer->setAccountActions({
             writingStatistics,
@@ -226,8 +222,7 @@ MenuView::Implementation::Implementation(MenuView* _parent)
         // Aula 122 / Bloque 5: desglose nativo del guion
         // Aula 122: pre-producción OCULTA del menú (decisión 2026-06-09). El plugin
         // screenplay_breakdown_native sigue compilado y showBreakdown() vivo; para
-        // reactivar: setVisible(true) aquí + quitar `hidden` a #aula122-desglose-btn
-        // en ai/odysseus/static/index.html.
+        // reactivar: setVisible(true) aquí.
         //
         breakdown->setIconText(u8"\U000F0B2A"); // format-list-checks (MDI)
         breakdown->setCheckable(true);
@@ -236,17 +231,11 @@ MenuView::Implementation::Implementation(MenuView* _parent)
         // Aula 122 / Bloque 7: plan de rodaje (strip board + crew + call sheets)
         // Aula 122: oculto del menú (decisión 2026-06-09), mismo criterio que el
         // desglose; el plugin production_schedule sigue compilado. Para reactivar:
-        // setVisible(true) + quitar `hidden` a #aula122-plan-rodaje-btn en index.html.
+        // setVisible(true).
         //
         production->setIconText(u8"\U000F00ED"); // calendar-clock (MDI)
         production->setCheckable(true);
         production->setVisible(false);
-        //
-        // Aula 122 / Fase 4: Odiseo — workspace IA completo (odysseus) embebido
-        //
-        odysseus->setIconText(u8"\U000F06A9"); // robot (MDI)
-        odysseus->setCheckable(true);
-        odysseus->setVisible(true);
         //
         // Aula 122 — etapas del pipeline sin plugin propio: OCULTAS (decisión
         // 2026-06-09: el menú vuelve a lo propio de STARC; la pre-producción
@@ -268,7 +257,6 @@ MenuView::Implementation::Implementation(MenuView* _parent)
         actions->addAction(settings);
         actions->addAction(breakdown);
         actions->addAction(production);
-        actions->addAction(odysseus);
 
         writingStatistics->setIconText(u8"\U000F085D");
         //
@@ -360,7 +348,6 @@ MenuView::MenuView(QWidget* _parent)
     connect(d->settings, &QAction::triggered, this, &MenuView::settingsPressed);
     connect(d->breakdown, &QAction::triggered, this, &MenuView::breakdownPressed);
     connect(d->production, &QAction::triggered, this, &MenuView::productionPressed);
-    connect(d->odysseus, &QAction::triggered, this, &MenuView::odysseusPressed);
     //
     connect(d->writingStatistics, &QAction::triggered, this, &MenuView::writingStatisticsPressed);
     connect(d->writingSprint, &QAction::triggered, this, &MenuView::writingSprintPressed);
@@ -390,7 +377,6 @@ MenuView::MenuView(QWidget* _parent)
     connect(this, &MenuView::settingsPressed, this, &MenuView::closeMenu);
     connect(this, &MenuView::breakdownPressed, this, &MenuView::closeMenu);
     connect(this, &MenuView::productionPressed, this, &MenuView::closeMenu);
-    connect(this, &MenuView::odysseusPressed, this, &MenuView::closeMenu);
     connect(this, &MenuView::helpPressed, this, &MenuView::closeMenu);
     //
     connect(this, &MenuView::writingStatisticsPressed, this, &MenuView::closeMenu);
@@ -504,12 +490,6 @@ void MenuView::checkProduction()
 {
     QSignalBlocker signalBlocker(this);
     d->production->setChecked(true);
-}
-
-void MenuView::checkOdysseus()
-{
-    QSignalBlocker signalBlocker(this);
-    d->odysseus->setChecked(true);
 }
 
 void MenuView::markChangesSaved(bool _saved)
@@ -663,7 +643,6 @@ void MenuView::updateTranslations()
     d->settings->setText(tr("Application settings"));
     d->breakdown->setText(tr("Desglose del guion"));
     d->production->setText(tr("Plan de rodaje"));
-    d->odysseus->setText(tr("Odiseo"));
     d->idea->setText(tr("Idea / Tratamiento"));
     d->crew->setText(tr("Crew / Equipo"));
     d->budget->setText(tr("Presupuesto"));

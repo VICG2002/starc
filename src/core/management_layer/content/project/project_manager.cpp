@@ -1111,12 +1111,6 @@ void ProjectManager::Implementation::addDocument(Domain::DocumentObjectType _typ
                 setCurrentIndex(itemForSelectIndex);
 
                 //
-                // Aula 122: avisamos que se añadió un documento → la barra de Odiseo se refresca
-                // para mostrarlo (al nivel superior, junto al Guion).
-                //
-                emit q->aula122DocumentAdded();
-
-                //
                 // Если исходный тип документа задан не был, то сохраним выбранный, чтобы
                 // переиспользовать его при следующем вызове диалога добавления документа
                 //
@@ -2931,7 +2925,7 @@ ProjectManager::ProjectManager(QObject* _parent, QWidget* _parentWidget,
         //
         // Aula 122: sprint y pantalla completa desde la barra de borradores —
         // se re-emiten para que ApplicationManager los enrute a los MISMOS
-        // slots que las acciones del ☰ / del puente de Odiseo
+        // slots que las acciones del ☰
         //
         connect(view, &Ui::ProjectView::sprintPressed, this,
                 &ProjectManager::writingSprintRequested);
@@ -3857,8 +3851,7 @@ void ProjectManager::loadCurrentProject(BusinessLayer::ProjectsModelProjectItem*
     // Aula 122 / A4: al abrir un proyecto aterrizamos en la INFORMACIÓN del proyecto — la pestaña
     // donde se edita el TÍTULO, el PÓSTER (portada) y la SINOPSIS corta (logline) — igual para
     // todos los proyectos (decisión del usuario: "que abra esa pestaña, igual que con EDLP").
-    // Sobrescribe el último documento restaurado. Las pestañas del sidebar de Odiseo
-    // (Guion/Personajes/…) van a su vista porque hacen showDocument DESPUÉS.
+    // Sobrescribe el último documento restaurado.
     //
     showDocument(Domain::DocumentObjectType::Project);
 
@@ -3972,9 +3965,8 @@ bool ProjectManager::showDocument(Domain::DocumentObjectType _type)
 bool ProjectManager::showDocumentByUuid(const QString& _uuid)
 {
     //
-    // Aula 122: misma mecánica que showDocument(tipo) pero buscando por UUID — el documento que el
-    // usuario clicó en el árbol reflejado en la barra de Odiseo. El uuid del SPA viene SIN llaves;
-    // QUuid::fromString las exige, así que las añadimos si faltan.
+    // Aula 122: misma mecánica que showDocument(tipo) pero buscando por UUID. El uuid puede venir
+    // SIN llaves; QUuid::fromString las exige, así que las añadimos si faltan.
     //
     auto* model = d->projectStructureModel;
     if (model == nullptr) {
@@ -4034,8 +4026,8 @@ bool ProjectManager::showDocumentByUuid(const QString& _uuid)
 void ProjectManager::createNewDocument()
 {
     //
-    // Aula 122: abrir el diálogo nativo "Añadir documento" (el menú de tipos) desde el puente de
-    // Odiseo. addDocument() coloca el documento RELATIVO al item seleccionado en el navegador. Para
+    // Aula 122: abrir el diálogo nativo "Añadir documento" (el menú de tipos).
+    // addDocument() coloca el documento RELATIVO al item seleccionado en el navegador. Para
     // que el documento nuevo caiga SIEMPRE al NIVEL SUPERIOR (misma jerarquía que el Guion, no
     // anidado bajo lo último que se vio), seleccionamos la RAÍZ del proyecto: su .parent() es la
     // raíz, así que el documento queda como hermano de Guion/Personajes/Locaciones.

@@ -1707,32 +1707,6 @@ void SettingsManager::reloadSettings()
     d->reloadSettings();
 }
 
-void SettingsManager::applyExternalApplicationSetting(const QString& _key, const QString& _value)
-{
-    //
-    // Aula 122: el panel "Aula 122" de Odiseo (web) pidió cambiar un ajuste nativo. Despachamos al
-    // MISMO setter privado que usa el panel de Ajustes nativo → persiste (setSettingsValue) y emite
-    // applicationXChanged, así corre idéntica la cadena de aplicación en vivo de ApplicationManager.
-    // Solo los ajustes editables inline; tema/idioma se controlan aparte (tema = Odiseo maestro).
-    //
-    const bool on = (_value == QLatin1String("true") || _value == QLatin1String("1"));
-    if (_key == QLatin1String("density")) {
-        setApplicationDensity(_value.toInt());
-    } else if (_key == QLatin1String("scale")) {
-        setApplicationScaleFactor(qBound(0.5, _value.toDouble(), 2.0)); // clamp: re-layout global
-    } else if (_key == QLatin1String("autoSave")) {
-        setApplicationUseAutoSave(on);
-    } else if (_key == QLatin1String("saveBackups")) {
-        setApplicationSaveBackups(on);
-    } else if (_key == QLatin1String("backupsQty")) {
-        setApplicationBackupsQty(qMax(1, _value.toInt()));
-    } else if (_key == QLatin1String("useSpellChecker")) {
-        setApplicationUseSpellChecker(on);
-    } else if (_key == QLatin1String("extendedLogging")) {
-        setAdvancedUseExtendedLogging(on);
-    }
-}
-
 bool SettingsManager::eventFilter(QObject* _watched, QEvent* _event)
 {
     if (_event->type() == QEvent::LanguageChange && _watched == d->view) {

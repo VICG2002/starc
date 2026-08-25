@@ -152,16 +152,15 @@ public:
 
     /**
      * @brief Aula 122: mostrar (seleccionar + abrir su editor) el documento cuyo uuid coincide.
-     *        Lo usa el puente de Odiseo cuando el usuario hace clic en un personaje/locación/
-     *        subdocumento del árbol reflejado en la barra. Devuelve false si no existe. El
-     *        navegador nativo puede estar oculto: la selección del modelo igual conduce al editor.
+     *        Devuelve false si no existe. El navegador nativo puede estar oculto: la selección
+     *        del modelo igual conduce al editor.
      */
     bool showDocumentByUuid(const QString& _uuid);
 
     /**
-     * @brief Aula 122: abrir el diálogo nativo "Añadir documento" (el menú de tipos), invocado
-     *        desde el puente de Odiseo. Si no hay selección en el navegador, selecciona la raíz del
-     *        proyecto antes (para no desreferenciar un item nulo).
+     * @brief Aula 122: abrir el diálogo nativo "Añadir documento" (el menú de tipos).
+     *        Si no hay selección en el navegador, selecciona la raíz del proyecto antes
+     *        (para no desreferenciar un item nulo).
      */
     void createNewDocument();
 
@@ -294,12 +293,6 @@ signals:
      * @brief Изменились данные
      */
     void contentsChanged(BusinessLayer::AbstractModel* _model);
-
-    /**
-     * @brief Aula 122: se AÑADIÓ un documento a la estructura (alta del usuario). La barra de
-     *        Odiseo se refresca para mostrarlo. No se emite en cada edición, solo al añadir.
-     */
-    void aula122DocumentAdded();
 
     /**
      * @brief Изменился гуид проекта

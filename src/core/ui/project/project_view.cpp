@@ -44,7 +44,7 @@ public:
     bool draftCreationEnabled = false;
     //
     // Aula 122: sprint de escritura y pantalla completa viven junto al "+"
-    // (pedido de Victor 2026-06-09; antes eran filas del sidebar de Odiseo)
+    // (pedido de Victor 2026-06-09)
     //
     IconButton* sprintButton = nullptr;
     IconButton* fullscreenButton = nullptr;

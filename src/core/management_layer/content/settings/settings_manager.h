@@ -49,13 +49,6 @@ public:
      */
     void reloadSettings();
 
-    /**
-     * @brief Aula 122: aplicar un ajuste de aplicación pedido desde el panel "Aula 122" de Odiseo
-     *        (web→nativo). Despacha al MISMO setter privado que usa el panel nativo → persiste y
-     *        aplica en vivo idéntico, sin duplicar lógica. _value llega como string desde el SPA.
-     */
-    void applyExternalApplicationSetting(const QString& _key, const QString& _value);
-
 signals:
     /**
      * @brief Пользователь хочет закрыть настройки
