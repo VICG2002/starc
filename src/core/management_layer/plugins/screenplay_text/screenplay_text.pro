@@ -3,7 +3,7 @@ TEMPLATE = lib
 CONFIG += plugin c++1z
 CONFIG += force_debug_info
 CONFIG += separate_debug_info
-QT += widgets network # Aula 122: network para la Revision RAE (gateway de IA)
+QT += widgets
 
 TARGET = screenplaytextplugin
 

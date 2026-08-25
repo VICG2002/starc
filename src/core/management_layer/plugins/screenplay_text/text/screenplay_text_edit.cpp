@@ -34,6 +34,7 @@
 #include <QDialogButtonBox>
 #include <QDir>
 #include <QFile>
+#include <QFileInfo>
 #include <QJsonArray>
 #include <QJsonDocument>
 #include <QJsonObject>
@@ -41,12 +42,8 @@
 #include <QLocale>
 #include <QMenu>
 #include <QMimeData>
-#include <QNetworkAccessManager>
-#include <QNetworkCookie>
-#include <QNetworkCookieJar>
-#include <QNetworkReply>
-#include <QNetworkRequest>
 #include <QPainter>
+#include <QProcess>
 #include <QPointer>
 #include <QTextEdit>
 #include <QTextTable>
@@ -63,27 +60,103 @@ namespace {
 const QLatin1String kMarkdownMimeType("text/markdown");
 
 //
-// Aula 122 — Revisión RAE (contextual): manda texto al punto único de IA
-// (POST /api/ai/proofread del gateway de Odiseo) y muestra las sugerencias.
-// Mismo patrón de autenticación que el desglose (cookie odysseus_session).
+// Aula 122 — Revisión RAE (contextual): manda la escena al CLI `claude`
+// (--print, sin --bare, stdin nulo — patrón validado del fork) y muestra
+// las sugerencias. La corrección NORMATIVA exige fiabilidad con la RAE
+// 2010+, por eso esta tarea es de Claude y no de hunspell palabra a palabra.
 //
 
 /**
- * @brief Tope local de texto a revisar (el endpoint también capa en 12K)
+ * @brief Tope local de texto a revisar (una escena larga cabe)
  */
 constexpr int kProofreadMaxChars = 12000;
 
 /**
- * @brief Lee el token de sesión de Odiseo (mismo archivo que usa el workspace web)
+ * @brief Instrucciones de la revisión (portadas del antiguo gateway de IA)
  */
-QString readOdysseusToken()
+const QLatin1String kProofreadSystem(
+    "Eres un corrector ortotipográfico profesional de español, con la Ortografía de la RAE "
+    "vigente (2010 y posteriores). Revisas texto de guiones cinematográficos: respeta la voz "
+    "del autor, los modismos mexicanos y la oralidad deliberada de los diálogos; los nombres "
+    "propios de personajes y locaciones NO son erratas. Aplica en particular: «solo» y los "
+    "demostrativos sin tilde; «guion», «truhan», «fie» sin tilde; prefijos unidos a la base "
+    "(«exmarido»); concordancia; homófonos por contexto (a ver/haber, haya/halla, "
+    "porqué/porque/por qué, sino/si no, echo/hecho); dequeísmo/queísmo; puntuación de incisos "
+    "y vocativos; raya de diálogo y signos de apertura ¿ ¡.\n\n"
+    "Devuelve SOLO un arreglo JSON (sin texto adicional ni fences). Cada elemento: "
+    "{\"original\": \"<fragmento exacto con el error>\", \"correccion\": \"<fragmento "
+    "corregido>\", \"tipo\": \"ortografia\"|\"gramatica\"|\"puntuacion\"|\"estilo\", "
+    "\"explicacion\": \"<regla, breve>\"}. Si no hay nada que corregir devuelve [].");
+
+/**
+ * @brief Buscar el CLI `claude` en ubicaciones típicas o en PATH.
+ */
+QString locateClaudeCli()
 {
-    QFile f(QDir::homePath()
-            + QStringLiteral("/Library/Application Support/Diez50/Aula 122/odysseus_session"));
-    if (!f.open(QIODevice::ReadOnly | QIODevice::Text)) {
-        return {};
+    const QStringList candidates = {
+        QDir::homePath() + QStringLiteral("/.local/bin/claude"),
+        QStringLiteral("/opt/homebrew/bin/claude"),
+        QStringLiteral("/usr/local/bin/claude"),
+    };
+    for (const auto& path : candidates) {
+        if (QFileInfo(path).isExecutable()) {
+            return path;
+        }
     }
-    return QString::fromUtf8(f.readAll()).trimmed();
+    QProcess which;
+    which.start(QStringLiteral("/usr/bin/which"), { QStringLiteral("claude") });
+    if (which.waitForFinished(2000) && which.exitCode() == 0) {
+        const QString out = QString::fromUtf8(which.readAllStandardOutput()).trimmed();
+        if (!out.isEmpty() && QFileInfo(out).isExecutable()) {
+            return out;
+        }
+    }
+    return QString();
+}
+
+/**
+ * @brief Saca el arreglo JSON de la respuesta del modelo (tolera fences y prosa).
+ *        Portado del antiguo gateway (_extract_suggestions).
+ */
+QJsonArray extractProofreadSuggestions(const QString& _raw)
+{
+    QString text = _raw.trimmed();
+    if (text.startsWith(QStringLiteral("```"))) {
+        while (text.startsWith(QLatin1Char('`'))) {
+            text.remove(0, 1);
+        }
+        while (text.endsWith(QLatin1Char('`'))) {
+            text.chop(1);
+        }
+        if (text.startsWith(QStringLiteral("json"), Qt::CaseInsensitive)) {
+            text.remove(0, 4);
+        }
+        text = text.trimmed();
+    }
+    const int begin = text.indexOf(QLatin1Char('['));
+    const int end = text.lastIndexOf(QLatin1Char(']'));
+    const QStringList candidates = {
+        text,
+        (begin >= 0 && end > begin) ? text.mid(begin, end - begin + 1) : QString(),
+    };
+    for (const auto& candidate : candidates) {
+        if (candidate.isEmpty()) {
+            continue;
+        }
+        const auto document = QJsonDocument::fromJson(candidate.toUtf8());
+        if (!document.isArray()) {
+            continue;
+        }
+        QJsonArray result;
+        for (const auto& value : document.array()) {
+            if (value.isObject()
+                && !value.toObject().value(QStringLiteral("original")).toString().isEmpty()) {
+                result.append(value);
+            }
+        }
+        return result;
+    }
+    return {};
 }
 
 /**
@@ -153,63 +226,68 @@ public:
         start(_text);
     }
 
+    ~ProofreadDialog() override
+    {
+        // Si el usuario cierra el diálogo a media consulta, el proceso del CLI
+        // no debe quedar huérfano consumiendo la sesión.
+        if (m_process != nullptr && m_process->state() != QProcess::NotRunning) {
+            disconnect(m_process, nullptr, this, nullptr);
+            m_process->kill();
+            m_process->waitForFinished(1000);
+        }
+    }
+
 private:
     void start(const QString& _text)
     {
-        const QString token = readOdysseusToken();
-        if (token.isEmpty()) {
-            m_statusLabel->setText(QObject::tr("El gateway de IA no está disponible."));
+        const QString cliPath = locateClaudeCli();
+        if (cliPath.isEmpty()) {
+            m_statusLabel->setText(QObject::tr("CLI de claude no encontrado."));
             m_outputEdit->setPlainText(
-                QObject::tr("No se encontró la sesión de Odiseo. Abre Odiseo (botón del menú) "
-                            "y vuelve a intentar."));
+                QObject::tr("No se encontró el CLI de claude. Instálalo y autentícate con "
+                            "'claude auth login --claudeai'."));
             return;
         }
 
-        m_net = new QNetworkAccessManager(this);
-        QNetworkCookie cookie(QByteArrayLiteral("odysseus_session"), token.toUtf8());
-        cookie.setDomain(QStringLiteral("127.0.0.1"));
-        cookie.setPath(QStringLiteral("/"));
-        m_net->cookieJar()->insertCookie(cookie);
-
-        QNetworkRequest req(QUrl(QStringLiteral("http://127.0.0.1:7860/api/ai/proofread")));
-        req.setHeader(QNetworkRequest::ContentTypeHeader, QStringLiteral("application/json"));
-        req.setTransferTimeout(300000);
-        QJsonObject reqBody;
-        reqBody.insert(QStringLiteral("text"), _text);
-        QNetworkReply* reply
-            = m_net->post(req, QJsonDocument(reqBody).toJson(QJsonDocument::Compact));
-        connect(reply, &QNetworkReply::finished, this, [this, reply] {
-            reply->deleteLater();
-            const int status = reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt();
-            if (reply->error() != QNetworkReply::NoError || status != 200) {
-                m_statusLabel->setText(QObject::tr("Falló la revisión."));
-                m_outputEdit->setPlainText(QObject::tr("El gateway de IA no respondió (¿Odiseo "
-                                                       "está corriendo?). Detalle: %1")
-                                               .arg(reply->errorString()));
-                return;
-            }
-            showSuggestions(QJsonDocument::fromJson(reply->readAll()).object());
+        m_process = new QProcess(this);
+        m_process->setProgram(cliPath);
+        m_process->setStandardInputFile(QProcess::nullDevice());
+        m_process->setArguments({
+            QStringLiteral("--print"),
+            QStringLiteral("--output-format"),
+            QStringLiteral("text"),
+            kProofreadSystem + QStringLiteral("\n\nRevisa este texto:\n\n")
+                + _text.left(kProofreadMaxChars),
         });
+        connect(m_process, QOverload<int, QProcess::ExitStatus>::of(&QProcess::finished), this,
+                [this](int _code, QProcess::ExitStatus) {
+                    const QString stdout_ = QString::fromUtf8(m_process->readAllStandardOutput());
+                    const QString stderr_ = QString::fromUtf8(m_process->readAllStandardError());
+                    if (_code != 0 && stdout_.trimmed().isEmpty()) {
+                        m_statusLabel->setText(QObject::tr("Falló la revisión."));
+                        m_outputEdit->setPlainText(
+                            QObject::tr("Error al ejecutar Claude: %1").arg(stderr_));
+                        return;
+                    }
+                    showSuggestions(extractProofreadSuggestions(stdout_), stdout_);
+                });
+        m_process->start();
     }
 
-    void showSuggestions(const QJsonObject& _response)
+    void showSuggestions(const QJsonArray& _suggestions, const QString& _raw)
     {
-        const auto suggestions = _response.value(QStringLiteral("suggestions")).toArray();
-        const auto raw = _response.value(QStringLiteral("raw")).toString();
-        const auto backend = _response.value(QStringLiteral("backend")).toString();
-
-        if (suggestions.isEmpty()) {
-            m_statusLabel->setText(QObject::tr("Listo (revisado con %1).").arg(backend));
+        if (_suggestions.isEmpty()) {
+            m_statusLabel->setText(QObject::tr("Listo (revisado con Claude)."));
             m_outputEdit->setPlainText(
-                raw.trimmed().isEmpty()
+                _raw.trimmed().isEmpty() || _raw.trimmed() == QStringLiteral("[]")
                     ? QObject::tr("Sin correcciones: el texto se ve bien según la RAE.")
-                    : raw);
+                    : _raw);
             return;
         }
 
         QString report;
         int number = 1;
-        for (const auto& suggestionValue : suggestions) {
+        for (const auto& suggestionValue : _suggestions) {
             const auto suggestion = suggestionValue.toObject();
             report += QStringLiteral("%1. «%2» → «%3»\n")
                           .arg(QString::number(number++),
@@ -222,15 +300,15 @@ private:
             }
             report += QLatin1Char('\n');
         }
-        m_statusLabel->setText(QObject::tr("%1 sugerencias (revisado con %2). Aplica a mano "
+        m_statusLabel->setText(QObject::tr("%1 sugerencias (revisado con Claude). Aplica a mano "
                                            "las que te convenzan.")
-                                   .arg(QString::number(suggestions.size()), backend));
+                                   .arg(QString::number(_suggestions.size())));
         m_outputEdit->setPlainText(report);
     }
 
     QLabel* m_statusLabel = nullptr;
     QTextEdit* m_outputEdit = nullptr;
-    QNetworkAccessManager* m_net = nullptr;
+    QProcess* m_process = nullptr;
 };
 }
 
@@ -2005,8 +2083,8 @@ ContextMenu* ScreenplayTextEdit::createContextMenu(const QPoint& _position, QWid
 
     //
     // Aula 122: revisión ortotipográfica CONTEXTUAL conforme a la RAE vigente,
-    // vía el punto único de IA (gateway de Odiseo). Revisa la selección o, sin
-    // selección, la escena completa bajo el cursor. Solo propone — no aplica.
+    // vía el CLI de claude. Revisa la selección o, sin selección, la escena
+    // completa bajo el cursor. Solo propone — no aplica.
     //
     auto proofreadAction = new QAction(this);
     proofreadAction->setSeparator(true);

@@ -19,18 +19,11 @@
 #include <QFormLayout>
 #include <QHBoxLayout>
 #include <QHeaderView>
-#include <QJsonDocument>
-#include <QJsonObject>
 #include <QLabel>
 #include <QLineEdit>
 #include <QListWidget>
 #include <QMessageBox>
 #include <QDir>
-#include <QNetworkAccessManager>
-#include <QNetworkCookie>
-#include <QNetworkCookieJar>
-#include <QNetworkReply>
-#include <QNetworkRequest>
 #include <QPdfWriter>
 #include <QPointer>
 #include <QProcess>
@@ -684,8 +677,6 @@ namespace {
 
 /**
  * @brief Buscar el CLI `claude` en ubicaciones típicas o en PATH.
- *        Duplica la lógica de ClaudeClient::findClaudeCli del plugin
- *        writing_assistant — se considera mover a corelib en bloque futuro.
  */
 QString locateClaudeCli()
 {
@@ -708,20 +699,6 @@ QString locateClaudeCli()
         }
     }
     return QString();
-}
-
-/**
- * @brief Lee el token de sesión de Odiseo (mismo archivo que usa el workspace web).
- *        Permite que el core nativo llame al endpoint local autenticado.
- */
-QString readOdysseusToken()
-{
-    QFile f(QDir::homePath()
-            + QStringLiteral("/Library/Application Support/Diez50/Aula 122/odysseus_session"));
-    if (!f.open(QIODevice::ReadOnly | QIODevice::Text)) {
-        return {};
-    }
-    return QString::fromUtf8(f.readAll()).trimmed();
 }
 
 /**
@@ -760,12 +737,18 @@ public:
         layout->addWidget(m_outputEdit, 1);
         layout->addWidget(m_buttons);
 
-        // Aula 122: UN SOLO PUNTO de IA. Primero el gateway HTTP de Odiseo
-        // (/api/ai/complete -> Claude por defecto, 8B fallback); si no está
-        // disponible, caemos al CLI de claude directo (comportamiento previo,
-        // cero regresión).
-        m_net = new QNetworkAccessManager(this);
-        startViaGateway();
+        startViaCli();
+    }
+
+    ~AutoExtractDialog() override
+    {
+        // Si el usuario cierra el diálogo a media consulta, el proceso del CLI
+        // no debe quedar huérfano consumiendo la sesión.
+        if (m_process != nullptr && m_process->state() != QProcess::NotRunning) {
+            disconnect(m_process, nullptr, this, nullptr);
+            m_process->kill();
+            m_process->waitForFinished(1000);
+        }
     }
 
     QString csv() const { return m_csvOutput; }
@@ -779,52 +762,16 @@ private:
         m_statusLabel->setText(QObject::tr("Listo. Revisa el CSV y aplica si está bien."));
     }
 
-    void startViaGateway()
-    {
-        const QString token = readOdysseusToken();
-        if (token.isEmpty()) {
-            startViaCli();
-            return;
-        }
-        QNetworkCookie cookie(QByteArrayLiteral("odysseus_session"), token.toUtf8());
-        cookie.setDomain(QStringLiteral("127.0.0.1"));
-        cookie.setPath(QStringLiteral("/"));
-        m_net->cookieJar()->insertCookie(cookie);
-
-        QNetworkRequest req(QUrl(QStringLiteral("http://127.0.0.1:7860/api/ai/complete")));
-        req.setHeader(QNetworkRequest::ContentTypeHeader, QStringLiteral("application/json"));
-        req.setTransferTimeout(300000);
-        QJsonObject reqBody;
-        reqBody.insert(QStringLiteral("prompt"), m_prompt);
-        m_statusLabel->setText(
-            QObject::tr("Procesando con Claude (gateway)... puede tardar 30-90s."));
-        QNetworkReply* reply = m_net->post(req, QJsonDocument(reqBody).toJson(QJsonDocument::Compact));
-        connect(reply, &QNetworkReply::finished, this, [this, reply]() {
-            reply->deleteLater();
-            const int status = reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt();
-            if (reply->error() != QNetworkReply::NoError || status != 200) {
-                startViaCli(); // gateway no disponible -> CLI directo
-                return;
-            }
-            const QJsonObject obj = QJsonDocument::fromJson(reply->readAll()).object();
-            const QString text = obj.value(QStringLiteral("text")).toString();
-            if (text.trimmed().isEmpty()) {
-                startViaCli();
-                return;
-            }
-            setResult(text);
-        });
-    }
-
     void startViaCli()
     {
         if (m_cliPath.isEmpty()) {
-            m_statusLabel->setText(QObject::tr("No se pudo contactar al gateway ni al CLI."));
+            m_statusLabel->setText(QObject::tr("CLI de claude no encontrado."));
             m_outputEdit->setPlainText(
-                QObject::tr("Gateway de IA no disponible y CLI de claude no encontrado."));
+                QObject::tr("No se encontró el CLI de claude. Instálalo y autentícate con "
+                            "'claude auth login --claudeai'."));
             return;
         }
-        m_statusLabel->setText(QObject::tr("Procesando con Claude (CLI)... puede tardar 30-90s."));
+        m_statusLabel->setText(QObject::tr("Procesando con Claude... puede tardar 30-90s."));
         m_process = new QProcess(this);
         m_process->setProgram(m_cliPath);
         m_process->setStandardInputFile(QProcess::nullDevice());
@@ -853,7 +800,6 @@ private:
     QDialogButtonBox* m_buttons = nullptr;
     QPushButton* m_applyButton = nullptr;
     QProcess* m_process = nullptr;
-    QNetworkAccessManager* m_net = nullptr;
     QString m_cliPath;
     QString m_prompt;
     QString m_csvOutput;
@@ -868,14 +814,11 @@ void ScreenplayBreakdownNativeView::onAutoExtractClicked()
                                  tr("No hay escenas para analizar. Abre un proyecto."));
         return;
     }
-    // Aula 122: el desglose IA pasa por el gateway de Odiseo (un solo punto), con el
-    // CLI de claude como fallback. Solo abortamos si NINGUNO está disponible.
     const QString cliPath = locateClaudeCli();
-    if (cliPath.isEmpty() && readOdysseusToken().isEmpty()) {
+    if (cliPath.isEmpty()) {
         QMessageBox::warning(this, tr("Auto-extract"),
-                             tr("No hay IA disponible: ni el gateway de Odiseo ni el CLI de "
-                                "claude. Asegúrate de que Aula 122 terminó de arrancar, o "
-                                "instala el CLI ('claude auth login --claudeai')."));
+                             tr("No se encontró el CLI de claude. Instálalo y autentícate con "
+                                "'claude auth login --claudeai'."));
         return;
     }
 

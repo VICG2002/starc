@@ -3,7 +3,7 @@ TEMPLATE = lib
 CONFIG += plugin c++1z
 CONFIG += force_debug_info
 CONFIG += separate_debug_info
-QT += widgets network
+QT += widgets
 
 TARGET = screenplaybreakdownnativeplugin
 
