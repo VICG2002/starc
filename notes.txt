@@ -1,1 +1,0 @@
-Upstream odysseus — porte automático: Commits aplicados: , Rama de trabajo: odiseo/upstream-20260604, Revísalo y mergea a assistant tras /seguridad

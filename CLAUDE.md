@@ -1,56 +1,37 @@
 # CLAUDE.md — Fork propio de STARC (rebautizado Aula 122 / Aula_122)
 
 Bienvenido. Este es el fork de [Story Architect](https://github.com/dimkanovikov/starc)
-propiedad del usuario, clonado a `~/Developer/starc-fork/` y trabajado en
-la rama `assistant`.
+propiedad del usuario, clonado a `~/Developer/starc-fork/`.
 
-**Visión actual (decisión 2026-05-25):** Aula 122 evoluciona de
-"editor de guion con asistente Claude" a **software unificado de
-pre-producción cinematográfica indie**. Cubre las 18 etapas del workflow
-indie (idea → call sheet del primer día), asistido por IA, sin
-suscripciones, soberano de datos. Estrategia de 3 capas:
+**Visión actual (decisión 2026-08-25):** Aula 122 es un **software de escritura
+de guion optimizado**, sin IA propia embebida. La IA de todo el trabajo de
+Victor es **Claude**, que opera DESDE FUERA a través de `~/memoria-creativa/`.
 
-1. **Core nativo Qt/C++** — guion + breakdown + schedule + crew + call
-   sheets + shot list + mood board + budget (todo en `corelib` + plugins
-   propios)
-2. **AI** — Claude vía CLI ya integrado + OpenMontage opcional (Bloque 11)
-3. **Bridges externos** — Storyboarder, xSTUDIO/Clapshot, FFmpeg (opcional
-   por bloque 12)
+Esto revierte la etapa 2026-05/2026-06, en la que el fork llevaba dentro un
+asistente completo (Odiseo: SPA FastAPI + `QWebEngineView`, cerebro local
+llama-server, Hermes vendorizado y dos servidores MCP: ~5,100 archivos y 1.5 GB
+en el bundle). Todo eso se eliminó. Lo que quedó:
 
-**Identidad final** (post-segundo-rebrand, 2026-05-24):
-- **Marca paraguas (organización):** Diez50
-- **Producto / software:** Aula 122 (display) / `Aula_122` (técnico, con underscore — el espacio rompe `install_name_tool`)
-- **Bundle compilado:** `Aula_122.app` con bundle ID `app.diez50.aula122`
-- **Logo:** assets en `/Volumes/T9_DIEZ50/Pagina Web/Aula 122 logo/`
-
-Esta es la versión corta para sesiones rápidas. **Para sesiones largas o
-nuevas, leer en orden:**
-
-1. `~/.claude/plans/durante-el-desarrollo-del-jazzy-squirrel.md` — plan
-   completo de 12 bloques (156-170h), prioridad actual
-2. `~/.claude/projects/-Users-vicgm3/memory/architecture_aula122_ecosystem.md`
-   — visión completa del ecosistema (3 capas)
-3. `~/.claude/projects/-Users-vicgm3/memory/project_aula122_diez50.md` —
-   estado actual del proyecto + commits clave
-4. `~/memoria-asistente-escritura/referencias/_workflow-preproduccion-indie.md`
-   — las 18 etapas del workflow
-5. `~/memoria-asistente-escritura/referencias/_herramientas-ecosistema.md`
-   — tools open source evaluadas + decisiones
-6. `~/memoria-asistente-escritura/metodologia/pasos-a-seguir.md` —
-   playbook general del asistente de escritura
+1. **Core nativo Qt/C++** — el editor de guion de STARC más las
+   personalizaciones del fork (ver abajo).
+2. **Dos funciones puntuales con Claude**, que invocan el **CLI `claude`
+   directo** (sin servidor, sin gateway): "Auto-extraer con Claude" en el
+   desglose y "Revisión RAE (contextual)" en el editor.
+3. **Puente de datos con la memoria creativa** — `starc-sync`, una herramienta
+   externa que vive en `~/memoria-creativa/ingesta/`, NO en la app.
 
 ## Lo esencial
 
 - **Stack:** C++ + **Qt 6.11.1** (vía Homebrew) + **qmake** (no CMake).
 - **Build:** `cd src && qmake && make -j$(sysctl -n hw.ncpu)`.
-- **Binario generado:** `~/Developer/starc-fork/src/_build/Aula_122.app` (~370 MB con 76 plugins).
+- **Binario generado:** `~/Developer/starc-fork/src/_build/Aula_122.app`.
 - **Lanzar:** `open ~/Developer/starc-fork/src/_build/Aula_122.app`.
-- **Rama de trabajo:** `assistant` (NUNCA tocar `master` salvo branding).
+- **Rama de trabajo:** `limpieza/sin-odiseo` (NUNCA tocar `master` salvo branding).
 - **Remotes:**
   - `origin` → `github.com/VICG2002/starc` (fork del usuario).
   - `upstream` → `github.com/dimkanovikov/starc` (repo original).
 
-## Identidad del fork (post-segundo-rebrand 2026-05-24)
+## Identidad del fork
 
 | Campo                | Valor                                                  |
 |----------------------|--------------------------------------------------------|
@@ -59,23 +40,21 @@ nuevas, leer en orden:**
 | Bundle ID            | **`app.diez50.aula122`** (lowercase intencional)        |
 | Organization (macOS) | **Diez50** (marca paraguas)                             |
 | Organization domain  | `diez50.local`                                          |
-| Ejecutable interno   | `Aula_122` (era `aula122`, `Diez50`, antes `starcapp`)  |
-| `.app` generado      | `Aula_122.app` (era `Diez50.app`, antes `starcapp.app`)  |
+| Ejecutable interno   | `Aula_122` (era `starcapp` en upstream)                 |
 | Icon                 | logo Aula 122 en `src/app/icon.icns`                    |
 
 **Coexistencia con la app oficial:** la `/Applications/Story Architect.app`
 del usuario (bundle ID `dev.storyapps.starc-beta`) y nuestro `Aula_122.app`
-(`app.diez50.aula122`) son apps separadas para macOS — pueden estar
-abiertas a la vez sin conflicto. El formato `.starc` es compartido.
+(`app.diez50.aula122`) son apps separadas para macOS — pueden estar abiertas a
+la vez sin conflicto. El formato `.starc` es compartido.
 
 ## Política de ramas (no negociable)
 
 - `master` queda casi limpio. Solo cambios sincronizados con `upstream/master`
-  + branding mínimo si aplica. Política: mergear `upstream/master` →
-  `master` periódicamente sin fricción.
-- `assistant` es donde vive **todo** el rebrand a Diez50 + futuro código
-  del asistente nativo (dock, comunicación con Claude, tools narrativas).
-- Mergear `assistant` ← `master` cuando convenga traer mejoras upstream.
+  + branding mínimo si aplica.
+- El trabajo del fork (rebrand + personalizaciones) vive en las ramas propias.
+- Mergear `master` hacia la rama de trabajo cuando convenga traer mejoras
+  upstream.
 
 ## Submódulos (importante para compilar)
 
@@ -83,13 +62,10 @@ El README upstream dice "solo `qbreakpad`", pero **eso es insuficiente**.
 Para compilar también necesitas:
 
 ```bash
-git submodule update --init --recursive \
-  src/3rd_party/qbreakpad/ \
-  src/3rd_party/pdfhummus/ \
-  src/3rd_party/pdftextextraction/
+git submodule update --init --recursive src/3rd_party/qbreakpad/ src/3rd_party/pdfhummus/ src/3rd_party/pdftextextraction/
 ```
 
-Los 26 submódulos de `src/core/management_layer/plugins/` (en SSH `git@github.com:`)
+Los submódulos de `src/core/management_layer/plugins/` (en SSH `git@github.com:`)
 son features opcionales — se cargan dinámicamente si están presentes.
 
 ## Estructura del repo
@@ -98,107 +74,104 @@ son features opcionales — se cargan dinámicamente si están presentes.
 src/
 ├── starc.pro             # proyecto qmake raíz
 ├── app/                  # entry point — main.cpp + application.cpp
-├── core/                 # núcleo + management_layer/plugins/ (29 plugins)
+├── core/                 # núcleo + management_layer/plugins/
 ├── corelib/              # biblioteca core
-├── interfaces/           # APIs públicas (CLAVE para nuestro plugin)
-├── include/
+├── interfaces/           # APIs públicas
 ├── 3rd_party/            # libs externas
-├── cloud/                # submódulo cloud sync (opcional)
-└── testapp/              # tests
+└── cloud/                # submódulo cloud sync (opcional)
+tools/
+└── hunspell-es/          # diccionarios RAE + fix_flags.py (ver abajo)
 ```
 
-**Hallazgo clave:** STARC ya tiene plugin system. Los 29 plugins existentes
-de `src/core/management_layer/plugins/` son nuestro modelo a seguir para
-el plugin del asistente. Ver `~/memoria-asistente-escritura/metodologia/anatomia-starc.md`.
+## Lo que el fork añadió y hay que conservar
 
-## Qué NO tocar
+- **Rebranding completo** a Aula_122 (icono, `Info.plist`, ~40 `.pro`, logo,
+  fuentes Fira Code).
+- **Tema "aula122"** (negro/cian/rojo del logo) y `DesignSystem::setUiFontFamily()`.
+- **Borradores fáciles**: botón "+", Sprint de escritura y Pantalla completa en
+  la barra de borradores; comparación de borradores lado a lado.
+- **Menús limpios**: la pre-producción (desglose, plan de rodaje) está oculta
+  del menú lateral pero los plugins siguen compilados (`setVisible(true)` para
+  reactivar, en `menu_view.cpp`).
+- **Plugins propios**: `screenplay_breakdown_native` (desglose con tagging de
+  recursos y export PDF/CSV) y `production_schedule` (strip board).
+- **Story Structure** con 25 estructuras narrativas.
+- **Fixes de crashes** del upstream (export, traducir documento, mind map,
+  barra de borradores) y reportes corregidos.
+- **Desbloqueo de features de pago** en `plugins_builder.cpp`.
+- **Diccionarios RAE** en `tools/hunspell-es/` — ver la trampa 5 abajo.
 
-- **`master`** salvo branding y patches upstreameables.
-- **Submódulos** — los manejamos con `git submodule update`, no editamos
-  su contenido (a menos que también forkemos ese submódulo, lo cual es
-  decisión grande).
-- **Estructura de archivos del upstream** — añadir lo nuestro, no
-  reorganizar lo existente. Eso garantiza merges limpios.
-- **`/Applications/Story Architect.app`** — esa es la app oficial del
-  usuario, sigue intacta para uso normal. Aula_122.app convive sin pisarla.
+## La IA: qué quedó y qué se fue
 
-## Dónde vive el código del asistente (actualizado 2026-06-07)
+**Se eliminó** (commits de la rama `limpieza/sin-odiseo`, 2026-08-25): todo
+`ai/`, `brain_process_manager`, `odysseus_workspace_view`, el botón "Odiseo"
+del menú, el panel anfitrión de `application_view` y el puente
+`aula122.bridge`. El historial de git lo conserva si hiciera falta consultarlo.
 
-El asistente es **Odiseo**, una SPA web (FastAPI + estáticos) embebida en un
-`QWebEngineView` al lado del editor nativo. NO es un plugin de documento.
+**Se conservó de upstream** (NO tocar): `src/corelib/ui/modules/ai_assistant/`
+y las señales `rephraseRequested`/`expandRequested`/`generateX` de los 8
+editores. Es la IA de pago por créditos de Story Architect; funciona con la
+nube de ellos y es ajena a nuestro trabajo.
 
-- `src/core/ui/odysseus_workspace_view.cpp/.h` — el host nativo: carga la SPA
-  (`http://127.0.0.1:7860`), inyecta la cookie de sesión, y hace de puente
-  native↔web (verbos `http://aula122.bridge/<verbo>` interceptados en
-  `OdysseusPage::acceptNavigationRequest`; native→web vía `runJavaScript`).
-- `src/core/management_layer/brain_process_manager.cpp` — lanza/mata el cerebro
-  local (llama-server :8533 + odysseus :7860) embebido en el `.app`.
-- `ai/odysseus/` — el código de la SPA (Python/JS), vendado y desplegado al bundle
-  (`…/Contents/Resources/brain/odysseus/`) por rsync. Activado desde el menú
-  lateral, botón "Odiseo".
+**Las dos funciones con Claude** invocan el CLI por `QProcess`:
+- `screenplay_breakdown_native_view.cpp` — "Auto-extraer con Claude".
+- `screenplay_text/text/screenplay_text_edit.cpp` — "Revisión RAE (contextual)".
 
-**Punto único de IA — `ai/odysseus/ai_gateway.py`** (`AIGateway`): toda llamada a IA
-pasa por aquí, con **Claude por defecto** (vía CLI, costo 0) y el **8B local de
-fallback** (env `AULA122_AI_BACKEND`). Lo consumen: el chat de Odiseo (modo "chat";
-el modo agente con tools/MCP sigue en el 8B), el desglose Python (`/api/desglose/sugerir`),
-y el core nativo C++ vía HTTP (`/api/ai/complete`, p.ej. el "Auto-extraer con Claude" del
-desglose). Para cambiar backend/modelo se toca **un solo archivo**.
+Ambas usan `locateClaudeCli()` (busca en `~/.local/bin`, `/opt/homebrew/bin`,
+`/usr/local/bin` y `which`). Setup del usuario, una vez:
+`claude auth login --claudeai`.
 
-**El antiguo `writing_assistant` (plugin nativo con `claude_client.cpp`) se ELIMINÓ**
-el 2026-06-07 (commit `af4a6cf8`): era redundante con Odiseo. No lo busques.
+## La conexión con la memoria creativa
 
-## Trampas conocidas (lecciones de Fase 0)
+El puente NO vive en la app: es `~/memoria-creativa/ingesta/starc-sync.py`,
+una herramienta Python de stdlib puro que lee el `.starc` (SQLite, `mode=ro`) y
+escribe fichas `.md` en la bóveda.
 
-Antes de tocar el código, conocer estas:
+```bash
+python3 ~/memoria-creativa/ingesta/starc-sync.py            # dry-run
+python3 ~/memoria-creativa/ingesta/starc-sync.py --apply    # escribe (Aula 122 CERRADA)
+```
+
+- Espeja **entidades** (personajes, lugares, mundos, ficha de proyecto) en
+  ambas direcciones, con merge aditivo: nunca pisa texto humano; los choques
+  van a `_cambios/pendientes/` para que Victor decida.
+- Espeja el **guion** (documento 10104) como `<Prefijo>-Guion.md`, solo de ida.
+- Escribe dentro del `.starc` **solo con el proyecto cerrado** (comprueba el
+  `.lock` y `lsof`), siempre con respaldo previo del archivo completo.
+- Estado y config: `~/Library/Application Support/Diez50/Aula 122/sync/`.
+- Pruebas: `python3 ~/memoria-creativa/ingesta/tests/test_starc_sync.py`.
+
+## Trampas conocidas
 
 1. **Typo del upstream:** `Info.plist` tiene `CFBundleDisplyName` (sin la "a"
-   de Display). NO lo arregles — el código probablemente lee ese key con
-   el typo. Si lo cambias a `CFBundleDisplayName`, el nombre visible se rompe.
+   de Display). NO lo arregles — el código lee ese key con el typo.
 
-2. **Paths hardcodeados en .pro:** 40 archivos `.pro` y `.pri` tienen
-   `_build/<bundle>.app/Contents/PlugIns` y `Frameworks` con el nombre
-   del bundle hardcoded. Si renombras el bundle, hay que reemplazar
-   masivamente. Ver commit `66f4af4a` como ejemplo.
+2. **Paths hardcodeados en .pro:** ~40 archivos `.pro`/`.pri` tienen
+   `_build/Aula_122.app/Contents/PlugIns` y `Frameworks` con el nombre del
+   bundle hardcoded. Si renombras el bundle hay que reemplazar masivamente.
 
-3. **Sub-Makefiles se regeneran al hacer make** — `qmake` top-level solo
-   crea el Makefile raíz; los de subdirs se crean al `cd <subdir> &&
-   qmake -o Makefile <subdir>.pro` automáticamente. Para forzar regeneración,
-   borrar los Makefiles y volver a hacer `make`.
+3. **Sub-Makefiles se regeneran al hacer make** — `qmake` top-level solo crea
+   el Makefile raíz. Para forzar regeneración, borra los Makefiles y vuelve a
+   `make`.
 
-4. **La IA NO usa la API de Anthropic** (que cuesta dinero). El backend Claude del
-   gateway (`ai/odysseus/ai_gateway.py`, `_complete_claude`) invoca el CLI `claude`
-   por subproceso (`claude --print --output-format text`), reutilizando la suscripción
-   Claude Code del usuario. (El C++ del desglose usa el mismo patrón en
-   `screenplay_breakdown_native_view.cpp`, `AutoExtractDialog`.) Trampas heredadas:
-   - **NO pasar `--bare`** → ese flag bloquea OAuth/keychain, dice "Not logged in".
-   - **Redirigir stdin a `/dev/null`** (`stdin=DEVNULL` / `setStandardInputFile(nullDevice())`)
-     → sin esto, el CLI espera 3 s con warning "no stdin data received".
-   - **`--output-format text`**: stdout ES el resultado (con `json` habría que extraer
-     `.result`; `is_error: true` igual trae JSON válido).
+4. **CLI de claude, no la API de pago.** El CLI reutiliza la suscripción del
+   usuario (costo 0). Trampas heredadas y verificadas:
+   - **NO pasar `--bare`** → ese flag bloquea OAuth/keychain ("Not logged in").
+   - **Redirigir stdin a `/dev/null`** (`setStandardInputFile(nullDevice())`)
+     → sin esto el CLI espera 3 s con warning "no stdin data received".
+   - **`--output-format text`**: stdout ES el resultado.
 
-   Setup del usuario (una vez): `claude auth login --claudeai`. Detalle en
-   `~/memoria-asistente-escritura/lecciones/patrones-exitosos.md`.
-
-## Contexto del proyecto
-
-- Usuario: cineasta mexicano. Escribe guion en STARC (dos proyectos
-  activos en `~/Documents/starc/projects/*.starc`).
-- Visión: que el asistente viva dentro de Diez50, lea el modelo del
-  guion en vivo, y proponga cambios con flujo aceptar/descartar.
-- Asistente análogo ya existe para edición documental (`~/cinema-assistant/`,
-  `~/memoria-asistente-edicion/`, skill `/asistente-de-edicion`).
-  El de escritura sigue el mismo patrón estructural.
-- Existe una capa transversal `~/memoria-creativa/` compartida entre
-  los dos asistentes (proyectos, entidades, patrones).
+5. **`tools/hunspell-es/` arregla un SIGBUS real.** Los diccionarios RLA-ES
+   v2.9 usan emojis como flags de afijos; el hunspell 1.3.2 vendorizado los
+   representa en un `unsigned short` y la carga del `.dic` aborta, dejando
+   `tablesize=0` → el primer `add()` en runtime crashea la app. Los archivos
+   del repo YA están remapeados con `fix_flags.py`. Tras re-descargar de
+   upstream hay que volver a correrlo (ver el README de esa carpeta).
 
 ## Para una sesión nueva sobre el fork
 
 1. **Leer este archivo.**
-2. Leer `~/.claude/plans/` el plan vigente del asistente de escritura.
-3. Leer `~/memoria-asistente-escritura/metodologia/anatomia-starc.md`
-   para el mapeo del código (si la Fase 1 ya avanzó).
-4. `git status` y `git branch --show-current` para confirmar que estás
-   en `assistant`.
-5. Si vas a compilar: verificar que los 3 submódulos `3rd_party` están
+2. `git status` y `git branch --show-current`.
+3. Si vas a compilar: verificar que los 3 submódulos `3rd_party` están
    inicializados.
-6. Para abrir el binario: `open ~/Developer/starc-fork/src/_build/Aula_122.app`.
+4. Para abrir el binario: `open ~/Developer/starc-fork/src/_build/Aula_122.app`.
