@@ -21,9 +21,8 @@ constexpr int kComponentsIndex = 1;
 constexpr int kComponentsSimpleTextIndex = 0;
 constexpr int kComponentsScreenplayIndex = 1;
 constexpr int kComponentsComicBookIndex = 2;
-constexpr int kComponentsAudioplayIndex = 3;
-constexpr int kComponentsStageplayIndex = 4;
-constexpr int kComponentsNovelIndex = 5;
+// Aula 122: Audioplay (era 3) y Stageplay (era 4) ocultos — ver A.1 de Fase 3.
+constexpr int kComponentsNovelIndex = 3;
 constexpr int kShortcutsIndex = 2;
 constexpr int kAdvancedIndex = 3;
 } // namespace
@@ -58,12 +57,13 @@ SettingsNavigator::Implementation::Implementation(QWidget* _parent)
     applicationItem->appendRow(createItem(u8"\U000F133C"));
     model->appendRow(applicationItem);
     auto componentsItem = createItem(u8"\U000f09ac");
-    componentsItem->appendRow(createItem(u8"\U000F021A"));
-    componentsItem->appendRow(createItem(u8"\U000F0FCE"));
-    componentsItem->appendRow(createItem(u8"\U000F056E"));
-    componentsItem->appendRow(createItem(u8"\U000F02CB"));
-    componentsItem->appendRow(createItem(u8"\U000F0D02"));
-    componentsItem->appendRow(createItem(u8"\U000F05DA"));
+    componentsItem->appendRow(createItem(u8"\U000F021A")); // SimpleText
+    componentsItem->appendRow(createItem(u8"\U000F0FCE")); // Screenplay
+    componentsItem->appendRow(createItem(u8"\U000F056E")); // ComicBook
+    // Aula 122: Audioplay (U+F02CB) y Stageplay (U+F0D02) ocultos.
+    // componentsItem->appendRow(createItem(u8"\U000F02CB")); // Audioplay
+    // componentsItem->appendRow(createItem(u8"\U000F0D02")); // Stageplay
+    componentsItem->appendRow(createItem(u8"\U000F05DA")); // Novel
     model->appendRow(componentsItem);
     model->appendRow(createItem(u8"\U000f030c"));
     model->appendRow(createItem(u8"\U000F066A"));
@@ -132,14 +132,7 @@ SettingsNavigator::SettingsNavigator(QWidget* _parent)
                     emit componentsComicBookPressed();
                     break;
                 }
-                case kComponentsAudioplayIndex: {
-                    emit componentsAudioplayPressed();
-                    break;
-                }
-                case kComponentsStageplayIndex: {
-                    emit componentsStageplayPressed();
-                    break;
-                }
+                // Aula 122: cases Audioplay y Stageplay eliminados (rows ocultos).
                 case kComponentsNovelIndex: {
                     emit componentsNovelPressed();
                     break;
@@ -210,8 +203,7 @@ void SettingsNavigator::updateTranslations()
     model->item(kComponentsIndex)->child(kComponentsSimpleTextIndex)->setText(tr("Simple text"));
     model->item(kComponentsIndex)->child(kComponentsScreenplayIndex)->setText(tr("Screenplay"));
     model->item(kComponentsIndex)->child(kComponentsComicBookIndex)->setText(tr("Comic book"));
-    model->item(kComponentsIndex)->child(kComponentsAudioplayIndex)->setText(tr("Audioplay"));
-    model->item(kComponentsIndex)->child(kComponentsStageplayIndex)->setText(tr("Stageplay"));
+    // Aula 122: setText de Audioplay y Stageplay eliminados (rows ocultos).
     model->item(kComponentsIndex)->child(kComponentsNovelIndex)->setText(tr("Novel"));
     model->item(kShortcutsIndex)->setText(tr("Shortcuts"));
     model->item(kAdvancedIndex)->setText(tr("Advanced"));

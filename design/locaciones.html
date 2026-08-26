@@ -1,0 +1,228 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <title>Aula 122 — Locaciones (visualización)</title>
+  <link rel="stylesheet" href="./aula122-tokens.css">
+  <style>
+    body{margin:0;background:var(--background)}
+    .muted{color:var(--on-surface-medium)}
+    .a122-appbar .title{flex:none}
+    .tb-field{display:flex;flex-direction:column;gap:2px}
+    .tb-field label{font-size:9px;text-transform:uppercase;letter-spacing:.5px;color:var(--on-surface-medium)}
+    .tb-field input,.tb-field select{border:1px solid var(--divider);border-radius:var(--radius);
+      padding:6px 10px;font-size:var(--fz-body2);background:var(--background)}
+
+    /* Tarjetas de resumen */
+    .summary{display:grid;grid-template-columns:repeat(3,1fr);gap:var(--px16);padding:var(--px16) var(--px24)}
+    .stat{display:flex;flex-direction:column;gap:2px}
+    .stat .big{font-size:var(--fz-h4);font-weight:var(--w-normal);line-height:1}
+    .stat .lbl{font-size:var(--fz-caption);color:var(--on-surface-medium);text-transform:uppercase;letter-spacing:.4px}
+
+    /* Cuerpo: tabla + panel de edición */
+    .body{flex:1;display:flex;min-height:0}
+    .table-wrap{flex:1;overflow:auto;padding:0 var(--px24) var(--px24)}
+    .acts{display:flex;gap:2px}
+
+    /* Número(s) de escena — protagonista de esta pantalla */
+    .scn{display:inline-flex;align-items:center;justify-content:center;
+      min-width:26px;height:26px;padding:0 6px;border-radius:var(--radius);
+      background:var(--primary);color:var(--on-primary);
+      font-size:var(--fz-body2);font-weight:var(--w-medium);letter-spacing:.3px}
+    .scn-cell{display:flex;align-items:center;gap:var(--px4)}
+    .scn-lbl{font-size:9px;text-transform:uppercase;letter-spacing:.5px;color:var(--on-surface-medium);margin-right:2px}
+
+    /* Chips de estado de permiso (color-coded) */
+    .chip-pend{background:rgba(236,55,64,.12);color:var(--error)}
+    .chip-wip{background:rgba(178,106,0,.14);color:#b26a00}
+    .chip-ok{background:rgba(46,125,50,.14);color:#2e7d32}
+    .chip-info{background:var(--hover);color:var(--on-surface-medium)}
+
+    /* Panel de edición (drawer derecho) */
+    .edit{width:320px;flex:none;border-left:1px solid var(--divider);background:var(--surface);
+      display:flex;flex-direction:column}
+    .edit__head{padding:var(--px12) var(--px16);border-bottom:1px solid var(--divider);
+      font-weight:var(--w-medium);display:flex;align-items:center}
+    .edit__body{flex:1;overflow:auto;padding:var(--px16);display:flex;flex-direction:column;gap:var(--px12)}
+    .edit__foot{padding:var(--px12) var(--px16);border-top:1px solid var(--divider);display:flex;gap:var(--px8);justify-content:flex-end}
+    .seg{display:inline-flex;border:1px solid var(--divider);border-radius:var(--radius);overflow:hidden}
+    .seg button{border:0;background:transparent;padding:6px 12px;cursor:pointer;font-size:var(--fz-caption);color:var(--on-surface-medium)}
+    .seg button.is-active{background:var(--selected);color:#2f6fd6;font-weight:var(--w-medium)}
+
+    /* Campo de escenas resaltado dentro del panel de edición */
+    .scn-field{background:var(--selected);border-radius:var(--radius);padding:var(--px8) var(--px12);
+      display:flex;flex-direction:column;gap:var(--px4)}
+    .scn-field .scn-lbl{color:#2f6fd6}
+    .scn-field .row{display:flex;align-items:center;gap:var(--px8);flex-wrap:wrap}
+
+    /* Miniaturas de foto (placeholders) */
+    .photos{display:flex;gap:var(--px8)}
+    .photo{flex:1;height:72px;background:#e7e7e7;border:1px dashed var(--divider);border-radius:var(--radius);
+      display:flex;align-items:center;justify-content:center;color:var(--on-surface-medium);
+      font-size:var(--fz-caption);cursor:pointer}
+    .maplink{font-size:var(--fz-caption)}
+  </style>
+</head>
+<body>
+  <div class="a122-shell">
+
+    <!-- NAVEGACIÓN (verbatim — fila Locaciones marcada is-active) -->
+    <nav class="a122-nav">
+      <div class="a122-nav__brand"><span class="mi">movie</span> <b>Aula&nbsp;122</b></div>
+      <div class="muted" style="padding:0 var(--px16) var(--px8);font-size:var(--fz-caption)">El Encuentro de los Perdidos · 98 escenas</div>
+      <div class="a122-nav__group">Proyecto</div>
+      <div class="a122-nav__item"><span class="ico"><span class="mi">folder</span></span> Proyectos</div>
+      <div class="a122-nav__item"><span class="ico"><span class="mi">save</span></span> Guardar / Exportar</div>
+      <div class="a122-nav__item"><span class="ico"><span class="mi">psychology</span></span> Personajes</div>
+      <div class="a122-nav__group">Pipeline de la película</div>
+      <div class="a122-nav__item"><span class="num">1</span><span class="ico"><span class="mi">lightbulb</span></span> Idea <span class="st wip">en diseño</span></div>
+      <div class="a122-nav__item"><span class="num">2</span><span class="ico"><span class="mi">edit_document</span></span> Guión <span class="st ok">existe</span></div>
+      <div class="a122-nav__item"><span class="num">3</span><span class="ico"><span class="mi">checklist</span></span> Desglose <span class="st ok">existe</span></div>
+      <div class="a122-nav__item"><span class="num">4</span><span class="ico"><span class="mi">groups</span></span> Crew / Equipo <span class="st wip">en diseño</span></div>
+      <div class="a122-nav__item"><span class="num">5</span><span class="ico"><span class="mi">payments</span></span> Presupuesto <span class="st wip">pendiente</span></div>
+      <div class="a122-nav__item"><span class="num">6</span><span class="ico"><span class="mi">theaters</span></span> Shot list / Storyboard <span class="st wip">en diseño</span></div>
+      <div class="a122-nav__item is-active"><span class="num">7</span><span class="ico"><span class="mi">location_on</span></span> Locaciones <span class="st wip">en diseño</span></div>
+      <div class="a122-nav__item"><span class="num">8</span><span class="ico"><span class="mi">theater_comedy</span></span> Casting <span class="st wip">en diseño</span></div>
+      <div class="a122-nav__item"><span class="num">9</span><span class="ico"><span class="mi">calendar_month</span></span> Plan de rodaje <span class="st ok">existe</span></div>
+      <div class="a122-nav__item"><span class="num">10</span><span class="ico"><span class="mi">description</span></span> Call sheet <span class="st wip">diseñado</span></div>
+      <div class="a122-nav__group">&nbsp;</div>
+      <div class="a122-nav__item"><span class="ico"><span class="mi">settings</span></span> Ajustes</div>
+    </nav>
+
+    <!-- ÁREA PRINCIPAL = gestor de locaciones / scouting -->
+    <main class="a122-main">
+
+      <!-- App-bar de la sección -->
+      <div class="a122-appbar">
+        <span class="title">Locaciones</span>
+        <span class="spacer"></span>
+        <div class="tb-field"><label>Buscar</label><input placeholder="Locación, escena o contacto…" style="width:190px"></div>
+        <button class="a122-btn">+ Añadir locación</button>
+      </div>
+
+      <!-- Resumen (visibilidad de estado del scouting) -->
+      <div class="summary">
+        <div class="a122-card stat"><span class="big">5</span><span class="lbl">Locaciones</span></div>
+        <div class="a122-card stat"><span class="big">2</span><span class="lbl">Permisos pendientes</span></div>
+        <div class="a122-card stat"><span class="big">3</span><span class="lbl">Con scouting</span></div>
+      </div>
+
+      <!-- Tabla de locaciones + panel de edición -->
+      <div class="body">
+        <div class="table-wrap">
+          <table class="a122-table">
+            <thead>
+              <tr>
+                <th>Locación</th>
+                <th style="width:80px">INT/EXT</th>
+                <th style="width:120px">Escenas</th>
+                <th style="width:140px">Permiso</th>
+                <th>Contacto / Dueño</th>
+                <th style="width:120px">Distancia a base</th>
+                <th style="width:72px">Acciones</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>Puesto de periódicos</td>
+                <td>INT/EXT</td>
+                <td><span class="scn-cell"><span class="scn-lbl">Esc.</span><span class="scn">1</span></span></td>
+                <td><span class="a122-chip chip-pend">Pendiente</span></td>
+                <td>Por gestionar</td>
+                <td>—</td>
+                <td class="acts"><button class="a122-iconbtn" title="Editar"><span class="mi">edit</span></button><button class="a122-iconbtn" title="Borrar"><span class="mi">delete</span></button></td>
+              </tr>
+
+              <tr class="is-selected">
+                <td>Salón de primaria</td>
+                <td>INT</td>
+                <td><span class="scn-cell"><span class="scn-lbl">Esc.</span><span class="scn">2</span><span class="scn">3</span></span></td>
+                <td><span class="a122-chip chip-wip">Gestionando</span></td>
+                <td>Dir. Escolar · 33 1234 5678</td>
+                <td>~6 km</td>
+                <td class="acts"><button class="a122-iconbtn" title="Editar"><span class="mi">edit</span></button><button class="a122-iconbtn" title="Borrar"><span class="mi">delete</span></button></td>
+              </tr>
+
+              <tr>
+                <td>Línea 3 del metro (Guadalajara)</td>
+                <td>INT/EXT</td>
+                <td><span class="scn-cell"><span class="scn-lbl">Esc.</span><span class="scn">4</span></span></td>
+                <td><span class="a122-chip chip-pend">Complejo (transporte público)</span></td>
+                <td>SITEUR — trámite formal</td>
+                <td>~9 km</td>
+                <td class="acts"><button class="a122-iconbtn" title="Editar"><span class="mi">edit</span></button><button class="a122-iconbtn" title="Borrar"><span class="mi">delete</span></button></td>
+              </tr>
+
+              <tr>
+                <td>Calle (col. centro)</td>
+                <td>EXT</td>
+                <td><span class="scn-cell"><span class="scn-lbl">Esc.</span><span class="scn">5</span></span></td>
+                <td><span class="a122-chip chip-info">Vía pública</span></td>
+                <td>Aviso a autoridad municipal</td>
+                <td>~4 km</td>
+                <td class="acts"><button class="a122-iconbtn" title="Editar"><span class="mi">edit</span></button><button class="a122-iconbtn" title="Borrar"><span class="mi">delete</span></button></td>
+              </tr>
+
+              <tr>
+                <td>Portón Instituto Miguel Agustín Pro</td>
+                <td>EXT</td>
+                <td><span class="scn-cell"><span class="scn-lbl">Esc.</span><span class="scn">6</span><span class="scn">7</span></span></td>
+                <td><span class="a122-chip chip-pend">Pendiente</span></td>
+                <td>Administración del instituto</td>
+                <td>~7 km</td>
+                <td class="acts"><button class="a122-iconbtn" title="Editar"><span class="mi">edit</span></button><button class="a122-iconbtn" title="Borrar"><span class="mi">delete</span></button></td>
+              </tr>
+            </tbody>
+          </table>
+          <p class="t-caption muted" style="margin-top:var(--px12)">Las escenas se enlazan desde el <b>Guión / Desglose</b>. El número de escena viaja con la locación a <b>Plan de rodaje</b> y <b>Call sheets</b>. Borrar una locación avisa si tiene escenas asignadas (se puede deshacer).</p>
+        </div>
+
+        <!-- Panel de edición (CRUD) — locación seleccionada -->
+        <aside class="edit">
+          <div class="edit__head">Editar locación</div>
+          <div class="edit__body">
+            <div class="a122-field"><label>Nombre *</label><input value="Salón de primaria"></div>
+
+            <div class="a122-field"><label>INT / EXT</label>
+              <span class="seg"><button class="is-active">INT</button><button>EXT</button><button>INT/EXT</button></span></div>
+
+            <!-- Escenas: lo más importante — resaltado -->
+            <div class="scn-field">
+              <span class="scn-lbl">Escenas que se ruedan aquí</span>
+              <div class="row">
+                <span class="scn">2</span><span class="scn">3</span>
+                <button class="a122-btn--text" style="height:28px;padding:0 var(--px8)">+ vincular escena</button>
+              </div>
+            </div>
+
+            <div class="a122-field"><label>Permiso</label>
+              <select>
+                <option>Pendiente</option>
+                <option selected>Gestionando</option>
+                <option>Aprobado</option>
+              </select></div>
+
+            <div class="a122-field"><label>Contacto del dueño</label><input value="Dir. Escolar · 33 1234 5678"></div>
+            <div class="a122-field"><label>Parking</label><input value="Patio trasero, 3 unidades"></div>
+            <div class="a122-field"><label>Distancia a base</label><input value="~6 km (15 min)"></div>
+            <div class="a122-field"><label>Notas de scouting</label><textarea rows="3" placeholder="Luz natural, ruido, accesos, horarios permitidos…">Aulas con luz de mañana. Pedir corte de timbre escolar durante tomas.</textarea></div>
+
+            <div class="a122-field">
+              <label>Fotos de scouting</label>
+              <div class="photos">
+                <div class="photo">＋ foto</div>
+                <div class="photo">＋ foto</div>
+              </div>
+              <a class="maplink" href="#">[ver mapa]</a>
+            </div>
+          </div>
+          <div class="edit__foot">
+            <button class="a122-btn--text">Cancelar</button>
+            <button class="a122-btn">Guardar</button>
+          </div>
+        </aside>
+      </div>
+    </main>
+  </div>
+</body>
+</html>

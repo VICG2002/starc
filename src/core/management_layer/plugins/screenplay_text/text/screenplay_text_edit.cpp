@@ -30,14 +30,25 @@
 
 #include <QAction>
 #include <QCoreApplication>
+#include <QDialog>
+#include <QDialogButtonBox>
 #include <QDir>
+#include <QFile>
+#include <QFileInfo>
+#include <QJsonArray>
+#include <QJsonDocument>
+#include <QJsonObject>
+#include <QLabel>
 #include <QLocale>
 #include <QMenu>
 #include <QMimeData>
 #include <QPainter>
+#include <QProcess>
 #include <QPointer>
+#include <QTextEdit>
 #include <QTextTable>
 #include <QTimer>
+#include <QVBoxLayout>
 
 using BusinessLayer::TemplatesFacade;
 using BusinessLayer::TextBlockStyle;
@@ -47,6 +58,275 @@ namespace Ui {
 
 namespace {
 const QLatin1String kMarkdownMimeType("text/markdown");
+
+//
+// Aula 122 — Revisión RAE (contextual): manda la escena al CLI `claude`
+// (--print, sin --bare, stdin nulo — patrón validado del fork) y muestra
+// las sugerencias. La corrección NORMATIVA exige fiabilidad con la RAE
+// 2010+, por eso esta tarea es de Claude y no de hunspell palabra a palabra.
+//
+
+/**
+ * @brief Tope local de texto a revisar (una escena larga cabe)
+ */
+constexpr int kProofreadMaxChars = 12000;
+
+/**
+ * @brief Espera antes de abrir el diálogo, para que el menú contextual termine
+ *        su animación de cierre (ver el comentario en la acción del menú).
+ */
+constexpr int kProofreadDialogDelayMs = 350;
+
+/**
+ * @brief Instrucciones de la revisión (portadas del antiguo gateway de IA)
+ */
+const QLatin1String kProofreadSystem(
+    "Eres un corrector ortotipográfico profesional de español, con la Ortografía de la RAE "
+    "vigente (2010 y posteriores). Revisas texto de guiones cinematográficos: respeta la voz "
+    "del autor, los modismos mexicanos y la oralidad deliberada de los diálogos; los nombres "
+    "propios de personajes y locaciones NO son erratas. Aplica en particular: «solo» y los "
+    "demostrativos sin tilde; «guion», «truhan», «fie» sin tilde; prefijos unidos a la base "
+    "(«exmarido»); concordancia; homófonos por contexto (a ver/haber, haya/halla, "
+    "porqué/porque/por qué, sino/si no, echo/hecho); dequeísmo/queísmo; puntuación de incisos "
+    "y vocativos; raya de diálogo y signos de apertura ¿ ¡.\n\n"
+    "Devuelve SOLO un arreglo JSON (sin texto adicional ni fences). Cada elemento: "
+    "{\"original\": \"<fragmento exacto con el error>\", \"correccion\": \"<fragmento "
+    "corregido>\", \"tipo\": \"ortografia\"|\"gramatica\"|\"puntuacion\"|\"estilo\", "
+    "\"explicacion\": \"<regla, breve>\"}. Si no hay nada que corregir devuelve [].");
+
+/**
+ * @brief Buscar el CLI `claude` en ubicaciones típicas o en PATH.
+ */
+QString locateClaudeCli()
+{
+    const QStringList candidates = {
+        QDir::homePath() + QStringLiteral("/.local/bin/claude"),
+        QStringLiteral("/opt/homebrew/bin/claude"),
+        QStringLiteral("/usr/local/bin/claude"),
+    };
+    for (const auto& path : candidates) {
+        if (QFileInfo(path).isExecutable()) {
+            return path;
+        }
+    }
+    QProcess which;
+    which.start(QStringLiteral("/usr/bin/which"), { QStringLiteral("claude") });
+    if (which.waitForFinished(2000) && which.exitCode() == 0) {
+        const QString out = QString::fromUtf8(which.readAllStandardOutput()).trimmed();
+        if (!out.isEmpty() && QFileInfo(out).isExecutable()) {
+            return out;
+        }
+    }
+    return QString();
+}
+
+/**
+ * @brief Saca el arreglo JSON de la respuesta del modelo (tolera fences y prosa).
+ *        Portado del antiguo gateway (_extract_suggestions).
+ */
+QJsonArray extractProofreadSuggestions(const QString& _raw)
+{
+    QString text = _raw.trimmed();
+    if (text.startsWith(QStringLiteral("```"))) {
+        while (text.startsWith(QLatin1Char('`'))) {
+            text.remove(0, 1);
+        }
+        while (text.endsWith(QLatin1Char('`'))) {
+            text.chop(1);
+        }
+        if (text.startsWith(QStringLiteral("json"), Qt::CaseInsensitive)) {
+            text.remove(0, 4);
+        }
+        text = text.trimmed();
+    }
+    const int begin = text.indexOf(QLatin1Char('['));
+    const int end = text.lastIndexOf(QLatin1Char(']'));
+    const QStringList candidates = {
+        text,
+        (begin >= 0 && end > begin) ? text.mid(begin, end - begin + 1) : QString(),
+    };
+    for (const auto& candidate : candidates) {
+        if (candidate.isEmpty()) {
+            continue;
+        }
+        const auto document = QJsonDocument::fromJson(candidate.toUtf8());
+        if (!document.isArray()) {
+            continue;
+        }
+        QJsonArray result;
+        for (const auto& value : document.array()) {
+            if (value.isObject()
+                && !value.toObject().value(QStringLiteral("original")).toString().isEmpty()) {
+                result.append(value);
+            }
+        }
+        return result;
+    }
+    return {};
+}
+
+/**
+ * @brief Texto de la escena que contiene al bloque dado (del encabezado de la
+ *        escena hasta el siguiente encabezado), para revisar con contexto
+ */
+QString sceneTextAroundBlock(const QTextBlock& _block)
+{
+    //
+    // ... retroceder hasta el encabezado de la escena (o el inicio del documento)
+    //
+    auto startBlock = _block;
+    while (startBlock.isValid()
+           && TextBlockStyle::forBlock(startBlock) != TextParagraphType::SceneHeading
+           && startBlock.previous().isValid()) {
+        startBlock = startBlock.previous();
+    }
+
+    //
+    // ... concatenar los bloques hasta el siguiente encabezado de escena
+    //
+    QString result;
+    for (auto block = startBlock; block.isValid(); block = block.next()) {
+        if (block != startBlock
+            && TextBlockStyle::forBlock(block) == TextParagraphType::SceneHeading) {
+            break;
+        }
+        if (!block.text().isEmpty()) {
+            result += block.text();
+            result += QLatin1Char('\n');
+        }
+        if (result.size() > kProofreadMaxChars) {
+            break;
+        }
+    }
+    return result;
+}
+
+/**
+ * @brief Modal de progreso + resultado de la revisión RAE contextual.
+ *        Solo propone: el autor aplica a mano lo que le convenza.
+ */
+class ProofreadDialog : public QDialog
+{
+public:
+    ProofreadDialog(const QString& _text, QWidget* _parent)
+        : QDialog(_parent)
+    {
+        setWindowTitle(QObject::tr("Revisión RAE (contextual)"));
+        // setMinimumSize y no resize(): con open() el layout re-encogía la
+        // ventana a su mínimo (~150px) — visto en la verificación en GUI
+        setMinimumSize(700, 500);
+
+        m_statusLabel = new QLabel(QObject::tr("Revisando con la IA... puede tardar unos segundos."),
+                                   this);
+        m_outputEdit = new QTextEdit(this);
+        m_outputEdit->setReadOnly(true);
+
+        auto* buttons = new QDialogButtonBox(QDialogButtonBox::Close, this);
+        connect(buttons, &QDialogButtonBox::rejected, this, &QDialog::reject);
+
+        auto* layout = new QVBoxLayout(this);
+        layout->addWidget(m_statusLabel);
+        layout->addWidget(m_outputEdit, 1);
+        layout->addWidget(buttons);
+
+        start(_text);
+    }
+
+    ~ProofreadDialog() override
+    {
+        // Si el usuario cierra el diálogo a media consulta, el proceso del CLI
+        // no debe quedar huérfano consumiendo la sesión.
+        if (m_process != nullptr && m_process->state() != QProcess::NotRunning) {
+            disconnect(m_process, nullptr, this, nullptr);
+            m_process->kill();
+            m_process->waitForFinished(1000);
+        }
+    }
+
+private:
+    void start(const QString& _text)
+    {
+        const QString cliPath = locateClaudeCli();
+        if (cliPath.isEmpty()) {
+            m_statusLabel->setText(QObject::tr("CLI de claude no encontrado."));
+            m_outputEdit->setPlainText(
+                QObject::tr("No se encontró el CLI de claude. Instálalo y autentícate con "
+                            "'claude auth login --claudeai'."));
+            return;
+        }
+
+        m_process = new QProcess(this);
+        m_process->setProgram(cliPath);
+        m_process->setStandardInputFile(QProcess::nullDevice());
+        m_process->setArguments({
+            QStringLiteral("--print"),
+            QStringLiteral("--output-format"),
+            QStringLiteral("text"),
+            kProofreadSystem + QStringLiteral("\n\nRevisa este texto:\n\n")
+                + _text.left(kProofreadMaxChars),
+        });
+        connect(m_process, QOverload<int, QProcess::ExitStatus>::of(&QProcess::finished), this,
+                [this](int _code, QProcess::ExitStatus) {
+                    const QString stdout_ = QString::fromUtf8(m_process->readAllStandardOutput());
+                    const QString stderr_ = QString::fromUtf8(m_process->readAllStandardError());
+                    if (_code != 0 && stdout_.trimmed().isEmpty()) {
+                        m_statusLabel->setText(QObject::tr("Falló la revisión."));
+                        m_outputEdit->setPlainText(
+                            QObject::tr("Error al ejecutar Claude: %1").arg(stderr_));
+                        return;
+                    }
+                    showSuggestions(extractProofreadSuggestions(stdout_), stdout_);
+                });
+        m_process->start();
+    }
+
+    void showSuggestions(const QJsonArray& _suggestions, const QString& _raw)
+    {
+        if (_suggestions.isEmpty()) {
+            //
+            // Sin sugerencias hay dos casos muy distintos: el texto está bien, o
+            // el CLI devolvió algo que no es la lista JSON (típicamente un error
+            // de sesión: "OAuth access token has expired"). Anunciar ambos como
+            // "Listo" haría pasar un fallo por un texto impecable.
+            //
+            const QString raw = _raw.trimmed();
+            if (raw.isEmpty() || raw == QStringLiteral("[]")) {
+                m_statusLabel->setText(QObject::tr("Listo (revisado con Claude)."));
+                m_outputEdit->setPlainText(
+                    QObject::tr("Sin correcciones: el texto se ve bien según la RAE."));
+            } else {
+                m_statusLabel->setText(
+                    QObject::tr("Claude no devolvió correcciones. Respuesta cruda:"));
+                m_outputEdit->setPlainText(raw);
+            }
+            return;
+        }
+
+        QString report;
+        int number = 1;
+        for (const auto& suggestionValue : _suggestions) {
+            const auto suggestion = suggestionValue.toObject();
+            report += QStringLiteral("%1. «%2» → «%3»\n")
+                          .arg(QString::number(number++),
+                               suggestion.value(QStringLiteral("original")).toString(),
+                               suggestion.value(QStringLiteral("correccion")).toString());
+            const auto tipo = suggestion.value(QStringLiteral("tipo")).toString();
+            const auto explicacion = suggestion.value(QStringLiteral("explicacion")).toString();
+            if (!tipo.isEmpty() || !explicacion.isEmpty()) {
+                report += QStringLiteral("   [%1] %2\n").arg(tipo, explicacion);
+            }
+            report += QLatin1Char('\n');
+        }
+        m_statusLabel->setText(QObject::tr("%1 sugerencias (revisado con Claude). Aplica a mano "
+                                           "las que te convenzan.")
+                                   .arg(QString::number(_suggestions.size())));
+        m_outputEdit->setPlainText(report);
+    }
+
+    QLabel* m_statusLabel = nullptr;
+    QTextEdit* m_outputEdit = nullptr;
+    QProcess* m_process = nullptr;
+};
 }
 
 class ScreenplayTextEdit::Implementation
@@ -1817,6 +2097,50 @@ ContextMenu* ScreenplayTextEdit::createContextMenu(const QPoint& _position, QWid
     for (auto action : std::as_const(formattingActions)) {
         action->setParent(formattingMenu);
     }
+
+    //
+    // Aula 122: revisión ortotipográfica CONTEXTUAL conforme a la RAE vigente,
+    // vía el CLI de claude. Revisa la selección o, sin selección, la escena
+    // completa bajo el cursor. Solo propone — no aplica.
+    //
+    auto proofreadAction = new QAction(this);
+    proofreadAction->setSeparator(true);
+    proofreadAction->setText(tr("Revisión RAE (contextual)"));
+    proofreadAction->setIconText(u8"\U000F04C6"); // spellcheck (MDI)
+    connect(proofreadAction, &QAction::triggered, this, [this] {
+        const BusinessLayer::TextCursor currentCursor = textCursor();
+        QString textToReview = currentCursor.selectedText();
+        textToReview.replace(QChar(QChar::ParagraphSeparator), QLatin1Char('\n'));
+        if (textToReview.trimmed().isEmpty()) {
+            textToReview = sceneTextAroundBlock(currentCursor.block());
+        }
+        if (textToReview.trimmed().isEmpty()) {
+            return;
+        }
+        //
+        // El diálogo se crea DESPUÉS de que el menú contextual termine de cerrarse.
+        // Creándolo dentro del triggered, la ventana nacía con geometría correcta
+        // pero nunca se mapeaba a pantalla: el cierre animado del ContextMenu se
+        // come el orden de ventanas (diagnosticado en GUI el 2026-08-25 —
+        // CGWindowList mostraba la ventana con onscreen=false).
+        //
+        const QString texto = textToReview.left(kProofreadMaxChars);
+        QTimer::singleShot(kProofreadDialogDelayMs, this, [texto] {
+            //
+            // SIN padre: con la ventana principal como padre, la ventana nacía con
+            // geometría correcta pero nunca llegaba a la pantalla (CGWindowList la
+            // reportaba onscreen=false). Al ser top-level independiente se mapea
+            // normalmente. WA_DeleteOnClose se encarga de destruirla al cerrar.
+            //
+            auto dialog = new ProofreadDialog(texto, nullptr);
+            dialog->setAttribute(Qt::WA_DeleteOnClose);
+            dialog->show();
+            dialog->raise();
+            dialog->activateWindow();
+        });
+    });
+    actions.append(proofreadAction);
+
     menu->setActions(actions);
 
     return menu;

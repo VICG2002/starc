@@ -10,7 +10,7 @@ DESTDIR = ../_build/
 # Подключаем библиотеку corelib
 #
 mac {
-    CORELIBDIR = ../_build/starcapp.app/Contents/Frameworks
+    CORELIBDIR = ../_build/Aula_122.app/Contents/Frameworks
 } else {
     CORELIBDIR = ../_build
 }

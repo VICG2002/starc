@@ -252,7 +252,12 @@ void ApplicationView::toggleFullScreen(bool _isFullScreen)
 {
     if (!_isFullScreen) {
         d->lastSplitterState = d->splitter->saveState();
-        d->turnOffFullScreenIcon->show();
+        //
+        // Aula 122: el icono FLOTANTE de salir de pantalla completa confundía.
+        // Ya no se muestra: el botón ⛶ de la barra de borradores alterna
+        // entrar/salir (cambia de icono según el modo) y el atajo de fullscreen
+        // sigue vivo. Para reactivar el flotante: d->turnOffFullScreenIcon->show();
+        //
     }
 
     d->navigationWidget->setVisible(_isFullScreen);

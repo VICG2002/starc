@@ -113,12 +113,15 @@ CreateDocumentDialog::Implementation::Implementation(QWidget* _parent)
         if (settingsValue(DataStorageLayer::kComponentsComicBookAvailableKey).toBool()) {
             storyOptionsLayout->addWidget(makeOption(Domain::DocumentObjectType::ComicBook));
         }
-        if (settingsValue(DataStorageLayer::kComponentsAudioplayAvailableKey).toBool()) {
-            storyOptionsLayout->addWidget(makeOption(Domain::DocumentObjectType::Audioplay));
-        }
-        if (settingsValue(DataStorageLayer::kComponentsStageplayAvailableKey).toBool()) {
-            storyOptionsLayout->addWidget(makeOption(Domain::DocumentObjectType::Stageplay));
-        }
+        // Aula 122: audioplay y stageplay ocultos (no aplican al flujo de cine/TV/novela).
+        // Para reactivar: descomentar. Para eliminar definitivamente: borrar + plugins
+        // audioplay_*/stageplay_* de src/core/management_layer/plugins/.
+        // if (settingsValue(DataStorageLayer::kComponentsAudioplayAvailableKey).toBool()) {
+        //     storyOptionsLayout->addWidget(makeOption(Domain::DocumentObjectType::Audioplay));
+        // }
+        // if (settingsValue(DataStorageLayer::kComponentsStageplayAvailableKey).toBool()) {
+        //     storyOptionsLayout->addWidget(makeOption(Domain::DocumentObjectType::Stageplay));
+        // }
         if (settingsValue(DataStorageLayer::kComponentsNovelAvailableKey).toBool()) {
             storyOptionsLayout->addWidget(makeOption(Domain::DocumentObjectType::Novel));
         }

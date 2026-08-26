@@ -14,6 +14,7 @@
 #include <business_layer/templates/screenplay_template.h>
 #include <data_layer/storage/settings_storage.h>
 #include <data_layer/storage/storage_facade.h>
+#include <ui/widgets/text_edit/spell_check/spell_checker.h>
 #include <utils/helpers/text_helper.h>
 #include <utils/logging.h>
 
@@ -843,10 +844,25 @@ void ScreenplayTextModel::updateRuntimeDictionaries()
     QSet<QString> locations;
 
     //
+    // Aula 122: lookup de locaciones registradas en MAYÚSCULAS → nombre canónico.
+    // Se usa al procesar SceneHeadings para agrupar variantes ("CASA DE VERO - SALA",
+    // "CASA DE VERO - COCINA", "CASA DE VERO (FLASHBACK)") bajo la registrada
+    // "CASA DE VERO". Si no hay match contra registradas, fallback al "tronco"
+    // antes del primer " - ".
+    //
+    QHash<QString, QString> locationLookup;
+    for (int row = 0; row < locationsModel()->rowCount(); ++row) {
+        const auto location = locationsModel()->location(row);
+        if (location != nullptr) {
+            locationLookup.insert(location->name().toUpper().trimmed(), location->name());
+        }
+    }
+
+    //
     // Если нужно собирать персонажей и локации из текста
     //
     std::function<void(const TextModelItem*)> findInText;
-    findInText = [&findInText, &characters, &locations](const TextModelItem* _item) {
+    findInText = [&findInText, &characters, &locations, &locationLookup](const TextModelItem* _item) {
         for (int childIndex = 0; childIndex < _item->childCount(); ++childIndex) {
             auto childItem = _item->childAt(childIndex);
             switch (childItem->type()) {
@@ -861,7 +877,46 @@ void ScreenplayTextModel::updateRuntimeDictionaries()
 
                 switch (textItem->paragraphType()) {
                 case TextParagraphType::SceneHeading: {
-                    locations.insert(ScreenplaySceneHeadingParser::location(textItem->text()));
+                    //
+                    // Aula 122: agrupar variantes de la misma locación.
+                    //
+                    QString rawLocation
+                        = ScreenplaySceneHeadingParser::location(textItem->text());
+                    //
+                    // 1) Eliminar cualquier contenido entre paréntesis — son
+                    //    marcadores (FLASHBACK, MINI DV, PRESENTE…) que no
+                    //    cambian la locación física. Sin esto, el parser deja
+                    //    "(FLASHBACK)" pegado y duplica la locación.
+                    //
+                    rawLocation.remove(QRegularExpression(
+                        QStringLiteral("\\s*\\([^)]*\\)\\s*")));
+                    rawLocation = rawLocation.trimmed();
+                    //
+                    // 2) Match contra registradas (preserva capitalización del usuario)
+                    //
+                    QString canonical = rawLocation;
+                    bool matched = false;
+                    for (auto it = locationLookup.cbegin(); it != locationLookup.cend(); ++it) {
+                        const QString& registeredUpper = it.key();
+                        if (rawLocation == registeredUpper
+                            || rawLocation.startsWith(registeredUpper + QStringLiteral(" - "))) {
+                            canonical = it.value();
+                            matched = true;
+                            break;
+                        }
+                    }
+                    //
+                    // 3) Fallback: tronco antes del primer " - "
+                    //
+                    if (!matched) {
+                        const int dashIdx = rawLocation.indexOf(QStringLiteral(" - "));
+                        if (dashIdx > 0) {
+                            canonical = rawLocation.left(dashIdx).trimmed();
+                        }
+                    }
+                    if (!canonical.isEmpty()) {
+                        locations.insert(canonical);
+                    }
                     break;
                 }
                 case TextParagraphType::SceneCharacters: {
@@ -974,6 +1029,30 @@ void ScreenplayTextModel::updateRuntimeDictionaries()
     // ... создаём (при необходимости) и наполняем модель локаций
     //
     locationsModelFromText()->setStringList(locations.values());
+
+    //
+    // Aula 122: inyectar nombres canónicos de Characters y Locations al
+    // spell checker para que NO se marquen como typos. Cada palabra del
+    // nombre se ignora individualmente (hunspell evalúa palabra a palabra).
+    // Solo afecta la sesión actual; se rehidrata al reabrir el proyecto.
+    //
+    auto& spellChecker = SpellChecker::instance();
+    if (spellChecker.isAvailable()) {
+        auto ignoreNameTokens = [&spellChecker](const QString& _name) {
+            for (const QString& token :
+                 _name.split(QRegularExpression("\\s+"), Qt::SkipEmptyParts)) {
+                if (token.length() > 1) {
+                    spellChecker.ignoreWord(token);
+                }
+            }
+        };
+        for (const QString& character : std::as_const(characters)) {
+            ignoreNameTokens(character);
+        }
+        for (const QString& location : std::as_const(locations)) {
+            ignoreNameTokens(location);
+        }
+    }
 }
 
 void ScreenplayTextModel::initEmptyDocument()

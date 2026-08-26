@@ -93,12 +93,15 @@ CreateProjectDialog::Implementation::Implementation(QWidget* _parent)
     if (settingsValue(DataStorageLayer::kComponentsComicBookAvailableKey).toBool()) {
         projectTypeModel->appendRow(makeItem(Domain::DocumentObjectType::ComicBook));
     }
-    if (settingsValue(DataStorageLayer::kComponentsAudioplayAvailableKey).toBool()) {
-        projectTypeModel->appendRow(makeItem(Domain::DocumentObjectType::Audioplay));
-    }
-    if (settingsValue(DataStorageLayer::kComponentsStageplayAvailableKey).toBool()) {
-        projectTypeModel->appendRow(makeItem(Domain::DocumentObjectType::Stageplay));
-    }
+    // Aula 122: audioplay y stageplay ocultos (no aplican al flujo de cine/TV/novela).
+    // Para reactivar: descomentar. Para eliminar definitivamente: borrar + plugins
+    // audioplay_*/stageplay_* de src/core/management_layer/plugins/.
+    // if (settingsValue(DataStorageLayer::kComponentsAudioplayAvailableKey).toBool()) {
+    //     projectTypeModel->appendRow(makeItem(Domain::DocumentObjectType::Audioplay));
+    // }
+    // if (settingsValue(DataStorageLayer::kComponentsStageplayAvailableKey).toBool()) {
+    //     projectTypeModel->appendRow(makeItem(Domain::DocumentObjectType::Stageplay));
+    // }
     if (settingsValue(DataStorageLayer::kComponentsNovelAvailableKey).toBool()) {
         projectTypeModel->appendRow(makeItem(Domain::DocumentObjectType::Novel));
     }

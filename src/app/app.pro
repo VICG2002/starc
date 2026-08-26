@@ -1,5 +1,5 @@
 TEMPLATE = app
-TARGET = starcapp
+TARGET = Aula_122
 
 CONFIG += c++1z
 CONFIG += force_debug_info
@@ -27,4 +27,5 @@ win32:RC_FILE = app.rc
 macx {
     ICON = icon.icns
     QMAKE_INFO_PLIST = Info.plist
+
 }

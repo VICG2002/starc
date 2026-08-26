@@ -242,6 +242,15 @@ const QHash<QString, QString> kMimeToPlugin
     = { { "application/x-starc/editor/project/information", "*projectinformationplugin*" },
         { kProjectCollaboratorsMime, "*projectcollaboratorsplugin*" },
         //
+        // Aula 122 — desglose de guion nativo (reemplazo open source del
+        // plugin closed source screenplay_breakdown del Story Architect oficial)
+        //
+        { "app/x-diez50/breakdown-native", "*screenplaybreakdownnativeplugin*" },
+        //
+        // Aula 122 — plan de rodaje (strip board + crew + call sheets, Bloque 7)
+        //
+        { "app/x-diez50/production-schedule", "*productionscheduleplugin*" },
+        //
         { kSimpleTextFolderEditorMime, "*simpletextplugin*" },
         { kSimpleTextEditorMime, "*simpletextplugin*" },
         { kSimpleTextNavigatorMime, "*simpletextstructureplugin*" },
@@ -258,7 +267,12 @@ const QHash<QString, QString> kMimeToPlugin
         { kScreenplayTextTimelineMime, "*screenplaytimelineplugin*" },
         { kScreenplayTextBreakdownMime, "*screenplaybreakdownplugin*" },
         { kScreenplayBreakdownNavigatorMime, "*screenplaybreakdownstructureplugin*" },
-        { kScreenplayStatisticsViewMime, "*screenplaystatisticsplugin*" },
+        //
+        // Aula 122: vista de estadísticas de guion nativa (reemplazo open
+        // source del plugin closed source screenplay_statistics, cuyo
+        // submódulo privado no está clonado — ver screenplay_statistics_native/)
+        //
+        { kScreenplayStatisticsViewMime, "*screenplaystatisticsnativeplugin*" },
         { kScreenplayStatisticsNavigatorMime, "*screenplaystatisticsstructureplugin*" },
         //
         { "application/x-starc/editor/screenplay-series/information", "*screenplayseriesinformationplugin*" },
@@ -358,7 +372,12 @@ public:
     /**
      * @brief Находится ли текущий проект в команде
      */
-    bool isProjectInTeam = false;
+    //
+    // Aula 122: las features "de pago" de STARC (ficha COMPLETA de personaje, mapa de relaciones,
+    // mapa de locaciones…) se gatean con este flag — originalmente "el proyecto está en un equipo"
+    // de la nube. En el fork libre lo forzamos a true → todo desbloqueado, sin barras "UNLOCK".
+    //
+    bool isProjectInTeam = true;
 
     /**
      * @brief Права доступа к конкретным документам
@@ -1104,7 +1123,9 @@ void PluginsBuilder::reconfigureNovelNavigator() const
 
 void PluginsBuilder::checkAvailabilityToEdit(bool _projectInTeam) const
 {
-    d->isProjectInTeam = _projectInTeam;
+    // Aula 122: ignoramos _projectInTeam → siempre disponible (desbloqueo de plugins de pago).
+    Q_UNUSED(_projectInTeam)
+    d->isProjectInTeam = true;
     for (auto plugin : std::as_const(d->plugins)) {
         plugin->checkAvailabilityToEdit(d->isProjectInTeam);
     }

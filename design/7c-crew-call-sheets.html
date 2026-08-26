@@ -1,0 +1,193 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <title>Aula 122 — Call sheet (día real de EDLP)</title>
+  <link rel="stylesheet" href="./aula122-tokens.css">
+  <style>
+    body{margin:0;background:var(--background)}
+    .muted{color:var(--on-surface-medium)}
+    .toolbar{display:flex;align-items:center;gap:var(--px12);padding:var(--px12) var(--px24);background:var(--background);border-bottom:1px solid var(--divider)}
+    .toolbar .spacer{flex:1}
+    .day-nav{display:flex;align-items:center;gap:var(--px8)}
+    .day-nav .day-label{font-size:var(--fz-h6);font-weight:var(--w-medium);line-height:1.1}
+    .day-nav .day-date{color:var(--on-surface-medium);font-size:var(--fz-caption)}
+    .seg{display:inline-flex;border:1px solid var(--divider);border-radius:var(--radius);overflow:hidden}
+    .seg button{border:0;background:transparent;padding:var(--px4) var(--px12);cursor:pointer;font-size:var(--fz-caption);color:var(--on-surface-medium)}
+    .seg button.is-active{background:var(--selected);color:#2f6fd6}
+    .legend{font-size:var(--fz-caption);color:var(--on-surface-medium);padding:var(--px8) var(--px24);background:#ededed}
+    .kv{display:grid;grid-template-columns:140px 1fr;gap:var(--px8) var(--px16);align-items:center}
+    .kv .k{color:var(--on-surface-medium);font-size:var(--fz-body2)}
+    .strip{display:inline-block;font-size:9.5px;font-weight:var(--w-medium);padding:1px 5px;border-radius:2px;color:#000}
+    .strip-intdia{background:#eceff1}.strip-extdia{background:#fff59d}.strip-intnoche{background:#90caf9}.strip-extnoche{background:#a5d6a7}
+  </style>
+</head>
+<body>
+  <div class="a122-shell">
+
+    <!-- NAVEGACIÓN (orden de Victor — #10 activo) -->
+    <nav class="a122-nav">
+      <div class="a122-nav__brand"><span class="mi">movie</span> <b>Aula&nbsp;122</b></div>
+      <div class="muted" style="padding:0 var(--px16) var(--px8);font-size:var(--fz-caption)">El Encuentro de los Perdidos · 98 escenas</div>
+      <div class="a122-nav__group">Proyecto</div>
+      <div class="a122-nav__item"><span class="ico"><span class="mi">folder</span></span> Proyectos</div>
+      <div class="a122-nav__item"><span class="ico"><span class="mi">save</span></span> Guardar / Exportar</div>
+      <div class="a122-nav__item"><span class="ico"><span class="mi">psychology</span></span> Personajes</div>
+      <div class="a122-nav__group">Pipeline de la película</div>
+      <div class="a122-nav__item"><span class="num">1</span><span class="ico"><span class="mi">lightbulb</span></span> Idea <span class="st wip">en diseño</span></div>
+      <div class="a122-nav__item"><span class="num">2</span><span class="ico"><span class="mi">edit_document</span></span> Guión <span class="st ok">existe</span></div>
+      <div class="a122-nav__item"><span class="num">3</span><span class="ico"><span class="mi">checklist</span></span> Desglose <span class="st ok">existe</span></div>
+      <div class="a122-nav__item"><span class="num">4</span><span class="ico"><span class="mi">groups</span></span> Crew / Equipo <span class="st wip">en diseño</span></div>
+      <div class="a122-nav__item"><span class="num">5</span><span class="ico"><span class="mi">payments</span></span> Presupuesto <span class="st wip">pendiente</span></div>
+      <div class="a122-nav__item"><span class="num">6</span><span class="ico"><span class="mi">theaters</span></span> Shot list / Storyboard <span class="st wip">en diseño</span></div>
+      <div class="a122-nav__item"><span class="num">7</span><span class="ico"><span class="mi">location_on</span></span> Locaciones <span class="st wip">en diseño</span></div>
+      <div class="a122-nav__item"><span class="num">8</span><span class="ico"><span class="mi">theater_comedy</span></span> Casting <span class="st wip">en diseño</span></div>
+      <div class="a122-nav__item"><span class="num">9</span><span class="ico"><span class="mi">calendar_month</span></span> Plan de rodaje <span class="st ok">existe</span></div>
+      <div class="a122-nav__item is-active"><span class="num">10</span><span class="ico"><span class="mi">description</span></span> Call sheet <span class="st wip">diseñado</span></div>
+      <div class="a122-nav__group">&nbsp;</div>
+      <div class="a122-nav__item"><span class="ico"><span class="mi">settings</span></span> Ajustes</div>
+    </nav>
+
+    <main class="a122-main">
+
+      <!-- Barra de control (no se imprime) -->
+      <div class="toolbar">
+        <div class="day-nav">
+          <button class="a122-iconbtn" title="Día anterior">‹</button>
+          <div>
+            <div class="day-label">Día&nbsp;1 <span class="muted" style="font-size:var(--fz-body2)">de&nbsp;12</span></div>
+            <div class="day-date">Lunes 6 de julio, 2026</div>
+          </div>
+          <button class="a122-iconbtn" title="Día siguiente">›</button>
+        </div>
+        <span class="spacer"></span>
+        <span class="muted t-caption">Hoja:</span>
+        <span class="seg" title="Carta vertical / horizontal">
+          <button id="ori-v" class="is-active" onclick="orient(false)">Vertical</button>
+          <button id="ori-h" onclick="orient(true)">Horizontal</button>
+        </span>
+        <span class="a122-chip chip-falta" title="Se puede exportar, pero está incompleto">● Borrador · faltan 2</span>
+        <button class="a122-btn--text" title="Rellenar desde el strip board y el DOOD">↻ Autocompletar</button>
+        <button class="a122-btn" title="Si está incompleto, sale marcado BORRADOR">Exportar PDF</button>
+      </div>
+      <div class="legend">
+        Marcadores (no se imprimen): <span class="tag-auto">■ Auto</span> del strip board / DOOD ·
+        <span class="tag-falta">■ FALTA</span> dato requerido.
+      </div>
+
+      <!-- Hoja carta -->
+      <div class="doc-canvas">
+        <div class="doc-letter" id="sheet">
+          <div class="doc-draft">BORRADOR</div>
+
+          <div class="doc-head">
+            <div>
+              <p class="doc-title">EL ENCUENTRO DE LOS PERDIDOS</p>
+              <div class="doc-sub">Dir. Víctor Correa · Prod. Diez50 · UPM: R. Salas</div>
+            </div>
+            <div class="doc-daybox">
+              <div><b>DÍA 1</b> de 12</div>
+              <div>Lun 6 jul 2026</div>
+              <div class="muted">General call <b>07:30</b></div>
+            </div>
+          </div>
+
+          <div class="doc-grid">
+            <div class="doc-block">
+              <h4>Contactos clave</h4>
+              <div class="line"><span>1st AD · M. Ríos</span><span>55 1111 2222</span></div>
+              <div class="line"><span>2nd AD · L. Peña</span><span>55 3333 4444</span></div>
+              <div class="line"><span>UPM · R. Salas</span><span>55 5555 6666</span></div>
+            </div>
+            <div class="doc-block">
+              <h4>Schedule</h4>
+              <div class="line"><span>Crew call</span><span>07:30</span></div>
+              <div class="line"><span>Shooting call</span><span>08:30</span></div>
+              <div class="line"><span>Comida</span><span>13:30 (30')</span></div>
+              <div class="line needs"><span>Wrap est.</span><span class="tag-falta">Falta</span></div>
+            </div>
+            <div class="doc-block">
+              <h4>Clima <span class="tag-auto">Auto</span></h4>
+              <div class="line"><span>Despejado</span><span>26° / 14°</span></div>
+              <div class="line"><span>Amanecer</span><span>07:08</span></div>
+              <div class="line"><span>Atardecer</span><span>20:38</span></div>
+            </div>
+          </div>
+
+          <div class="doc-grid doc-grid--2">
+            <div class="doc-block">
+              <h4>Locación <span class="tag-auto">Auto ← Locaciones</span></h4>
+              <div class="line"><span>Set</span><span><b>Salón de primaria</b> — Esc. 2, 3</span></div>
+              <div class="line"><span>Dirección</span><span>Esc. Prim. Niños Héroes, aula 4 <a href="#">[mapa]</a></span></div>
+              <div class="line"><span>Parking / base</span><span>Patio de la escuela</span></div>
+            </div>
+            <div class="doc-block">
+              <h4>Seguridad</h4>
+              <div class="line"><span>Hospital 24h</span><span>H. Civil de Guadalajara (10 min) <a href="#">[mapa]</a></span></div>
+              <div class="line"><span>Aviso</span><span>Rodaje con menor (Román niño): tutor + horario</span></div>
+              <div class="line"><span>Walkies</span><span>1 Prod · 2 Cámara · 3 Arte</span></div>
+            </div>
+          </div>
+
+          <!-- Escenas del día (número de escena + locación) -->
+          <table class="doc-table">
+            <caption>Escenas del día — desde el strip board (Plan de rodaje)</caption>
+            <thead><tr><th style="width:42px">Esc</th><th style="width:96px">Tira</th><th>Set / descripción</th><th style="width:70px">Cast</th><th style="width:48px">Págs</th><th style="width:54px">Dur.</th></tr></thead>
+            <tbody>
+              <tr><td>2</td><td><span class="strip strip-intdia">INT·DÍA</span></td><td>Salón de primaria — Román dibuja en clase; Miss Gloria lo observa</td><td>1, 2</td><td>1</td><td>0:40</td></tr>
+              <tr><td>3</td><td><span class="strip strip-intdia">INT·DÍA</span></td><td>Salón primaria — Miss Gloria confronta a Román por sus dibujos</td><td>1, 2</td><td>2 4/8</td><td>1:30</td></tr>
+            </tbody>
+          </table>
+
+          <!-- Cast del día (de los personajes en las escenas del día) -->
+          <table class="doc-table">
+            <caption>Cast del día — autocompletado de las escenas 2 y 3 · S=Start W=Work H=Hold F=Finish</caption>
+            <thead><tr><th style="width:32px">ID</th><th>Personaje</th><th>Actor</th><th style="width:42px">SWHF</th><th style="width:54px">Pickup</th><th style="width:62px">Maquillaje</th><th style="width:48px">Call</th><th style="width:54px">On-set</th></tr></thead>
+            <tbody>
+              <tr><td>1</td><td>Román</td><td>(por castear)</td><td>S·W</td><td>07:00</td><td>07:15</td><td>08:00</td><td>08:30</td></tr>
+              <tr><td>2</td><td>Miss Gloria</td><td class="needs"><span class="tag-falta">Falta asignar</span></td><td>S·W·F</td><td>—</td><td>—</td><td>—</td><td>—</td></tr>
+            </tbody>
+          </table>
+
+          <!-- Crew del día -->
+          <table class="doc-table">
+            <caption>Crew del día — “Fijo” traído automático ← Equipo</caption>
+            <thead><tr><th>Departamento / nombre</th><th style="width:120px">Puesto</th><th style="width:48px">Call</th><th style="width:96px">Tel</th><th style="width:52px">Walkie</th></tr></thead>
+            <tbody>
+              <tr class="doc-deptrow"><td colspan="5">DIRECCIÓN</td></tr>
+              <tr><td>Víctor Correa</td><td>Director</td><td>07:15</td><td>55 7777 8888</td><td>1</td></tr>
+              <tr><td>M. Ríos</td><td>1st AD</td><td>07:00</td><td>55 1111 2222</td><td>1</td></tr>
+              <tr class="doc-deptrow"><td colspan="5">CÁMARA</td></tr>
+              <tr><td>Ana Ruiz</td><td>DP</td><td>07:00</td><td>55 9999 0000</td><td>2</td></tr>
+              <tr class="doc-deptrow"><td colspan="5">SONIDO</td></tr>
+              <tr><td>Beto Lima</td><td>Sonidista</td><td>07:15</td><td>—</td><td>3</td></tr>
+            </tbody>
+          </table>
+
+          <div class="doc-grid doc-grid--2">
+            <div class="doc-block"><h4>Notas de producción</h4>
+              <div class="muted">Permiso escolar confirmado para 08:00–15:00. Tutor del menor en set. Catering 13:00.</div></div>
+            <div class="doc-block"><h4>Próximos días</h4>
+              <div class="line"><span>Día 2 (mar)</span><span>EXT Portón Inst. M.A. Pro — esc. 6, 7</span></div>
+              <div class="line"><span>Día 3 (mié)</span><span>Línea 3 del metro — esc. 4</span></div></div>
+          </div>
+
+          <div class="doc-foot">
+            <span>Walkies: 1 Prod · 2 Cámara · 3 Arte</span>
+            <span>1st AD M. Ríos 55 1111 2222 · UPM R. Salas 55 5555 6666</span>
+            <span>Pág. 1 de 1</span>
+          </div>
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <script>
+    function orient(landscape){
+      document.getElementById('sheet').classList.toggle('doc-letter--landscape', landscape);
+      document.getElementById('ori-v').classList.toggle('is-active', !landscape);
+      document.getElementById('ori-h').classList.toggle('is-active', landscape);
+    }
+  </script>
+</body>
+</html>

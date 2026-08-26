@@ -20,11 +20,22 @@ public:
                    const QString& _rhsName, const QStringList& _rhsDrafts,
                    int _selectRhsDraftIndex);
 
+    /**
+     * @brief Aula 122: mostrar la opción de comparar LADO A LADO (split view).
+     *        Solo aplica cuando se comparan borradores del mismo documento.
+     */
+    void setSideBySideAvailable(bool _available);
+
 signals:
     /**
      * @brief Пользователь нажал кнопку сравнения выбранных драфтов
      */
     void comparePressed(int _lhsDraftIndex, int _rhsDraftIndex);
+
+    /**
+     * @brief Aula 122: comparar lado a lado — borrador izquierdo / derecho en split view
+     */
+    void compareSideBySidePressed(int _lhsDraftIndex, int _rhsDraftIndex);
 
 protected:
     /**

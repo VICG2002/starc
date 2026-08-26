@@ -13,6 +13,9 @@
 #include "content/writing_session/writing_session_manager.h"
 #include "plugins_builder.h"
 
+#include <interfaces/management_layer/i_document_manager.h>
+#include <interfaces/ui/i_document_view.h>
+
 #ifdef CLOUD_SERVICE_MANAGER
 #include <cloud/cloud_service_manager.h>
 #endif
@@ -66,12 +69,15 @@
 #include <utils/validators/email_validator.h>
 
 #include <QApplication>
+#include <QDateTime>
 #include <QDesktopServices>
 #include <QDir>
 #include <QFileDialog>
 #include <QFileSystemWatcher>
 #include <QFontDatabase>
+#include <QJsonArray>
 #include <QJsonDocument>
+#include <QJsonObject>
 #include <QKeyEvent>
 #include <QLocale>
 #include <QLockFile>
@@ -185,6 +191,16 @@ public:
     void showSettings();
 
     /**
+     * @brief Mostrar la página del desglose nativo del guion (plugin Aula 122 / Bloque 5)
+     */
+    void showBreakdown();
+
+    /**
+     * @brief Mostrar la página del plan de rodaje (plugin Aula 122 / Bloque 7)
+     */
+    void showProductionSchedule();
+
+    /**
      * @brief Показать страницу статистика работы с программой
      */
     void showSessionStatistics();
@@ -264,6 +280,14 @@ public:
      */
     void openProject();
     bool openProject(const QString& _path);
+
+    /**
+     * @brief Aula 122: ruta del proyecto LOCAL más recientemente editado (de la lista de
+     *        recientes en settings). Vacío si no hay ninguno válido. Se usa para que al picar
+     *        una etapa (Guion/Desglose/…) sin proyecto abierto, se abra directo el último
+     *        proyecto en vez del selector — "Guion abre mi último proyecto".
+     */
+    QString mostRecentProjectPath() const;
 
     /**
      * @brief Попробовать захватить владение файлом, заблокировав его изменение другими копиями
@@ -985,6 +1009,66 @@ void ApplicationManager::Implementation::showSettings()
     showContent(settingsManager.data());
 }
 
+void ApplicationManager::Implementation::showBreakdown()
+{
+    Log::info("Show breakdown native screen");
+    menuView->checkBreakdown();
+
+    const QString breakdownMime = "app/x-diez50/breakdown-native";
+    if (!pluginsBuilder.initPlugin(breakdownMime)) {
+        Log::warning("Failed to init breakdown native plugin");
+        return;
+    }
+    auto* plugin = pluginsBuilder.plugin(breakdownMime);
+    if (plugin == nullptr) {
+        Log::warning("Breakdown native plugin not found after init");
+        return;
+    }
+    //
+    // Aula 122 / Bloque 5: pasar el primer script model al plugin nativo
+    // de breakdown para que liste escenas y recursos.
+    //
+    auto* scriptModel = projectManager->firstScriptModel();
+    auto* view = plugin->view(scriptModel);
+    if (view == nullptr) {
+        Log::warning("Breakdown native view is null");
+        return;
+    }
+
+    static auto* emptyToolbar = new QWidget;
+    static auto* emptyNavigator = new QWidget;
+
+    applicationView->showContent(emptyToolbar, emptyNavigator, view->asQWidget());
+}
+
+void ApplicationManager::Implementation::showProductionSchedule()
+{
+    Log::info("Show production schedule screen");
+    menuView->checkProduction();
+
+    const QString productionMime = "app/x-diez50/production-schedule";
+    if (!pluginsBuilder.initPlugin(productionMime)) {
+        Log::warning("Failed to init production schedule plugin");
+        return;
+    }
+    auto* plugin = pluginsBuilder.plugin(productionMime);
+    if (plugin == nullptr) {
+        Log::warning("Production schedule plugin not found after init");
+        return;
+    }
+    auto* scriptModel = projectManager->firstScriptModel();
+    auto* view = plugin->view(scriptModel);
+    if (view == nullptr) {
+        Log::warning("Production schedule view is null");
+        return;
+    }
+
+    static auto* emptyToolbar = new QWidget;
+    static auto* emptyNavigator = new QWidget;
+
+    applicationView->showContent(emptyToolbar, emptyNavigator, view->asQWidget());
+}
+
 void ApplicationManager::Implementation::showSessionStatistics()
 {
     Log::info("Show session statistics screen");
@@ -1302,13 +1386,13 @@ void ApplicationManager::Implementation::setDesignSystemDensity(int _density)
 void ApplicationManager::Implementation::updateWindowTitle(const QString& _projectName)
 {
     if (projectsManager->currentProject() == nullptr) {
-        applicationView->setWindowTitle("Story Architect");
+        applicationView->setWindowTitle("Aula 122");
         return;
     }
 
     const auto currentProject = projectsManager->currentProject();
     applicationView->setWindowTitle(
-        QString("%1%2 (%3) - Story Architect%4")
+        QString("%1%2 (%3) - Aula 122%4")
             .arg(
 #ifndef Q_OS_MAC
                 "[*]"
@@ -1876,6 +1960,62 @@ bool ApplicationManager::Implementation::openProject(const QString& _path)
     return true;
 }
 
+QString ApplicationManager::Implementation::mostRecentProjectPath() const
+{
+    //
+    // Aula 122: leemos la lista de proyectos recientes (la misma que pinta el selector) y
+    // devolvemos el proyecto LOCAL existente con last_edit_time más reciente. Solo locales:
+    // los de nube requieren conexión/login, así que no los auto-abrimos.
+    //
+    const auto projectsData = settingsValue(DataStorageLayer::kApplicationProjectsKey);
+    const auto projectsJson
+        = QJsonDocument::fromJson(QByteArray::fromHex(projectsData.toByteArray()));
+
+    QString bestPath;
+    QDateTime bestTime;
+    const auto consider = [&bestPath, &bestTime](const QJsonObject& _project) {
+        //
+        // "id" presente ⇒ proyecto de nube; lo saltamos (solo auto-abrimos locales).
+        //
+        if (_project.contains(QLatin1String("id"))) {
+            return;
+        }
+        const auto path = _project[QLatin1String("path")].toString();
+        const QFileInfo info(path);
+        if (path.isEmpty() || !info.exists()) {
+            return;
+        }
+        //
+        // Usamos la fecha REAL del archivo .starc (lastModified), NO el "last_edit_time" de la
+        // lista de recientes: esa lista no se actualiza al abrir un proyecto existente (queda
+        // empatada). El mtime del archivo sí refleja en cuál trabajaste de último.
+        //
+        const auto time = info.lastModified();
+        if (bestPath.isEmpty() || time > bestTime) {
+            bestPath = path;
+            bestTime = time;
+        }
+    };
+
+    for (const auto& itemValue : projectsJson.array()) {
+        const auto itemJson = itemValue.toObject();
+        //
+        // Equipo (carpeta de nube): recorremos sus proyectos. Proyecto suelto: directo.
+        //
+        if (itemJson.contains(QLatin1String("is_team"))
+            && itemJson[QLatin1String("is_team")].toBool()) {
+            const auto projectsArray = itemJson[QLatin1String("projects")].toArray();
+            for (const auto& projectValue : projectsArray) {
+                consider(projectValue.toObject());
+            }
+        } else {
+            consider(itemJson);
+        }
+    }
+
+    return bestPath;
+}
+
 bool ApplicationManager::Implementation::tryLockProject(const QString& _path)
 {
     const QFileInfo projectFileInfo(_path);
@@ -2023,8 +2163,8 @@ void ApplicationManager::Implementation::goToEditCurrentProject(bool _afterProje
             const auto projectFileSuffix = QFileInfo(currentProject->path()).suffix().toUpper();
             informationDialog->showDialog(
                 tr("Do you want continue to use .%1 file format?").arg(projectFileSuffix),
-                tr("Some project data cannot be saved in .%1 format. We recommend you to use Story "
-                   "Architect .%2 format so all the project data will be saved properly.")
+                tr("Some project data cannot be saved in .%1 format. We recommend you to use Aula "
+                   "122 .%2 format so all the project data will be saved properly.")
                     .arg(projectFileSuffix.toUpper(), ExtensionHelper::starc().toUpper()),
                 { { kNeverAskAgainButtonId, tr("Never ask again"), Dialog::NormalButton },
                   { kKeepButtonId, tr("Keep .%1").arg(projectFileSuffix), Dialog::RejectButton },
@@ -2437,6 +2577,11 @@ ApplicationManager::ApplicationManager(QObject* _parent)
     QFontDatabase::addApplicationFont(":/fonts/roboto-light");
     QFontDatabase::addApplicationFont(":/fonts/roboto-medium");
     QFontDatabase::addApplicationFont(":/fonts/roboto-regular");
+    // Aula 122: Fira Code como fuente de UI alternativa.
+    QFontDatabase::addApplicationFont(":/fonts/fira-code");
+    QFontDatabase::addApplicationFont(":/fonts/fira-code-light");
+    QFontDatabase::addApplicationFont(":/fonts/fira-code-medium");
+    QFontDatabase::addApplicationFont(":/fonts/fira-code-bold");
     QFontDatabase::addApplicationFont(":/fonts/noto-sans");
     QFontDatabase::addApplicationFont(":/fonts/noto-sans-light");
     QFontDatabase::addApplicationFont(":/fonts/noto-sans-medium");
@@ -2792,6 +2937,9 @@ void ApplicationManager::initConnections()
             [this] { d->exportCurrentDocument(); });
     connect(d->menuView, &Ui::MenuView::fullscreenPressed, this, [this] { d->toggleFullScreen(); });
     connect(d->menuView, &Ui::MenuView::settingsPressed, this, [this] { d->showSettings(); });
+    connect(d->menuView, &Ui::MenuView::breakdownPressed, this, [this] { d->showBreakdown(); });
+    connect(d->menuView, &Ui::MenuView::productionPressed, this,
+            [this] { d->showProductionSchedule(); });
     //
     connect(d->menuView, &Ui::MenuView::writingStatisticsPressed, this, [this] {
 #ifdef CLOUD_SERVICE_MANAGER
@@ -2932,6 +3080,13 @@ void ApplicationManager::initConnections()
             d->accountManager.data(), &AccountManager::buyCredits);
     connect(d->projectManager.data(), &ProjectManager::contentsChanged, this,
             [this] { d->markChangesSaved(false); });
+    //
+    // Aula 122: sprint y pantalla completa desde la barra de borradores del editor
+    //
+    connect(d->projectManager.data(), &ProjectManager::writingSprintRequested, this,
+            [this] { d->writingSessionManager->showSprintPanel(); });
+    connect(d->projectManager.data(), &ProjectManager::fullscreenRequested, this,
+            [this] { d->toggleFullScreen(); });
     connect(d->projectManager.data(), &ProjectManager::projectUuidChanged,
             d->projectsManager.data(), &ProjectsManager::setCurrentProjectUuid);
     connect(d->projectManager.data(), &ProjectManager::projectNameChanged, this,

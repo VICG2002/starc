@@ -42,3 +42,33 @@ libtool
 POTFILES
 stamp-h1
 _en_source.qm
+
+# Qt auto-generated build artifacts (qmake/moc/qrc/rcc)
+moc_*.cpp
+moc_*.h
+moc_predefs.h
+qrc_*.cpp
+*.moc
+.qmake.stash
+.qmake.cache
+*.qm
+ui_*.h
+
+# Aula 122 fork: build output dir
+src/_build/
+
+# Aula 122 fork: secretos — NUNCA commitear (repo público GPLv3).
+# Nota: el asistente usa el CLI `claude` por OAuth (sin API key); aun asi,
+# blindamos por si en el futuro algun modulo guarda credenciales locales.
+*.env
+*.env.*
+!*.env.example
+*.key
+*.pem
+*.p12
+*.keystore
+*secret*
+*credential*
+api_key*
+apikey*
+anthropic*.txt

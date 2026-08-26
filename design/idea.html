@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <title>Aula 122 — Idea / Tratamiento (argumento real de EDLP)</title>
+  <link rel="stylesheet" href="./aula122-tokens.css">
+  <style>
+    body{margin:0;background:var(--background)}
+    .muted{color:var(--on-surface-medium)}
+
+    /* Tabs de documentos de desarrollo */
+    .dev-tabs{display:flex;gap:var(--px8);align-items:center;padding:var(--px8) var(--px24);border-bottom:1px solid var(--divider)}
+    .dev-tab{border:0;background:transparent;cursor:pointer;font-size:var(--fz-body2);color:var(--on-surface-medium);
+      padding:var(--px8) var(--px12);border-radius:var(--radius) var(--radius) 0 0;border-bottom:2px solid transparent}
+    .dev-tab.is-active{color:#2f6fd6;border-bottom-color:var(--accent);font-weight:var(--w-medium)}
+    .dev-tab:hover{background:var(--hover)}
+
+    .dev-body{flex:1;display:flex;min-height:0}
+    .doc-area{flex:1;overflow:auto;background:#e7e7e7;padding:var(--px24);display:flex;justify-content:center}
+
+    /* Página de prosa para escribir el argumento */
+    .prose{width:680px;min-height:840px;background:#fff;color:#000;box-shadow:var(--shadow-2);
+      padding:56px 64px;font-size:15px;line-height:1.7;font-family:Georgia,"Times New Roman",serif}
+    .prose h1{font-size:22px;font-family:var(--font);font-weight:var(--w-medium);margin:0 0 4px}
+    .prose .srcnote{font-family:var(--font);font-size:var(--fz-caption);color:var(--on-surface-medium);
+      margin-bottom:var(--px24);padding-bottom:var(--px8);border-bottom:1px solid var(--divider)}
+    .prose p{margin:0 0 14px}
+    .prose .fb{color:#5b4a8a}            /* texto marcado como flashback {…} */
+    .prose .seq{font-family:var(--font);font-size:12px;letter-spacing:.5px;color:var(--on-surface-medium);text-transform:uppercase}
+    .prose .caret{border-left:2px solid var(--accent)}
+
+    /* Sidebar de metadatos */
+    .meta{width:300px;flex:none;border-left:1px solid var(--divider);background:var(--surface);overflow:auto;padding:var(--px16);display:flex;flex-direction:column;gap:var(--px12)}
+    .meta .a122-card{background:var(--background)}
+    .meta label{display:block;font-size:var(--fz-caption);color:var(--on-surface-medium);text-transform:uppercase;letter-spacing:.4px;margin-bottom:2px}
+    .meta .val{font-size:var(--fz-body2)}
+    .mood{display:grid;grid-template-columns:repeat(2,1fr);gap:var(--px8)}
+    .mood div{height:52px;border:1px dashed var(--on-surface-disabled);border-radius:var(--radius);
+      display:flex;align-items:center;justify-content:center;color:var(--on-surface-disabled);font-size:var(--fz-caption)}
+  </style>
+</head>
+<body>
+  <div class="a122-shell">
+
+    <!-- NAVEGACIÓN (orden de Victor — #1 activo) -->
+    <nav class="a122-nav">
+      <div class="a122-nav__brand"><span class="mi">movie</span> <b>Aula&nbsp;122</b></div>
+      <div class="muted" style="padding:0 var(--px16) var(--px8);font-size:var(--fz-caption)">El Encuentro de los Perdidos · 98 escenas</div>
+      <div class="a122-nav__group">Proyecto</div>
+      <div class="a122-nav__item"><span class="ico"><span class="mi">folder</span></span> Proyectos</div>
+      <div class="a122-nav__item"><span class="ico"><span class="mi">save</span></span> Guardar / Exportar</div>
+      <div class="a122-nav__item"><span class="ico"><span class="mi">psychology</span></span> Personajes</div>
+      <div class="a122-nav__group">Pipeline de la película</div>
+      <div class="a122-nav__item is-active"><span class="num">1</span><span class="ico"><span class="mi">lightbulb</span></span> Idea <span class="st wip">en diseño</span></div>
+      <div class="a122-nav__item"><span class="num">2</span><span class="ico"><span class="mi">edit_document</span></span> Guión <span class="st ok">existe</span></div>
+      <div class="a122-nav__item"><span class="num">3</span><span class="ico"><span class="mi">checklist</span></span> Desglose <span class="st ok">existe</span></div>
+      <div class="a122-nav__item"><span class="num">4</span><span class="ico"><span class="mi">groups</span></span> Crew / Equipo <span class="st wip">en diseño</span></div>
+      <div class="a122-nav__item"><span class="num">5</span><span class="ico"><span class="mi">payments</span></span> Presupuesto <span class="st wip">pendiente</span></div>
+      <div class="a122-nav__item"><span class="num">6</span><span class="ico"><span class="mi">theaters</span></span> Shot list / Storyboard <span class="st wip">en diseño</span></div>
+      <div class="a122-nav__item"><span class="num">7</span><span class="ico"><span class="mi">location_on</span></span> Locaciones <span class="st wip">en diseño</span></div>
+      <div class="a122-nav__item"><span class="num">8</span><span class="ico"><span class="mi">theater_comedy</span></span> Casting <span class="st wip">en diseño</span></div>
+      <div class="a122-nav__item"><span class="num">9</span><span class="ico"><span class="mi">calendar_month</span></span> Plan de rodaje <span class="st ok">existe</span></div>
+      <div class="a122-nav__item"><span class="num">10</span><span class="ico"><span class="mi">description</span></span> Call sheet <span class="st wip">diseñado</span></div>
+      <div class="a122-nav__group">&nbsp;</div>
+      <div class="a122-nav__item"><span class="ico"><span class="mi">settings</span></span> Ajustes</div>
+    </nav>
+
+    <main class="a122-main">
+
+      <div class="a122-appbar">
+        <span class="title">Idea / Tratamiento</span>
+        <span class="spacer"></span>
+        <button class="a122-btn--text" title="Claude ayuda a expandir logline, argumento o tratamiento"><span class="mi">auto_awesome</span> Desarrollar con IA</button>
+        <button class="a122-btn">Guardar</button>
+      </div>
+
+      <!-- Documentos de desarrollo: aquí se escribe cada pieza -->
+      <div class="dev-tabs">
+        <button class="dev-tab">Logline</button>
+        <button class="dev-tab is-active">Tratamiento</button>
+        <button class="dev-tab">Propuesta de dirección</button>
+        <button class="dev-tab" style="color:var(--on-surface-disabled)">＋ Nuevo</button>
+      </div>
+
+      <div class="dev-body">
+
+        <!-- El lugar para escribir el ARGUMENTO (prosa libre, página de escritura) -->
+        <div class="doc-area">
+          <div class="prose">
+            <h1>Tratamiento</h1>
+            <div class="srcnote"><span class="mi">article</span> Tratamiento — incorpora tu argumento (documento <i>Sinopsis</i> del <code>.starc</code>) · El Encuentro de los Perdidos · escribe libre aquí</div>
+
+            <p class="seq">{ } = flashback</p>
+            <p class="fb">ROMÁN (8) y PIERO (8) están enfrente del escritorio de MISS GLORIA (60). La maestra les da un sermón por haberse peleado a golpes. Al terminar el regaño, aprovecha para decirle a ROMÁN que no debería andar dibujando esas cosas en su cuaderno. MISS GLORIA les pide que se vayan y llama a MAGNOLIA (8). Salen cada uno por su lado; PIERO se detiene para decirle a ROMÁN que están chidos sus dibujos y se va. ROMÁN se queda afuera del salón escuchando el regaño de MAGNOLIA.</p>
+            <p class="fb">MISS GLORIA le dice a MAGNOLIA que se deje de juntar con esos niños, especialmente con ROMÁN porque «no la va a llevar a ningún lado bueno», y señala el cuaderno confiscado: «claramente es un niño perturbado». El castigo: la cambiará de lugar para que termine su último año sin distracciones. ROMÁN escucha todo desde afuera del salón.</p>
+
+            <p class="seq">Sec. Créditos</p>
+            <p>Dentro del cuaderno en el escritorio de MISS GLORIA, vemos el paso de los años en la evolución de los dibujos de ROMÁN.</p>
+            <p>ROMÁN (18) manufactura copias de su cómic: imprime, dobla, engrapa y las mete en la caja. PIERO (18) lo graba con su Mini DV. Platican de las expectativas del viaje; PIERO chinga a ROMÁN con que debe perder su virginidad.</p>
+            <p>ROMÁN y PIERO en el camión camino a la CDMX. El resto del camión está poblado por estudiantes. PROFE FRUTOS (40s) se para en medio del pasillo a recitar las reglas del juego: el cronograma de los tres días del Intercultural, la logística de los anfitriones y que está estrictamente prohibido ir a cualquier fiesta.<span class="caret">&nbsp;</span></p>
+          </div>
+        </div>
+
+        <!-- Metadatos del proyecto -->
+        <aside class="meta">
+          <div class="a122-card">
+            <label>Título</label>
+            <div class="val">El Encuentro de los Perdidos</div>
+          </div>
+          <div class="a122-card">
+            <label>Logline</label>
+            <div class="val muted"><i>(borrador — escríbelo en su pestaña)</i></div>
+          </div>
+          <div class="a122-card">
+            <label>Género / formato</label>
+            <div class="val">Largometraje · Drama / coming-of-age</div>
+          </div>
+          <div class="a122-card">
+            <label>Tema</label>
+            <div class="val">Memoria, pérdida, identidad</div>
+          </div>
+          <div class="a122-card">
+            <label>Protagónico</label>
+            <div class="val">Román <span class="muted">· <a href="casting.html" style="color:#2f6fd6">ver en Casting</a></span></div>
+          </div>
+          <div class="a122-card">
+            <label>Moodboard</label>
+            <div class="mood"><div>＋ imagen</div><div>＋ imagen</div><div>＋ imagen</div><div>＋ imagen</div></div>
+          </div>
+        </aside>
+      </div>
+    </main>
+  </div>
+</body>
+</html>

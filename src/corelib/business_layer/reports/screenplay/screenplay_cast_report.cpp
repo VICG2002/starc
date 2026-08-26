@@ -84,6 +84,10 @@ void ScreenplayCastReport::build(QAbstractItemModel* _model)
         int totalDialogues = 0;
         int speakingScenesCount = 0;
         int nonspeakingScenesCount = 0;
+        // Aula 122: total de veces que se nombra al personaje en todo el guion
+        // (cada header de diálogo + cada match en Action + cada SceneCharacters).
+        // No depende de escena; útil para ver "presencia textual" del personaje.
+        int totalMentions = 0;
         int totalScenes() const
         {
             return speakingScenesCount + nonspeakingScenesCount;
@@ -99,10 +103,18 @@ void ScreenplayCastReport::build(QAbstractItemModel* _model)
     //
     // Сформируем регулярное выражение для выуживания молчаливых персонажей
     //
+    // Aula 122 fix: además del regex, construir un lookup lowercase->nombre
+    // canónico, para mapear el texto encontrado en la acción al nombre exacto
+    // registrado del personaje (preservando capitalización). Sin esto, un
+    // personaje "Lucía" mencionado en acción se contaba como "LUCÍA" (por
+    // smartToUpper) y se duplicaba con la entrada "Lucía" del diálogo.
+    //
     QString rxPattern;
+    QHash<QString, QString> characterLookup;
     auto charactersModel = d->screenplayModel->charactersList();
     for (int index = 0; index < charactersModel->rowCount(); ++index) {
         auto characterName = charactersModel->index(index, 0).data().toString();
+        characterLookup.insert(characterName.toLower(), characterName);
         if (!rxPattern.isEmpty()) {
             rxPattern.append("|");
         }
@@ -122,7 +134,7 @@ void ScreenplayCastReport::build(QAbstractItemModel* _model)
     std::function<void(const TextModelItem*)> includeInReport;
     includeInReport = [&includeInReport, &charactersData, &lastSceneNonspeakingCharacters,
                        &lastSceneSpeakingCharacters, &charactersOrder, &lastSpeakingCharacter,
-                       &rxCharacterFinder](const TextModelItem* _item) {
+                       &rxCharacterFinder, &characterLookup](const TextModelItem* _item) {
         for (int childIndex = 0; childIndex < _item->childCount(); ++childIndex) {
             auto childItem = _item->childAt(childIndex);
             switch (childItem->type()) {
@@ -156,7 +168,7 @@ void ScreenplayCastReport::build(QAbstractItemModel* _model)
                         // Первое упоминание персонажа - первая молчаливая сцена
                         //
                         if (!charactersData.contains(character)) {
-                            charactersData.insert(character, { 0, 0, 0, 1 });
+                            charactersData.insert(character, { 0, 0, 0, 1, 1 });
                             charactersOrder.append(character);
                         }
                         //
@@ -164,6 +176,7 @@ void ScreenplayCastReport::build(QAbstractItemModel* _model)
                         //
                         else {
                             ++charactersData[character].nonspeakingScenesCount;
+                            ++charactersData[character].totalMentions;
                         }
                     }
                     break;
@@ -176,7 +189,7 @@ void ScreenplayCastReport::build(QAbstractItemModel* _model)
                     }
 
                     if (!charactersData.contains(character)) {
-                        charactersData.insert(character, { 0, 1, 1, 0 });
+                        charactersData.insert(character, { 0, 1, 1, 0, 1 });
                         charactersOrder.append(character);
                         lastSceneSpeakingCharacters.insert(character);
                     } else {
@@ -191,6 +204,7 @@ void ScreenplayCastReport::build(QAbstractItemModel* _model)
                             ++characterData.speakingScenesCount;
                         }
                         ++characterData.totalDialogues;
+                        ++characterData.totalMentions;
                     }
                     lastSpeakingCharacter = character;
                     break;
@@ -214,20 +228,33 @@ void ScreenplayCastReport::build(QAbstractItemModel* _model)
 
                     auto match = rxCharacterFinder.match(textItem->text());
                     while (match.hasMatch()) {
-                        const QString character = TextHelper::smartToUpper(match.captured(2));
+                        //
+                        // Aula 122 fix: usar nombre canónico de la lista de
+                        // personajes (no smartToUpper, que duplicaba entradas
+                        // cuando el usuario registra nombres en capitalización
+                        // normal tipo "Lucía").
+                        //
+                        const QString matched = match.captured(2);
+                        const QString character
+                            = characterLookup.value(matched.toLower(), matched);
                         if (!charactersData.contains(character)) {
-                            charactersData.insert(character, { 0, 0, 0, 1 });
+                            charactersData.insert(character, { 0, 0, 0, 1, 1 });
                             charactersOrder.append(character);
                             lastSceneNonspeakingCharacters.insert(character);
                         } else {
                             //
-                            // Если он ещё не добавлен в текущую сцену
+                            // Si aún no se añadió a la escena actual
                             //
                             if (!lastSceneNonspeakingCharacters.contains(character)
                                 && !lastSceneSpeakingCharacters.contains(character)) {
                                 lastSceneNonspeakingCharacters.insert(character);
                                 ++charactersData[character].nonspeakingScenesCount;
                             }
+                            //
+                            // Aula 122: cada mención individual en acción cuenta,
+                            // aunque sea en una escena donde el personaje ya apareció.
+                            //
+                            ++charactersData[character].totalMentions;
                         }
 
                         //
@@ -350,6 +377,7 @@ void ScreenplayCastReport::build(QAbstractItemModel* _model)
               auto characterItem = createModelItem(_name);
               d->castModel->appendRow({
                   characterItem,
+                  createModelItem(QString::number(_count.totalMentions)),
                   createModelItem(QString::number(_count.totalWords)),
                   createModelItem(QString::number(_count.totalDialogues)),
                   createModelItem(QString::number(_count.speakingScenesCount)),
@@ -370,31 +398,38 @@ void ScreenplayCastReport::build(QAbstractItemModel* _model)
         Qt::DisplayRole);
     d->castModel->setHeaderData(
         1, Qt::Horizontal,
-        QCoreApplication::translate("BusinessLayer::ScreenplayCastReport", "Total words"),
+        QCoreApplication::translate("BusinessLayer::ScreenplayCastReport", "Total mentions"),
         Qt::DisplayRole);
     d->castModel->setHeaderData(
         2, Qt::Horizontal,
-        QCoreApplication::translate("BusinessLayer::ScreenplayCastReport", "Total dialogues"),
+        QCoreApplication::translate("BusinessLayer::ScreenplayCastReport", "Total words"),
         Qt::DisplayRole);
     d->castModel->setHeaderData(
         3, Qt::Horizontal,
-        QCoreApplication::translate("BusinessLayer::ScreenplayCastReport", "Speaking scenes"),
+        QCoreApplication::translate("BusinessLayer::ScreenplayCastReport", "Total dialogues"),
         Qt::DisplayRole);
     d->castModel->setHeaderData(
         4, Qt::Horizontal,
-        QCoreApplication::translate("BusinessLayer::ScreenplayCastReport", "Nonspeaking scenes"),
+        QCoreApplication::translate("BusinessLayer::ScreenplayCastReport", "Speaking scenes"),
         Qt::DisplayRole);
     d->castModel->setHeaderData(
         5, Qt::Horizontal,
+        QCoreApplication::translate("BusinessLayer::ScreenplayCastReport", "Nonspeaking scenes"),
+        Qt::DisplayRole);
+    d->castModel->setHeaderData(
+        6, Qt::Horizontal,
         QCoreApplication::translate("BusinessLayer::ScreenplayCastReport", "Total scenes"),
         Qt::DisplayRole);
 
+    //
+    // Aula 122: índices shifted +1 por la nueva columna "Total mentions" (idx 1).
+    //
     if (!d->showSceneDetails) {
+        d->castModel->removeColumn(5);
         d->castModel->removeColumn(4);
-        d->castModel->removeColumn(3);
     }
     if (!d->showWords) {
-        d->castModel->removeColumn(1);
+        d->castModel->removeColumn(2);
     }
 }
 

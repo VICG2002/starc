@@ -124,7 +124,14 @@ void ScreenplaySeriesSceneReport::build(QAbstractItemModel* _model)
     //
     // Сформируем регулярное выражение для выуживания молчаливых персонажей
     //
+    // Aula 122 fix: además del regex, construir un lookup lowercase->nombre
+    // canónico, para mapear el texto encontrado en la acción al nombre exacto
+    // registrado del personaje (preservando capitalización). Sin esto, un
+    // personaje "Lucía" mencionado en acción se contaba como "LUCÍA" (por
+    // smartToUpper) y se duplicaba con la entrada "Lucía" del diálogo.
+    //
     QString rxPattern;
+    QHash<QString, QString> characterLookup;
     QSet<QString> characterNames;
     for (const auto episode : d->episodesModel->episodes()) {
         auto charactersModel = episode->charactersList();
@@ -133,6 +140,7 @@ void ScreenplaySeriesSceneReport::build(QAbstractItemModel* _model)
         }
     }
     for (const auto& characterName : std::as_const(characterNames)) {
+        characterLookup.insert(characterName.toLower(), characterName);
         if (!rxPattern.isEmpty()) {
             rxPattern.append("|");
         }
@@ -194,7 +202,7 @@ void ScreenplaySeriesSceneReport::build(QAbstractItemModel* _model)
         //
         std::function<void(const TextModelItem*)> includeInReport;
         includeInReport = [&includeInReport, &scenes, &lastScene, &characters, &rxCharacterFinder,
-                           textItemPage, invalidPage,
+                           &characterLookup, textItemPage, invalidPage,
                            sceneNumberPrefix](const TextModelItem* _item) {
             for (int childIndex = 0; childIndex < _item->childCount(); ++childIndex) {
                 auto childItem = _item->childAt(childIndex);
@@ -263,7 +271,15 @@ void ScreenplaySeriesSceneReport::build(QAbstractItemModel* _model)
 
                         auto match = rxCharacterFinder.match(textItem->text());
                         while (match.hasMatch()) {
-                            const QString character = TextHelper::smartToUpper(match.captured(2));
+                            //
+                            // Aula 122 fix: usar nombre canónico de la lista de
+                            // personajes (no smartToUpper, que duplicaba entradas
+                            // cuando el usuario registra nombres en capitalización
+                            // normal tipo "Lucía").
+                            //
+                            const QString matched = match.captured(2);
+                            const QString character
+                                = characterLookup.value(matched.toLower(), matched);
                             auto& characterData = lastScene.character(character);
                             if (!characters.contains(character)) {
                                 characters.insert(character);

@@ -1,0 +1,238 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <title>Aula 122 — Guión (escena real de EDLP)</title>
+  <link rel="stylesheet" href="./aula122-tokens.css">
+  <style>
+    body{margin:0;background:var(--background)}
+    .ed-toolbar{display:flex;align-items:center;gap:var(--px4);align-self:center;margin:var(--px12) auto;
+      background:var(--background);box-shadow:var(--shadow-2);border-radius:24px;padding:var(--px4) var(--px8)}
+    .ed-toolbar button{border:0;background:transparent;cursor:pointer;color:var(--on-surface-medium);padding:var(--px4) var(--px8);border-radius:16px;font-size:var(--fz-body2);display:inline-flex;align-items:center;gap:4px}
+    .ed-toolbar button:hover{background:var(--hover)}
+    .ed-toolbar .ptype{display:flex;align-items:center;gap:var(--px4);color:var(--on-surface);font-weight:var(--w-medium);border:1px solid var(--divider);border-radius:16px;padding:var(--px4) var(--px12)}
+    .ed-toolbar .on{color:#2f6fd6;background:var(--selected)}
+    .ed-toolbar .sep{width:1px;height:20px;background:var(--divider);margin:0 var(--px4)}
+
+    .ed-body{flex:1;display:flex;min-height:0}
+    .ed-tree{width:240px;flex:none;border-right:1px solid var(--divider);overflow:auto;padding:var(--px8) 0}
+    .ed-tree .grp{font-size:var(--fz-overline);text-transform:uppercase;letter-spacing:1.5px;color:var(--on-surface-medium);padding:var(--px12) var(--px16) var(--px4)}
+    .ed-tree .scene{display:flex;gap:var(--px8);padding:var(--px4) var(--px16);font-size:var(--fz-body2);cursor:pointer;line-height:1.3}
+    .ed-tree .scene .n{color:var(--on-surface-medium);width:18px;flex:none}
+    .ed-tree .scene:hover{background:var(--hover)}
+    .ed-tree .scene.is-active{background:var(--selected);color:#2f6fd6;font-weight:var(--w-medium)}
+
+    .ed-pagewrap{flex:1;overflow:auto;background:#e7e7e7;padding:var(--px24);display:flex;justify-content:center}
+    .sp-page{width:640px;min-height:840px;background:#fff;color:#000;box-shadow:var(--shadow-2);
+      padding:64px 72px;font-family:"Courier Prime","Courier New",monospace;font-size:13px;line-height:1.5}
+    .sp-slug{font-weight:700;text-transform:uppercase;margin:18px 0 10px}
+    .sp-action{margin:0 0 10px}
+    .sp-char{margin:10px 0 0;padding-left:42%;text-transform:uppercase}
+    .sp-paren{padding-left:34%}
+    .sp-dialog{padding:0 18% 0 22%;margin:0 0 6px}
+    .sp-cursor{border-left:2px solid var(--accent)}
+
+    .ed-side{display:flex;flex:none;border-left:1px solid var(--divider)}
+    .ed-rail{width:48px;flex:none;background:var(--surface);display:flex;flex-direction:column;align-items:center;gap:var(--px4);padding:var(--px8) 0}
+    .ed-rail button{width:36px;height:36px;border:0;border-radius:8px;background:transparent;cursor:pointer;color:var(--on-surface-medium);display:flex;align-items:center;justify-content:center}
+    .ed-rail button:hover{background:var(--hover)}
+    .ed-rail button.is-active{background:var(--selected);color:#2f6fd6}
+    .ed-panel{width:288px;flex:none;background:var(--background);display:flex;flex-direction:column}
+    .ed-panel[hidden]{display:none}
+    .ed-panel__head{padding:var(--px12) var(--px16);border-bottom:1px solid var(--divider);font-weight:var(--w-medium);display:flex;align-items:center;gap:var(--px8)}
+    .ed-panel__body{flex:1;overflow:auto;padding:var(--px12)}
+
+    /* Panel de Personajes */
+    .chl{display:flex;flex-wrap:wrap;gap:4px;margin-bottom:var(--px12)}
+    .chl button{border:1px solid var(--divider);background:transparent;border-radius:12px;padding:2px 9px;font-size:var(--fz-caption);cursor:pointer;color:var(--on-surface-medium)}
+    .chl button.is-active{background:var(--selected);color:#2f6fd6;border-color:transparent;font-weight:var(--w-medium)}
+    .cdetail .nm{font-size:var(--fz-subtitle1);font-weight:var(--w-medium)}
+    .cdetail label{display:block;font-size:9px;text-transform:uppercase;letter-spacing:.5px;color:var(--on-surface-medium);margin-top:var(--px12)}
+    .cdetail .v{font-size:var(--fz-body2)}
+    .cdetail .empty{color:var(--on-surface-disabled);font-style:italic}
+    .cdetail .links{display:flex;flex-wrap:wrap;gap:6px;margin-top:var(--px16)}
+    .cdetail .links button{padding:4px 8px}
+
+    /* Panel de Estadísticas */
+    .sgrid{display:grid;grid-template-columns:1fr 1fr;gap:var(--px8);margin-bottom:var(--px8)}
+    .sgrid .cell{background:var(--surface);border-radius:var(--radius);padding:var(--px8)}
+    .sgrid .b{font-size:var(--fz-h6);font-weight:var(--w-medium);line-height:1;font-variant-numeric:tabular-nums}
+    .sgrid .l{font-size:9px;text-transform:uppercase;letter-spacing:.4px;color:var(--on-surface-medium)}
+    .sect{font-size:var(--fz-overline);text-transform:uppercase;letter-spacing:1.5px;color:var(--on-surface-medium);margin:var(--px16) 0 var(--px4)}
+    .sline{margin:var(--px8) 0}
+    .sline .lbl{display:flex;justify-content:space-between;font-size:var(--fz-caption);color:var(--on-surface)}
+    .sbar{height:6px;border-radius:3px;background:var(--divider);overflow:hidden;margin-top:3px}
+    .sbar > i{display:block;height:100%;background:var(--accent)}
+    .sbar.alt > i{background:#5c6bc0}
+
+    .ed-status{display:flex;gap:var(--px16);align-items:center;padding:var(--px4) var(--px16);border-top:1px solid var(--divider);background:var(--surface);font-size:var(--fz-caption);color:var(--on-surface-medium)}
+    .ed-status .spacer{flex:1}
+    .muted{color:var(--on-surface-medium)}
+  </style>
+</head>
+<body>
+  <div class="a122-shell">
+
+    <nav class="a122-nav">
+      <div class="a122-nav__brand"><span class="mi">movie</span> <b>Aula&nbsp;122</b></div>
+      <div class="muted" style="padding:0 var(--px16) var(--px8);font-size:var(--fz-caption)">El Encuentro de los Perdidos · 98 escenas</div>
+      <div class="a122-nav__group">Proyecto</div>
+      <div class="a122-nav__item"><span class="ico"><span class="mi">folder</span></span> Proyectos</div>
+      <div class="a122-nav__item"><span class="ico"><span class="mi">save</span></span> Guardar / Exportar</div>
+      <div class="a122-nav__item"><span class="ico"><span class="mi">psychology</span></span> Personajes</div>
+      <div class="a122-nav__group">Pipeline de la película</div>
+      <div class="a122-nav__item"><span class="num">1</span><span class="ico"><span class="mi">lightbulb</span></span> Idea <span class="st wip">en diseño</span></div>
+      <div class="a122-nav__item is-active"><span class="num">2</span><span class="ico"><span class="mi">edit_document</span></span> Guión <span class="st ok">existe</span></div>
+      <div class="a122-nav__item"><span class="num">3</span><span class="ico"><span class="mi">checklist</span></span> Desglose <span class="st ok">existe</span></div>
+      <div class="a122-nav__item"><span class="num">4</span><span class="ico"><span class="mi">groups</span></span> Crew / Equipo <span class="st wip">en diseño</span></div>
+      <div class="a122-nav__item"><span class="num">5</span><span class="ico"><span class="mi">payments</span></span> Presupuesto <span class="st wip">real</span></div>
+      <div class="a122-nav__item"><span class="num">6</span><span class="ico"><span class="mi">theaters</span></span> Shot list / Storyboard <span class="st wip">en diseño</span></div>
+      <div class="a122-nav__item"><span class="num">7</span><span class="ico"><span class="mi">location_on</span></span> Locaciones <span class="st wip">en diseño</span></div>
+      <div class="a122-nav__item"><span class="num">8</span><span class="ico"><span class="mi">theater_comedy</span></span> Casting <span class="st wip">en diseño</span></div>
+      <div class="a122-nav__item"><span class="num">9</span><span class="ico"><span class="mi">calendar_month</span></span> Plan de rodaje <span class="st ok">existe</span></div>
+      <div class="a122-nav__item"><span class="num">10</span><span class="ico"><span class="mi">description</span></span> Call sheet <span class="st wip">diseñado</span></div>
+      <div class="a122-nav__group">&nbsp;</div>
+      <div class="a122-nav__item"><span class="ico"><span class="mi">settings</span></span> Ajustes</div>
+    </nav>
+
+    <main class="a122-main">
+
+      <div class="ed-toolbar">
+        <button title="Deshacer"><span class="mi">undo</span></button>
+        <button title="Rehacer"><span class="mi">redo</span></button>
+        <span class="sep"></span>
+        <span class="ptype" title="Tipo de párrafo">Acción <span class="mi mi-sm">arrow_drop_down</span></span>
+        <span class="sep"></span>
+        <button title="Beats / estructura"><span class="mi">view_timeline</span> Beats</button>
+        <button title="Formato rápido"><span class="mi">format_size</span> Formato</button>
+        <button title="Buscar (⌘F)"><span class="mi">search</span></button>
+        <button title="Comentarios / revisión"><span class="mi">chat_bubble</span></button>
+        <span class="sep"></span>
+        <button title="Asistente IA (Claude)"><span class="mi">auto_awesome</span> IA</button>
+      </div>
+
+      <div class="ed-body">
+
+        <aside class="ed-tree">
+          <div class="grp">El Encuentro de los Perdidos</div>
+          <div class="scene"><span class="n">1</span> INT./EXT. Puesto de periódicos — Día (FB)</div>
+          <div class="scene"><span class="n">2</span> INT. Salón de primaria — Día</div>
+          <div class="scene is-active"><span class="n">3</span> INT. Salón primaria — Otro día</div>
+          <div class="scene"><span class="n">4</span> INT./EXT. Línea 3 del metro — Noche</div>
+          <div class="scene"><span class="n">5</span> EXT. Calle — Noche</div>
+          <div class="scene"><span class="n">6</span> EXT. Portón Inst. M.A. Pro — Continuo</div>
+        </aside>
+
+        <div class="ed-pagewrap">
+          <div class="sp-page">
+            <p class="sp-slug">3&nbsp;&nbsp;&nbsp;INT. SALÓN PRIMARIA - OTRO DÍA<span style="float:right;font-weight:400;color:#999">3</span></p>
+            <p class="sp-action">A través de las aspas del ventilador en el techo, vemos a Román parado frente al escritorio de Miss Gloria. La maestra está sentada en su escritorio escribiendo el reporte de conducta del niño, el cristo colgado en su pecho se balancea por su movimiento. Al terminar, le desliza el papel a Román.</p>
+            <p class="sp-char">MISS GLORIA</p>
+            <p class="sp-dialog">Lo quiero firmado por tus papás mañana.</p>
+            <p class="sp-action">Román toma su reporte.</p>
+            <p class="sp-char">ROMÁN</p>
+            <p class="sp-dialog">¿Me podría regresar mi cuaderno? -- Por favor.</p>
+            <p class="sp-action">Miss Gloria desliza lentamente el cuaderno de Román al centro del escritorio y lo abre.</p>
+            <p class="sp-char">MISS GLORIA</p>
+            <p class="sp-dialog">¿Me puedes decir qué es esto, Román?</p>
+            <p class="sp-char">ROMÁN</p>
+            <p class="sp-paren">(Retador)</p>
+            <p class="sp-dialog">Un dibujo.</p>
+            <p class="sp-action">Miss Gloria se inclina sobre el escritorio y apunta con desdén al dibujo. Román tiene la atención en su cuaderno.<span class="sp-cursor"></span></p>
+            <p class="sp-char">MISS GLORIA</p>
+            <p class="sp-dialog">No creo que entiendas la gravedad del asunto. Esto que haces está mal. Estas cosas sólo las hace una persona claramente perturbada.</p>
+          </div>
+        </div>
+
+        <!-- Sidebar derecho: rail con Estadísticas (activo) + Personajes -->
+        <div class="ed-side">
+          <div class="ed-rail">
+            <button title="Formato rápido"><span class="mi">format_size</span></button>
+            <button title="Parámetros de escena"><span class="mi">tune</span></button>
+            <button title="Personajes" onclick="sidePanel('personajes')"><span class="mi">person</span></button>
+            <button class="is-active" id="rail-stats" title="Estadísticas del guión" onclick="sidePanel('estadisticas')"><span class="mi">bar_chart</span></button>
+            <button title="Comentarios"><span class="mi">chat_bubble</span></button>
+            <button title="Asistente IA"><span class="mi">auto_awesome</span></button>
+            <button title="Marcadores"><span class="mi">bookmark</span></button>
+            <button title="Diccionarios"><span class="mi">menu_book</span></button>
+          </div>
+
+          <!-- Panel: ESTADÍSTICAS (datos reales del guión) -->
+          <div class="ed-panel" data-panel="estadisticas">
+            <div class="ed-panel__head"><span class="mi">bar_chart</span> Estadísticas</div>
+            <div class="ed-panel__body">
+              <div class="sgrid">
+                <div class="cell"><div class="b">98</div><div class="l">Escenas</div></div>
+                <div class="cell"><div class="b">~70</div><div class="l">Páginas</div></div>
+                <div class="cell"><div class="b">70 min</div><div class="l">Duración est.</div></div>
+                <div class="cell"><div class="b">9</div><div class="l">Personajes</div></div>
+              </div>
+
+              <div class="sect">Interior / Exterior</div>
+              <div class="sline"><div class="lbl"><span>INT.</span><span>61</span></div><div class="sbar"><i style="width:100%"></i></div></div>
+              <div class="sline"><div class="lbl"><span>EXT. (incl. mixtas)</span><span>51</span></div><div class="sbar"><i style="width:84%"></i></div></div>
+
+              <div class="sect">Día / Noche</div>
+              <div class="sline"><div class="lbl"><span>Noche</span><span>37</span></div><div class="sbar alt"><i style="width:100%"></i></div></div>
+              <div class="sline"><div class="lbl"><span>Día</span><span>20</span></div><div class="sbar alt"><i style="width:54%"></i></div></div>
+              <div class="sline"><div class="lbl"><span>Otras (continuo, flashback, MiniDV)</span><span>41</span></div><div class="sbar alt"><i style="width:60%;background:#bdbdbd"></i></div></div>
+
+              <div class="sect">Reparto por presencia (menciones)</div>
+              <div class="sline"><div class="lbl"><span>Román</span><span>142</span></div><div class="sbar"><i style="width:100%"></i></div></div>
+              <div class="sline"><div class="lbl"><span>Magnolia</span><span>131</span></div><div class="sbar"><i style="width:92%"></i></div></div>
+              <div class="sline"><div class="lbl"><span>Piero</span><span>58</span></div><div class="sbar"><i style="width:41%"></i></div></div>
+              <div class="sline"><div class="lbl"><span>Frutos</span><span>33</span></div><div class="sbar"><i style="width:23%"></i></div></div>
+              <div class="sline"><div class="lbl"><span>Miss Gloria</span><span>11</span></div><div class="sbar"><i style="width:8%"></i></div></div>
+
+              <p class="t-caption muted" style="margin-top:var(--px12)">Calculado del guión. <b>Predominio nocturno</b> (37 noche vs 20 día) — pésalo al planear iluminación y jornadas.</p>
+            </div>
+          </div>
+
+          <!-- Panel: PERSONAJES (vista rápida; la sección completa está en Personajes) -->
+          <div class="ed-panel" data-panel="personajes" hidden>
+            <div class="ed-panel__head"><span class="mi">person</span> Personajes <span class="muted t-caption" style="margin-left:auto">9</span></div>
+            <div class="ed-panel__body">
+              <div class="chl">
+                <button class="is-active">Román</button><button>Magnolia</button><button>Piero</button>
+                <button>Frutos</button><button>Miss Gloria</button><button>Ian</button>
+                <button>Aurora</button><button>Silverio</button><button>Vero</button>
+              </div>
+              <div class="cdetail">
+                <div class="nm">ROMÁN</div>
+                <div class="muted t-caption">Protagonista · 18 años · (del .starc)</div>
+                <label>Biografía / descripción</label>
+                <div class="v empty">Sin biografía aún — escríbela o pídesela a la IA.</div>
+                <label>Relaciones</label>
+                <div class="v">Magnolia · Piero · Miss Gloria <span class="muted">(del .starc)</span></div>
+                <label>Aparece en</label>
+                <div class="v">142 menciones · esc. 1, 3, 4, 5, 6…</div>
+                <div class="links">
+                  <button class="a122-btn--text">Abrir en Personajes</button>
+                  <button class="a122-btn--text"><span class="mi">auto_awesome</span> Análisis psicológico</button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="ed-status">
+        <span>98 escenas</span><span>·</span><span>El Encuentro de los Perdidos</span>
+        <span class="spacer"></span>
+        <span>Escena 3 de 98</span><span>·</span><span>Guardado</span>
+      </div>
+    </main>
+  </div>
+
+  <script>
+    function sidePanel(name){
+      document.querySelectorAll('.ed-panel[data-panel]').forEach(function(p){p.hidden=(p.dataset.panel!==name)});
+      document.querySelectorAll('.ed-rail button').forEach(function(b){b.classList.remove('is-active')});
+      var map={estadisticas:1,personajes:1};
+      document.querySelectorAll('.ed-rail button').forEach(function(b){
+        if(b.getAttribute('onclick') && b.getAttribute('onclick').indexOf("'"+name+"'")>-1) b.classList.add('is-active');
+      });
+    }
+  </script>
+</body>
+</html>

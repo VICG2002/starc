@@ -251,7 +251,7 @@ SettingsStorage::Implementation::Implementation()
         //
         defaultValues.insert(kComponentsSimpleTextAvailableKey, true);
         //
-        defaultValues.insert(kComponentsSimpleTextEditorDefaultTemplateKey, "mono_cp_a4");
+        defaultValues.insert(kComponentsSimpleTextEditorDefaultTemplateKey, "mono_cp_letter");
         defaultValues.insert(kComponentsSimpleTextEditorCorrectTextOnPageBreaksKey, false);
         //
         // Параметры навигатора простого текстового документа
@@ -527,7 +527,7 @@ SettingsStorage::Implementation::Implementation()
         //
         defaultValues.insert(kComponentsScreenplayAvailableKey, true);
         //
-        defaultValues.insert(kComponentsScreenplayEditorDefaultTemplateKey, "world_cp");
+        defaultValues.insert(kComponentsScreenplayEditorDefaultTemplateKey, "us");
         defaultValues.insert(kComponentsScreenplayEditorShowSceneNumbersKey, false);
         defaultValues.insert(kComponentsScreenplayEditorShowSceneNumbersOnLeftKey, true);
         defaultValues.insert(kComponentsScreenplayEditorShowSceneNumbersOnRightKey, true);
@@ -710,7 +710,7 @@ SettingsStorage::Implementation::Implementation()
         //
         defaultValues.insert(kComponentsComicBookAvailableKey, true);
         //
-        defaultValues.insert(kComponentsComicBookEditorDefaultTemplateKey, "world");
+        defaultValues.insert(kComponentsComicBookEditorDefaultTemplateKey, "us");
         defaultValues.insert(kComponentsComicBookEditorShowDialogueNumberKey, true);
         defaultValues.insert(kComponentsComicBookEditorSaveItemsFromTextKey, true);
         defaultValues.insert(kComponentsComicBookEditorShowHintsForAllItemsKey, true);
@@ -837,7 +837,7 @@ SettingsStorage::Implementation::Implementation()
         //
         defaultValues.insert(kComponentsAudioplayAvailableKey, true);
         //
-        defaultValues.insert(kComponentsAudioplayEditorDefaultTemplateKey, "bbc_scene");
+        defaultValues.insert(kComponentsAudioplayEditorDefaultTemplateKey, "us");
         defaultValues.insert(kComponentsAudioplayEditorShowBlockNumbersKey, false);
         defaultValues.insert(kComponentsAudioplayEditorContinueBlockNumbersKey, true);
         defaultValues.insert(kComponentsAudioplayEditorSaveItemsFromTextKey, true);
@@ -974,7 +974,7 @@ SettingsStorage::Implementation::Implementation()
         //
         defaultValues.insert(kComponentsStageplayAvailableKey, true);
         //
-        defaultValues.insert(kComponentsStageplayEditorDefaultTemplateKey, "bbc");
+        defaultValues.insert(kComponentsStageplayEditorDefaultTemplateKey, "us");
         defaultValues.insert(kComponentsStageplayEditorSaveItemsFromTextKey, true);
         defaultValues.insert(kComponentsStageplayEditorShowHintsForAllItemsKey, true);
         defaultValues.insert(kComponentsStageplayEditorShowHintsForPrimaryItemsKey, false);
@@ -1179,7 +1179,7 @@ SettingsStorage::Implementation::Implementation()
         //
         defaultValues.insert(kComponentsNovelAvailableKey, true);
         //
-        defaultValues.insert(kComponentsNovelEditorDefaultTemplateKey, "manuscript_t_a4");
+        defaultValues.insert(kComponentsNovelEditorDefaultTemplateKey, "manuscript_t_letter");
         defaultValues.insert(kComponentsNovelEditorCorrectTextOnPageBreaksKey, false);
         //
         // Параметры навигатора

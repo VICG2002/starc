@@ -56,6 +56,17 @@ public:
     QAction* importProject = nullptr;
     QAction* fullScreen = nullptr;
     QAction* settings = nullptr;
+    QAction* breakdown = nullptr;
+    QAction* production = nullptr;
+    // Aula 122 — etapas del pipeline aún sin plugin propio (placeholders)
+    QAction* idea = nullptr;
+    QAction* crew = nullptr;
+    QAction* budget = nullptr;
+    QAction* shotList = nullptr;
+    QAction* locations = nullptr;
+    QAction* casting = nullptr;
+    QAction* callSheet = nullptr;
+    QAction* characters = nullptr;
     QAction* aboutApplicationAction = nullptr;
 
     QAction* writingStatistics = nullptr;
@@ -98,6 +109,16 @@ MenuView::Implementation::Implementation(MenuView* _parent)
     , importProject(new QAction)
     , fullScreen(new QAction)
     , settings(new QAction)
+    , breakdown(new QAction)
+    , production(new QAction)
+    , idea(new QAction)
+    , crew(new QAction)
+    , budget(new QAction)
+    , shotList(new QAction)
+    , locations(new QAction)
+    , casting(new QAction)
+    , callSheet(new QAction)
+    , characters(new QAction)
     , aboutApplicationAction(new QAction)
     , writingStatistics(new QAction)
     , writingSprint(new QAction)
@@ -131,6 +152,18 @@ MenuView::Implementation::Implementation(MenuView* _parent)
         drawer->addAction(exportCurrentDocument);
         drawer->addAction(fullScreen);
         drawer->addAction(settings);
+        // Aula 122 — pipeline de producción (orden del usuario). Guión = editor del
+        // proyecto (no es toggle del drawer). Etapas sin plugin van deshabilitadas.
+        drawer->addAction(idea);
+        drawer->addAction(breakdown);  // Desglose (activo)
+        drawer->addAction(crew);
+        drawer->addAction(budget);
+        drawer->addAction(shotList);
+        drawer->addAction(locations);
+        drawer->addAction(casting);
+        drawer->addAction(production);  // Plan de rodaje (activo)
+        drawer->addAction(callSheet);
+        drawer->addAction(characters);
 
         drawer->setAccountActions({
             writingStatistics,
@@ -185,11 +218,45 @@ MenuView::Implementation::Implementation(MenuView* _parent)
         settings->setCheckable(false);
         settings->setVisible(true);
         settings->setSeparator(true);
+        //
+        // Aula 122 / Bloque 5: desglose nativo del guion
+        // Aula 122: pre-producción OCULTA del menú (decisión 2026-06-09). El plugin
+        // screenplay_breakdown_native sigue compilado y showBreakdown() vivo; para
+        // reactivar: setVisible(true) aquí.
+        //
+        breakdown->setIconText(u8"\U000F0B2A"); // format-list-checks (MDI)
+        breakdown->setCheckable(true);
+        breakdown->setVisible(false);
+        //
+        // Aula 122 / Bloque 7: plan de rodaje (strip board + crew + call sheets)
+        // Aula 122: oculto del menú (decisión 2026-06-09), mismo criterio que el
+        // desglose; el plugin production_schedule sigue compilado. Para reactivar:
+        // setVisible(true).
+        //
+        production->setIconText(u8"\U000F00ED"); // calendar-clock (MDI)
+        production->setCheckable(true);
+        production->setVisible(false);
+        //
+        // Aula 122 — etapas del pipeline sin plugin propio: OCULTAS (decisión
+        // 2026-06-09: el menú vuelve a lo propio de STARC; la pre-producción
+        // regresará cuando se mejore). Eran placeholders deshabilitados; para
+        // reactivar alguna: setVisible(true).
+        //
+        idea->setIconText(u8"\U000F021A");       idea->setVisible(false);       idea->setEnabled(false);
+        crew->setIconText(u8"\U000F0004");       crew->setVisible(false);       crew->setEnabled(false);
+        budget->setIconText(u8"\U000F0127");     budget->setVisible(false);     budget->setEnabled(false);
+        shotList->setIconText(u8"\U000F024F");   shotList->setVisible(false);   shotList->setEnabled(false);
+        locations->setIconText(u8"\U000F0DD4");  locations->setVisible(false);  locations->setEnabled(false);
+        casting->setIconText(u8"\U000F0004");    casting->setVisible(false);    casting->setEnabled(false);
+        callSheet->setIconText(u8"\U000F00BE");  callSheet->setVisible(false);  callSheet->setEnabled(false);
+        characters->setIconText(u8"\U000F0849"); characters->setVisible(false); characters->setEnabled(false);
 
         QActionGroup* actions = new QActionGroup(_parent);
         actions->addAction(projects);
         actions->addAction(project);
         actions->addAction(settings);
+        actions->addAction(breakdown);
+        actions->addAction(production);
 
         writingStatistics->setIconText(u8"\U000F085D");
         //
@@ -199,8 +266,11 @@ MenuView::Implementation::Implementation(MenuView* _parent)
         chat->setVisible(false);
         //
         notifications->setIconText(u8"\U000F009A");
+        // Aula 122: feed de notificaciones de Story Architect Cloud (releases,
+        // expiración de suscripción, créditos) no aplica a nuestro fork local.
+        notifications->setVisible(false);
 
-        appName->setText("Story Architect");
+        appName->setText("Aula 122");
         appName->setLink(QUrl("https://starc.app"));
         appVersion->setLink(QUrl("https://starc.app/blog/"));
         aboutAppSpacer->setText(" - ");
@@ -276,6 +346,8 @@ MenuView::MenuView(QWidget* _parent)
             &MenuView::exportCurrentDocumentPressed);
     connect(d->fullScreen, &QAction::triggered, this, &MenuView::fullscreenPressed);
     connect(d->settings, &QAction::triggered, this, &MenuView::settingsPressed);
+    connect(d->breakdown, &QAction::triggered, this, &MenuView::breakdownPressed);
+    connect(d->production, &QAction::triggered, this, &MenuView::productionPressed);
     //
     connect(d->writingStatistics, &QAction::triggered, this, &MenuView::writingStatisticsPressed);
     connect(d->writingSprint, &QAction::triggered, this, &MenuView::writingSprintPressed);
@@ -303,6 +375,8 @@ MenuView::MenuView(QWidget* _parent)
     connect(this, &MenuView::exportCurrentDocumentPressed, this, &MenuView::closeMenu);
     connect(this, &MenuView::fullscreenPressed, this, &MenuView::closeMenu);
     connect(this, &MenuView::settingsPressed, this, &MenuView::closeMenu);
+    connect(this, &MenuView::breakdownPressed, this, &MenuView::closeMenu);
+    connect(this, &MenuView::productionPressed, this, &MenuView::closeMenu);
     connect(this, &MenuView::helpPressed, this, &MenuView::closeMenu);
     //
     connect(this, &MenuView::writingStatisticsPressed, this, &MenuView::closeMenu);
@@ -404,6 +478,18 @@ void MenuView::checkSettings()
 {
     QSignalBlocker signalBlocker(this);
     d->importProject->setChecked(true);
+}
+
+void MenuView::checkBreakdown()
+{
+    QSignalBlocker signalBlocker(this);
+    d->breakdown->setChecked(true);
+}
+
+void MenuView::checkProduction()
+{
+    QSignalBlocker signalBlocker(this);
+    d->production->setChecked(true);
 }
 
 void MenuView::markChangesSaved(bool _saved)
@@ -555,6 +641,16 @@ void MenuView::updateTranslations()
     d->fullScreen->setWhatsThis(
         QKeySequence(QKeySequence::FullScreen).toString(QKeySequence::NativeText));
     d->settings->setText(tr("Application settings"));
+    d->breakdown->setText(tr("Desglose del guion"));
+    d->production->setText(tr("Plan de rodaje"));
+    d->idea->setText(tr("Idea / Tratamiento"));
+    d->crew->setText(tr("Crew / Equipo"));
+    d->budget->setText(tr("Presupuesto"));
+    d->shotList->setText(tr("Shot list / Storyboard"));
+    d->locations->setText(tr("Locaciones"));
+    d->casting->setText(tr("Casting"));
+    d->callSheet->setText(tr("Call sheet"));
+    d->characters->setText(tr("Personajes"));
 
     d->writingStatistics->setToolTip(tr("Show writing statistics"));
     d->writingSprint->setToolTip(tr("Show writing sprint timer"));
@@ -628,8 +724,8 @@ void MenuView::Implementation::createMenuBar()
     //
 
     // Основной пункт меню с нeзвазванием "Story Architect"
-    QMenu* appMenu = menuBar->addMenu("Story Architect");
-    aboutApplicationAction->setText(tr("About Story Architect"));
+    QMenu* appMenu = menuBar->addMenu("Aula 122");
+    aboutApplicationAction->setText(tr("About Aula 122"));
     aboutApplicationAction->setMenuRole(QAction::ApplicationSpecificRole);
     appMenu->addAction(aboutApplicationAction);
     appMenu->addSeparator();

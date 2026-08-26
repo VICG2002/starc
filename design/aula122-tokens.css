@@ -1,0 +1,275 @@
+/* ============================================================================
+   aula122-tokens.css — Puente de diseño Aula 122
+   ----------------------------------------------------------------------------
+   Espejo en CSS del DesignSystem real del fork (Qt/C++ Material Design).
+   Fuente de verdad: src/corelib/ui/design_system/design_system.{h,cpp}
+   NO inventar valores aquí: si cambian en design_system.cpp, actualizar esto.
+
+   Propósito: que un wireframe HTML que enlace este archivo se vea como una
+   pantalla de Aula 122, para que el port a Qt Widgets sea casi 1:1.
+   Convención: ancho FIJO de escritorio (no mobile-first responsive).
+   ========================================================================== */
+
+/* ---- Iconos: Material Symbols (mapea a los MDI del Qt; NO usar emojis) ---- */
+@import url('https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,400,0,0');
+.mi{font-family:'Material Symbols Outlined';font-weight:400;font-style:normal;line-height:1;
+  display:inline-block;vertical-align:middle;white-space:nowrap;-webkit-font-smoothing:antialiased;
+  font-size:20px;letter-spacing:normal;text-transform:none}
+.mi-sm{font-size:18px}
+
+/* ---- Reset mínimo ---- */
+*, *::before, *::after { box-sizing: border-box; }
+html, body { margin: 0; padding: 0; }
+
+/* ============================================================================
+   1. COLOR  (design_system.cpp — tema claro por defecto, líneas ~53-65 / 2573)
+   ============================================================================ */
+:root {
+  --primary:        #323740;  /* primary    — barras/superficies de marca (slate) */
+  --accent:         #448aff;  /* accent     — acción principal, focus, links      */
+  --background:     #ffffff;  /* background — fondo de la app                     */
+  --surface:        #f3f3f3;  /* surface    — tarjetas, paneles, inputs           */
+  --error:          #ec3740;  /* error                                            */
+
+  --on-primary:     #ffffff;
+  --on-accent:      #ffffff;
+  --on-background:  #000000;
+  --on-surface:     #000000;
+  --on-error:       #ffffff;
+
+  /* Derivados útiles (opacidades Material sobre on-surface) */
+  --on-surface-medium:  rgba(0,0,0,.60);  /* texto secundario   */
+  --on-surface-disabled:rgba(0,0,0,.38);  /* deshabilitado      */
+  --divider:            rgba(0,0,0,.12);  /* líneas/separadores */
+  --hover:              rgba(0,0,0,.04);
+  --selected:           rgba(68,138,255,.12); /* accent @12%     */
+
+  /* ---- Tipografía: escala Material (design_system.cpp ~397-409) ---- */
+  /* fuente real del fork es custom; en wireframe usamos Roboto/sistema */
+  --font: "Roboto", -apple-system, "Segoe UI", system-ui, sans-serif;
+  --w-light: 300; --w-normal: 400; --w-medium: 500;
+
+  --fz-h1: 96px; --fz-h2: 60px; --fz-h3: 48px; --fz-h4: 34px;
+  --fz-h5: 24px; --fz-h6: 20px;
+  --fz-subtitle1: 16px; --fz-subtitle2: 14px;
+  --fz-body1: 16px; --fz-body2: 14px;
+  --fz-button: 14px; --fz-caption: 12px; --fz-overline: 10px;
+
+  /* ---- Espaciado: grid de 8px (Layout::pxN, design_system.h ~146-186) ---- */
+  --px2: 2px; --px4: 4px; --px8: 8px; --px12: 12px;
+  --px16: 16px; --px24: 24px; --px48: 48px; --px62: 62px;
+
+  --radius: 4px;      /* radios Material */
+  --shadow-1: 0 1px 3px rgba(0,0,0,.18), 0 1px 2px rgba(0,0,0,.10);
+  --shadow-2: 0 3px 6px rgba(0,0,0,.16), 0 3px 6px rgba(0,0,0,.12);
+}
+
+/* Tema oscuro (design_system.cpp ~2593-2608). Añadir data-theme="dark" al <html>. */
+:root[data-theme="dark"] {
+  --primary:#323740; --accent:#5796ff; --background:#272b34; --surface:#22262e;
+  --error:#ff4e4e;
+  --on-primary:#ffffff; --on-accent:#f8f8f2; --on-background:#f8f8f2;
+  --on-surface:#f8f8f2; --on-error:#f8f8f2;
+  --on-surface-medium:rgba(248,248,242,.60); --on-surface-disabled:rgba(248,248,242,.38);
+  --divider:rgba(248,248,242,.12); --hover:rgba(255,255,255,.06);
+  --selected:rgba(87,150,255,.18);
+}
+
+/* ============================================================================
+   2. BASE
+   ============================================================================ */
+body {
+  font-family: var(--font);
+  font-size: var(--fz-body1);
+  line-height: 1.5;
+  color: var(--on-background);
+  background: var(--background);
+}
+
+/* ---- Tipografía como clases (Ui::Label estilos) ---- */
+.t-h4{font-size:var(--fz-h4);font-weight:var(--w-normal);letter-spacing:.25px;margin:0}
+.t-h5{font-size:var(--fz-h5);font-weight:var(--w-normal);margin:0}
+.t-h6{font-size:var(--fz-h6);font-weight:var(--w-medium);letter-spacing:.15px;margin:0}
+.t-subtitle1{font-size:var(--fz-subtitle1);font-weight:var(--w-normal);letter-spacing:.15px;margin:0}
+.t-subtitle2{font-size:var(--fz-subtitle2);font-weight:var(--w-medium);letter-spacing:.1px;margin:0}
+.t-body1{font-size:var(--fz-body1);font-weight:var(--w-normal);letter-spacing:.5px}
+.t-body2{font-size:var(--fz-body2);font-weight:var(--w-normal);letter-spacing:.25px}
+.t-caption{font-size:var(--fz-caption);font-weight:var(--w-normal);letter-spacing:.4px;color:var(--on-surface-medium)}
+.t-overline{font-size:var(--fz-overline);font-weight:var(--w-normal);text-transform:uppercase;letter-spacing:1.5px;color:var(--on-surface-medium)}
+
+/* ============================================================================
+   3. COMPONENTES  (cada clase espeja un widget del kit Ui::)
+   Mapa completo HTML↔Qt en design/_componentes.md
+   ============================================================================ */
+
+/* Ui::AppBar — barra superior de la pantalla */
+.a122-appbar{
+  display:flex;align-items:center;gap:var(--px16);
+  height:56px;padding:0 var(--px24);
+  background:var(--background);color:var(--on-background);
+  box-shadow:var(--shadow-1);position:relative;z-index:2;
+}
+.a122-appbar .title{font-size:var(--fz-h6);font-weight:var(--w-medium)}
+.a122-appbar .spacer{flex:1}
+
+/* Ui::Button — contenido (accent) / texto / outlined */
+.a122-btn{
+  font-family:var(--font);font-size:var(--fz-button);font-weight:var(--w-medium);
+  text-transform:uppercase;letter-spacing:1.25px;
+  border:none;border-radius:var(--radius);cursor:pointer;
+  height:36px;padding:0 var(--px16);background:var(--accent);color:var(--on-accent);
+  box-shadow:var(--shadow-1);
+}
+.a122-btn:hover{box-shadow:var(--shadow-2)}
+.a122-btn--text{background:transparent;color:var(--accent);box-shadow:none}
+.a122-btn--text:hover{background:var(--selected)}
+.a122-btn--outlined{background:transparent;color:var(--accent);border:1px solid var(--divider);box-shadow:none}
+.a122-btn:disabled{background:var(--on-surface-disabled);color:#fff;box-shadow:none;cursor:default}
+
+/* Ui::IconButton — botón solo-icono (usar emoji/glyph como placeholder) */
+.a122-iconbtn{
+  width:40px;height:40px;border:none;border-radius:50%;background:transparent;
+  color:var(--on-surface-medium);cursor:pointer;font-size:var(--fz-h6);
+}
+.a122-iconbtn:hover{background:var(--hover)}
+
+/* Ui::TextField — Material filled con label flotante simulado */
+.a122-field{display:flex;flex-direction:column;gap:var(--px4);margin-bottom:var(--px16)}
+.a122-field > label{font-size:var(--fz-caption);color:var(--on-surface-medium);letter-spacing:.4px}
+.a122-field input,.a122-field textarea,.a122-field select{
+  font-family:var(--font);font-size:var(--fz-body1);color:var(--on-surface);
+  background:var(--surface);border:none;border-bottom:1px solid var(--divider);
+  border-radius:var(--radius) var(--radius) 0 0;padding:var(--px12);
+}
+.a122-field input:focus,.a122-field textarea:focus,.a122-field select:focus{
+  outline:none;border-bottom:2px solid var(--accent);
+}
+.a122-field .hint{font-size:var(--fz-caption);color:var(--on-surface-medium)}
+.a122-field .error{font-size:var(--fz-caption);color:var(--error)}
+
+/* Ui::Card — panel con superficie y sombra */
+.a122-card{
+  background:var(--surface);border-radius:var(--radius);
+  box-shadow:var(--shadow-1);padding:var(--px16);
+}
+
+/* Ui::TabBar — pestañas */
+.a122-tabbar{display:flex;gap:var(--px8);border-bottom:1px solid var(--divider)}
+.a122-tab{
+  border:none;background:transparent;cursor:pointer;
+  font-size:var(--fz-button);font-weight:var(--w-medium);text-transform:uppercase;
+  letter-spacing:1.25px;color:var(--on-surface-medium);
+  padding:var(--px12) var(--px16);border-bottom:2px solid transparent;
+}
+.a122-tab.is-active{color:var(--accent);border-bottom-color:var(--accent)}
+
+/* Ui::Tree / tabla de datos (QTableWidget en plugins) */
+.a122-table{width:100%;border-collapse:collapse;font-size:var(--fz-body2)}
+.a122-table th{
+  text-align:left;font-weight:var(--w-medium);color:var(--on-surface-medium);
+  font-size:var(--fz-caption);text-transform:uppercase;letter-spacing:.4px;
+  padding:var(--px8) var(--px12);border-bottom:1px solid var(--divider);
+}
+.a122-table td{padding:var(--px12);border-bottom:1px solid var(--divider)}
+.a122-table tr:hover td{background:var(--hover)}
+.a122-table tr.is-selected td{background:var(--selected)}
+
+/* Ui::CheckBox / RadioButton / Toggle (simplificados) */
+.a122-check{display:inline-flex;align-items:center;gap:var(--px8);font-size:var(--fz-body2)}
+
+/* Chip / etiqueta de estado (color-coded, estilo StudioBinder) */
+.a122-chip{
+  display:inline-flex;align-items:center;gap:var(--px4);
+  font-size:var(--fz-caption);font-weight:var(--w-medium);letter-spacing:.4px;
+  padding:var(--px2) var(--px8);border-radius:12px;
+  background:var(--selected);color:var(--accent);
+}
+
+/* Ui::Drawer / panel lateral */
+.a122-drawer{background:var(--surface);border-right:1px solid var(--divider);padding:var(--px8)}
+
+/* Layout helpers */
+.a122-screen{width:1024px;margin:0 auto;background:var(--background);min-height:100vh;
+  box-shadow:var(--shadow-1)}   /* ancho fijo del panel de un plugin */
+.a122-pad{padding:var(--px24)}
+.a122-row{display:flex;gap:var(--px16);align-items:flex-start}
+.a122-col{display:flex;flex-direction:column;gap:var(--px16)}
+.a122-divider{height:1px;background:var(--divider);border:0;margin:var(--px16) 0}
+
+/* ============================================================================
+   4. DOCUMENTO TAMAÑO CARTA  (vistas que SE EXPORTAN a PDF)
+   ----------------------------------------------------------------------------
+   Carta = 8.5×11 in. @96dpi → 816×1056 px. Márgenes 0.5in = 48px.
+   Horizontal = la MISMA hoja carta volteada (1056×816).
+   En Qt esto NO es un widget: es el layout de impresión
+   (QTextDocument + QPrinter con QPageSize::Letter). Ver design/_componentes.md.
+   ============================================================================ */
+.doc-canvas{background:#e7e7e7;padding:var(--px24);display:flex;justify-content:center}
+.doc-letter{
+  position:relative;width:816px;min-height:1056px;background:#fff;color:#000;
+  box-shadow:var(--shadow-2);padding:48px;            /* margen 0.5in */
+  font-size:11px;line-height:1.4;                     /* densidad de documento impreso */
+}
+.doc-letter--landscape{width:1056px;min-height:816px} /* misma carta, volteada */
+
+/* Banda de encabezado del documento */
+.doc-head{display:flex;justify-content:space-between;align-items:flex-start;
+  border-bottom:2px solid #000;padding-bottom:var(--px8);margin-bottom:var(--px12)}
+.doc-title{font-size:18px;font-weight:var(--w-medium);letter-spacing:.3px;margin:0}
+.doc-sub{font-size:11px;color:#333}
+.doc-daybox{text-align:right;font-size:12px}
+.doc-daybox b{font-size:16px}
+
+/* Rejilla de bloques (contactos / schedule / clima / locación …) */
+.doc-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:var(--px12);margin-bottom:var(--px12)}
+.doc-grid--2{grid-template-columns:1fr 1fr}
+.doc-block{border:1px solid #ccc;border-radius:2px;padding:var(--px8)}
+.doc-block h4{margin:0 0 var(--px4);font-size:10px;text-transform:uppercase;letter-spacing:.6px;color:#555}
+.doc-block .line{display:flex;justify-content:space-between;gap:var(--px8);padding:1px 0}
+
+/* Tablas de documento (escenas / cast / crew) — densas, impresas */
+.doc-table{width:100%;border-collapse:collapse;font-size:10.5px;margin:var(--px4) 0 var(--px12)}
+.doc-table caption{text-align:left;font-size:10px;text-transform:uppercase;letter-spacing:.6px;color:#555;padding:var(--px4) 0}
+.doc-table th,.doc-table td{border:1px solid #ccc;padding:3px 6px;text-align:left;vertical-align:top}
+.doc-table th{background:#f0f0f0;font-weight:var(--w-medium);font-size:9.5px;text-transform:uppercase;letter-spacing:.4px}
+.doc-deptrow td{background:#f7f7f7;font-weight:var(--w-medium)}
+
+/* Pie de página del documento (walkie + contactos clave en cada hoja) */
+.doc-foot{border-top:1px solid #000;margin-top:var(--px12);padding-top:var(--px4);
+  font-size:9px;color:#555;display:flex;justify-content:space-between}
+
+/* Marcadores de estado de Aula 122 que NO se imprimen (ayuda de edición) */
+.needs{background:rgba(236,55,64,.10);outline:1px dashed var(--error)}
+.tag-falta{font-size:8.5px;font-weight:var(--w-medium);color:var(--error);text-transform:uppercase;letter-spacing:.4px}
+.tag-auto{font-size:8.5px;color:#2f6fd6}              /* accent oscurecido p/ contraste AA */
+@media print{.no-print{display:none!important}.needs{background:none;outline:none}.doc-draft{display:none}}
+
+/* Sello de BORRADOR (cuando se exporta incompleto) */
+.doc-draft{position:absolute;top:140px;left:50%;transform:translateX(-50%) rotate(-18deg);
+  font-size:64px;font-weight:700;color:rgba(236,55,64,.12);letter-spacing:8px;pointer-events:none}
+
+/* ============================================================================
+   5. APP SHELL — navegación en ORDEN NATURAL de producción
+   ----------------------------------------------------------------------------
+   Ui::Drawer izquierdo + área principal. Reutilizable por TODA sección.
+   En Qt: el drawer ya existe → src/core/ui/menu_view.cpp (solo se reordena).
+   ============================================================================ */
+.a122-shell{display:flex;min-height:100vh}
+.a122-nav{width:252px;flex:none;background:var(--surface);border-right:1px solid var(--divider);
+  padding:var(--px8) 0;overflow:auto}
+.a122-nav__brand{display:flex;align-items:center;gap:var(--px8);padding:var(--px12) var(--px16)}
+.a122-nav__brand b{font-size:var(--fz-h6);font-weight:var(--w-medium)}
+.a122-nav__group{font-size:var(--fz-overline);text-transform:uppercase;letter-spacing:1.5px;
+  color:var(--on-surface-medium);padding:var(--px16) var(--px16) var(--px4)}
+.a122-nav__item{display:flex;align-items:center;gap:var(--px8);padding:var(--px8) var(--px16);
+  cursor:pointer;color:var(--on-surface);font-size:var(--fz-body2);border-left:3px solid transparent}
+.a122-nav__item .num{width:16px;color:var(--on-surface-medium);font-size:var(--fz-caption);text-align:right}
+.a122-nav__item .ico{width:20px;text-align:center;opacity:.85}
+.a122-nav__item:hover{background:var(--hover)}
+.a122-nav__item.is-active{background:var(--selected);color:#2f6fd6;border-left-color:var(--accent);font-weight:var(--w-medium)}
+.a122-nav__item.is-soon{color:var(--on-surface-disabled);cursor:default}
+.a122-nav__item .st{margin-left:auto;font-size:8.5px;text-transform:uppercase;letter-spacing:.5px}
+.a122-nav__item .st.ok{color:#2e7d32}                 /* existe */
+.a122-nav__item .st.wip{color:#b26a00}                /* en diseño */
+.a122-nav__item .st.soon{color:var(--on-surface-disabled);border:1px solid var(--divider);border-radius:8px;padding:0 6px}
+.a122-main{flex:1;min-width:0;display:flex;flex-direction:column;background:var(--background)}

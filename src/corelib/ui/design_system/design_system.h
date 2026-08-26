@@ -1220,6 +1220,13 @@ public:
     static void updateLanguage();
 
     /**
+     * @brief Aula 122: cambiar la familia de fuente de la UI nativa en runtime.
+     *        Reconstruye el DesignSystem conservando tema/escala/densidad/color.
+     *        El texto de guion/sinopsis NO se ve afectado (usa su plantilla Courier Prime).
+     */
+    static void setUiFontFamily(const QString& _family);
+
+    /**
      * @brief Задать тему приложения
      */
     static void setTheme(ApplicationTheme _theme);

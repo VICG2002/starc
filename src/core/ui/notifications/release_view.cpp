@@ -207,7 +207,7 @@ void ReleaseView::Implementation::updateState()
         || notification.type == Domain::NotificationType::UpdateDevWindows) {
         titleLabel->setText(tr("Dev version updated"));
         bodyLabel->setText(
-            tr("Story Architect version %1 was published for testing.").arg(version));
+            tr("Aula 122 version %1 was published for testing.").arg(version));
         readMoreLink->setText(tr("Check out what's changed"));
     }
     //

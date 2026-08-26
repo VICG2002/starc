@@ -309,6 +309,11 @@ public:
      * @brief Сравнить документы с заданными индексами
      */
     void compareTextDocuments(const QModelIndex& _lhs, const QModelIndex& _rhs);
+    //
+    // Aula 122: comparar borradores del MISMO documento lado a lado en split view
+    // (_lhsTab/_rhsTab son posiciones de pestaña: 0 = borrador actual, i = drafts()[i-1])
+    //
+    void compareTextDocumentsSideBySide(const QModelIndex& _itemIndex, int _lhsTab, int _rhsTab);
     void compareTextDocumentsItems(BusinessLayer::StructureModelItem* _lhsItem,
                                    BusinessLayer::StructureModelItem* _rhsItem);
 
@@ -1185,6 +1190,14 @@ BusinessLayer::StructureModelItem* ProjectManager::Implementation::aliasedItemFo
     const QModelIndex& _index)
 {
     auto item = projectStructureModel->itemForIndex(_index);
+    //
+    // Aula 122 (fix de crash): itemForIndex puede devolver null (índice fuera
+    // del modelo); sin este guard, el chequeo de type() de abajo desreferenciaba
+    // un puntero nulo.
+    //
+    if (item == nullptr) {
+        return nullptr;
+    }
     if (item->type() != Domain::DocumentObjectType::ScreenplayTreatment
         && item->type() != Domain::DocumentObjectType::NovelOutline) {
         return item;
@@ -2052,6 +2065,39 @@ void ProjectManager::Implementation::compareTextDocuments(const QModelIndex& _lh
 
                     compareTextDocumentsItems(lhsItem, rhsItem);
                 });
+        //
+        // Aula 122: modo "Lado a lado" — solo cuando se comparan borradores del
+        // MISMO documento (el split view muestra dos borradores de un documento)
+        //
+        if (_lhs == _rhs) {
+            dialog->setSideBySideAvailable(true);
+            connect(dialog, &Ui::CompareDraftDialog::compareSideBySidePressed, view.active,
+                    [this, _lhs, dialog](int _lhsIndex, int _rhsIndex) {
+                        dialog->hideDialog();
+
+                        //
+                        // El índice del diálogo recorre solo borradores NO-comparación;
+                        // se traduce a posición de pestaña (que sí incluye comparaciones)
+                        //
+                        const auto item = aliasedItemForIndex(_lhs);
+                        const auto tabIndexFor = [item](int _dialogIndex) {
+                            if (_dialogIndex == 0) {
+                                return 0;
+                            }
+                            int index = 0;
+                            for (int draftIndex = 0; draftIndex < _dialogIndex;) {
+                                if (!item->drafts().at(index)->isComparison()) {
+                                    ++draftIndex;
+                                }
+                                ++index;
+                            }
+                            return index;
+                        };
+
+                        compareTextDocumentsSideBySide(_lhs, tabIndexFor(_lhsIndex),
+                                                       tabIndexFor(_rhsIndex));
+                    });
+        }
         connect(dialog, &Ui::CompareDraftDialog::disappeared, dialog,
                 &Ui::CreateDraftDialog::deleteLater);
 
@@ -2118,6 +2164,60 @@ void ProjectManager::Implementation::compareTextDocumentsItems(
     // Открыть получившийся драфт в режиме отображения дифа
     //
     view.active->setCurrentDraft(comparisonDraftHostItem->drafts().size());
+}
+
+void ProjectManager::Implementation::compareTextDocumentsSideBySide(const QModelIndex& _itemIndex,
+                                                                    int _lhsTab, int _rhsTab)
+{
+    //
+    // Aula 122: borrador "viejo" en el panel IZQUIERDO y "nuevo" en el DERECHO.
+    // Reusa el split view (F2) y el mecanismo de pestañas de borradores por panel;
+    // no toca el differ (la comparación inline con marcas sigue disponible).
+    //
+    if (!_itemIndex.isValid()) {
+        return;
+    }
+
+    //
+    // Activar el split si no está activo (mismo camino que el botón F2; el
+    // handler del toggle corre síncrono y deja el panel derecho visible)
+    //
+    if (!splitScreenAction->isChecked()) {
+        splitScreenAction->setChecked(true);
+    }
+
+    const auto itemProxyIndex = projectStructureProxyModel->mapFromSource(_itemIndex);
+
+    //
+    // Apuntar un panel al documento (si el split ya existía con otro documento)
+    // y fijar su borrador. El navegador debe apuntar al documento ANTES de
+    // cambiar la pestaña: el handler de showDraftPressed resuelve el item
+    // desde navigator->currentIndex().
+    //
+    const auto showDraftInActiveView = [this, &_itemIndex, &itemProxyIndex](int _draftTab) {
+        if (view.activeIndex != _itemIndex) {
+            q->showView(itemProxyIndex);
+        }
+        {
+            QSignalBlocker signalBlocker(navigator);
+            navigator->setCurrentIndex(itemProxyIndex);
+        }
+        view.active->setCurrentDraft(_draftTab);
+    };
+
+    //
+    // Panel IZQUIERDO = borrador viejo (lhs)
+    //
+    if (view.active != view.left) {
+        switchViews();
+    }
+    showDraftInActiveView(_lhsTab);
+
+    //
+    // Panel DERECHO = borrador nuevo (rhs) — queda activo para seguir trabajando
+    //
+    switchViews();
+    showDraftInActiveView(_rhsTab);
 }
 
 void ProjectManager::Implementation::emptyRecycleBin()
@@ -2226,17 +2326,27 @@ void ProjectManager::Implementation::updateViewsEditingMode()
 {
     if (auto activeView = activeDocumentView(); activeView != nullptr) {
         auto item = projectStructureModel->itemForIndex(view.activeIndex);
-        if (view.active->currentDraft() > 0) {
-            const auto draftIndex = view.active->currentDraft() - 1;
-            item = item->drafts().at(draftIndex);
+        if (item != nullptr && view.active->currentDraft() > 0) {
+            // Aula 122 (fix de crash): .value() en vez de .at() — devuelve nullptr fuera
+            // de rango (negativo O sobre el tamaño) en vez de reventar. El item SIN
+            // resolver (itemForIndex) puede tener menos drafts que el resuelto que pobló
+            // las pestañas (alias de tratamiento/outline) → el índice podía pasarse.
+            if (auto draft = item->drafts().value(view.active->currentDraft() - 1)) {
+                item = draft;
+            }
         }
         activeView->setEditingMode(documentEditingMode(item));
     }
     if (auto inactiveView = inactiveDocumentView(); inactiveView != nullptr) {
         auto item = projectStructureModel->itemForIndex(view.inactiveIndex);
-        if (view.active->currentDraft() > 0) {
-            const auto draftIndex = view.inactive->currentDraft() - 1;
-            item = item->drafts().at(draftIndex);
+        // Aula 122 (fix de crash): la guarda usaba view.active (copy-paste) mientras el
+        // índice venía de view.inactive → con la vista activa en un draft y la inactiva
+        // en la pestaña 0, daba drafts().at(-1). Ahora guarda+indexa la MISMA vista y usa
+        // .value() (las dos vistas tienen su propia barra de borradores, independientes).
+        if (item != nullptr && view.inactive->currentDraft() > 0) {
+            if (auto draft = item->drafts().value(view.inactive->currentDraft() - 1)) {
+                item = draft;
+            }
         }
         inactiveView->setEditingMode(documentEditingMode(item));
     }
@@ -2320,6 +2430,14 @@ ProjectManager::ProjectManager(QObject* _parent, QWidget* _parentWidget,
     //
     connect(d->splitScreenAction, &QAction::toggled, this, [this](bool _checked) {
         d->updateOptionsText();
+        //
+        // Aula 122: la X de "cerrar comparación" solo existe mientras el split
+        // está activo, en los dos paneles (el usuario puede estar mirando
+        // cualquiera de los dos)
+        //
+        for (auto view : { d->view.left, d->view.right }) {
+            view->setSplitCloseVisible(_checked);
+        }
         if (_checked) {
             Log::info("Split screen turned on");
 
@@ -2791,9 +2909,16 @@ ProjectManager::ProjectManager(QObject* _parent, QWidget* _parentWidget,
             [this] { d->view.active->setDraftsVisible(true); });
     connect(d->projectStructureModel, &BusinessLayer::StructureModel::draftRemoved, this,
             [this](const QUuid& _uuid) {
-                const auto draftsCount
-                    = d->projectStructureModel->itemForUuid(_uuid)->drafts().count();
-                d->view.active->setDraftsVisible(draftsCount > 0);
+                //
+                // Aula 122: en documentos de texto editables la barra permanece
+                // visible (pestaña del borrador actual + botón "+") aunque se
+                // borre el último borrador
+                //
+                const auto item = d->projectStructureModel->itemForUuid(_uuid);
+                const bool canCreateDraft = item != nullptr && isTextItem(item)
+                    && d->documentEditingMode(item) == DocumentEditingMode::Edit;
+                const auto draftsCount = item != nullptr ? item->drafts().count() : 0;
+                d->view.active->setDraftsVisible(draftsCount > 0 || canCreateDraft);
             });
 
     //
@@ -2801,10 +2926,44 @@ ProjectManager::ProjectManager(QObject* _parent, QWidget* _parentWidget,
     //
     for (auto view : { d->view.left, d->view.right }) {
         connect(view, &Ui::ProjectView::createNewItemPressed, this, [this] { d->addDocument(); });
+        //
+        // Aula 122: botón "+" de la barra de borradores → MISMO flujo que la
+        // opción "Create draft" del menú contextual
+        //
+        connect(view, &Ui::ProjectView::createNewDraftPressed, this, [this] {
+            const auto currentItemIndex
+                = d->projectStructureProxyModel->mapToSource(d->navigator->currentIndex());
+            if (!currentItemIndex.isValid()) {
+                return;
+            }
+            d->createNewDraft(currentItemIndex);
+        });
+        //
+        // Aula 122: sprint y pantalla completa desde la barra de borradores —
+        // se re-emiten para que ApplicationManager los enrute a los MISMOS
+        // slots que las acciones del ☰
+        //
+        connect(view, &Ui::ProjectView::sprintPressed, this,
+                &ProjectManager::writingSprintRequested);
+        connect(view, &Ui::ProjectView::fullscreenPressed, this,
+                &ProjectManager::fullscreenRequested);
+        //
+        // Aula 122: botón de cerrar la comparación lado a lado — mismo efecto
+        // que F2 o "Remove split", con el checked ya en falso
+        //
+        connect(view, &Ui::ProjectView::closeSplitPressed, this,
+                [this] { d->splitScreenAction->setChecked(false); });
         connect(view, &Ui::ProjectView::showDraftPressed, this, [this](int _draftIndex) {
             const auto currentItemIndex
                 = d->projectStructureProxyModel->mapToSource(d->navigator->currentIndex());
             const auto currentItem = d->aliasedItemForIndex(currentItemIndex);
+            //
+            // Aula 122 (fix de crash): currentItem puede ser null (índice sin
+            // resolver) — sin este guard, cualquier rama de abajo desreferenciaba.
+            //
+            if (currentItem == nullptr) {
+                return;
+            }
 
             //
             // Показать текущий драфт
@@ -2817,14 +2976,51 @@ ProjectManager::ProjectManager(QObject* _parent, QWidget* _parentWidget,
             //
             // Показать один из установленных драфтов
             //
-            showViewForDraft(currentItem->drafts().at(_draftIndex - 1));
+            // Aula 122 (fix de crash): .value() en vez de .at() — currentItem
+            // puede tener menos borradores de los que la barra muestra (mismo
+            // desfase de alias que en showDraftContextMenuPressed más abajo).
+            //
+            auto draft = currentItem->drafts().value(_draftIndex - 1);
+            if (draft == nullptr) {
+                return;
+            }
+            showViewForDraft(draft);
         });
         connect(view, &Ui::ProjectView::showDraftContextMenuPressed, this, [this](int _draftIndex) {
+            //
+            // Aula 122 (fix de crash): un menú contextual sobre la barra de borradores
+            // en una zona SIN pestaña (p.ej. doble clic / clic-derecho en el área vacía)
+            // llega con _draftIndex == -1 (QTabBar::tabAt → -1). El resto del handler
+            // asume un índice válido (realDraftIndex = _draftIndex - 1) y dereferenciaba
+            // item->drafts().at(-2) → EXC_BAD_ACCESS. Sin draft bajo el cursor no hay
+            // menú que construir.
+            //
+            if (_draftIndex < 0) {
+                return;
+            }
             const auto currentItemIndex
                 = d->projectStructureProxyModel->mapToSource(d->navigator->currentIndex());
-            const auto item = d->projectStructureModel->itemForIndex(currentItemIndex);
+            //
+            // Aula 122 (fix de crash): aliasedItemForIndex, NO itemForIndex —
+            // el mismo ítem que pobló las pestañas (setDocumentDrafts recibe el
+            // item con alias resuelto). Con itemForIndex sin resolver, un nodo
+            // de Tratamiento/Outline llega aquí con drafts() vacío mientras la
+            // barra ya muestra las pestañas del documento dueño → cualquier
+            // .at() de abajo desreferenciaba fuera de rango.
+            //
+            const auto item = d->aliasedItemForIndex(currentItemIndex);
+            if (item == nullptr) {
+                return;
+            }
             const auto isCurrentDraft = _draftIndex == 0;
             const auto realDraftIndex = _draftIndex - 1;
+            //
+            // Aula 122 (fix de crash): .value() en vez de .at() — incluso con el
+            // alias resuelto, un índice de pestaña desfasado (p.ej. la barra no
+            // se ha refrescado todavía) no debe reventar; simplemente no hay
+            // draft real bajo ese índice.
+            //
+            const auto realDraftItem = item->drafts().value(realDraftIndex);
             const auto hasActualDrafts
                 = std::find_if(item->drafts().begin(), item->drafts().end(),
                                [](const BusinessLayer::StructureModelItem* _draft) {
@@ -2840,7 +3036,8 @@ ProjectManager::ProjectManager(QObject* _parent, QWidget* _parentWidget,
             // Создать новый драфт можно из текущего, или другого, но не сравнения
             //
             if (isCurrentDraft
-                || (_draftIndex > 0 && !item->drafts().at(realDraftIndex)->isComparison())) {
+                || (_draftIndex > 0 && realDraftItem != nullptr
+                    && !realDraftItem->isComparison())) {
                 auto createNewDraftAction = new QAction;
                 createNewDraftAction->setIconText(u8"\U000F00FB");
                 createNewDraftAction->setText(tr("Create draft"));
@@ -2854,9 +3051,11 @@ ProjectManager::ProjectManager(QObject* _parent, QWidget* _parentWidget,
             //
             // Сравнить драфты показываем, если есть другие актуальные драфты
             //
-            if (hasActualDrafts
+            const auto canCompare = hasActualDrafts
                 && (isCurrentDraft
-                    || (_draftIndex > 0 && !item->drafts().at(realDraftIndex)->isComparison()))) {
+                    || (_draftIndex > 0 && realDraftItem != nullptr
+                        && !realDraftItem->isComparison()));
+            if (canCompare) {
                 auto compareDraftsAction = new QAction;
                 compareDraftsAction->setIconText(u8"\U000F1492");
                 compareDraftsAction->setText(tr("Compare drafts"));
@@ -2868,9 +3067,41 @@ ProjectManager::ProjectManager(QObject* _parent, QWidget* _parentWidget,
             }
 
             //
+            // Aula 122: comparar lado a lado directo desde el menú — mismo
+            // criterio de aparición que "Compare drafts", sin pasar por el
+            // diálogo intermedio (que sigue disponible para elegir un par
+            // arbitrario). Izquierda = el borrador clicado (el "viejo"); si se
+            // clicó el borrador actual, izquierda pasa a ser el borrador real
+            // más reciente. Derecha = el borrador actual, que queda activo.
+            //
+            if (canCompare) {
+                auto lhsTab = _draftIndex;
+                if (isCurrentDraft) {
+                    lhsTab = -1;
+                    for (int i = item->drafts().size() - 1; i >= 0; --i) {
+                        if (!item->drafts().at(i)->isComparison()) {
+                            lhsTab = i + 1;
+                            break;
+                        }
+                    }
+                }
+                if (lhsTab >= 0) {
+                    auto compareSideBySideAction = new QAction;
+                    compareSideBySideAction->setIconText(u8"\U000F10E7");
+                    compareSideBySideAction->setText(tr("Comparar lado a lado"));
+                    compareSideBySideAction->setEnabled(enabled);
+                    connect(compareSideBySideAction, &QAction::triggered, this,
+                            [this, currentItemIndex, lhsTab] {
+                                d->compareTextDocumentsSideBySide(currentItemIndex, lhsTab, 0);
+                            });
+                    menuActions.append(compareSideBySideAction);
+                }
+            }
+
+            //
             // Для любого драфта, кроме сравнения, показываем опции редактирования и удаления
             //
-            if (_draftIndex == 0 || !item->drafts().at(realDraftIndex)->isComparison()) {
+            if (_draftIndex == 0 || (realDraftItem != nullptr && !realDraftItem->isComparison())) {
                 auto editDraftAction = new QAction;
                 editDraftAction->setIconText(u8"\U000F090C");
                 editDraftAction->setText(tr("Edit"));
@@ -2895,7 +3126,7 @@ ProjectManager::ProjectManager(QObject* _parent, QWidget* _parentWidget,
             //
             // Для сравнений показываем только опцию закрыть
             //
-            if (_draftIndex > 0 && item->drafts().at(realDraftIndex)->isComparison()) {
+            if (_draftIndex > 0 && realDraftItem != nullptr && realDraftItem->isComparison()) {
                 auto closeAction = new QAction;
                 closeAction->setIconText(u8"\U000F0156");
                 closeAction->setText(tr("Close"));
@@ -3492,6 +3723,15 @@ void ProjectManager::toggleFullScreen(bool _isFullScreen)
     d->splitScreenAction->setEnabled(!_isFullScreen);
 
     //
+    // Aula 122: el botón ⛶ de la barra de borradores refleja el modo — en
+    // pantalla completa cambia al icono/tooltip de "salir" (es el único botón
+    // de salida visible desde que se quitó el flotante de ApplicationView)
+    //
+    for (auto view : { d->view.left, d->view.right }) {
+        view->setFullScreenMode(_isFullScreen);
+    }
+
+    //
     // При переходе в полноэкранный режим, если активировано разделение экрана, то скроем неактивный
     // редактор и запомним состояние разделения
     //
@@ -3500,7 +3740,13 @@ void ProjectManager::toggleFullScreen(bool _isFullScreen)
             d->view.stateBeforeFullscreen = d->view.container->saveState();
             d->view.inactive->hide();
         }
-        d->view.active->setDraftsVisible(false);
+        //
+        // Aula 122: la barra de borradores ya NO se oculta en pantalla completa
+        // (decisión de Victor 2026-06-09): ahí viven el cambio de borrador, el
+        // "+", el sprint y el propio botón para SALIR de pantalla completa —
+        // ocultarla dejaba al usuario sin esos controles. (Antes upstream hacía
+        // setDraftsVisible(false) aquí.)
+        //
     }
 
     //
@@ -3523,7 +3769,14 @@ void ProjectManager::toggleFullScreen(bool _isFullScreen)
         }
 
         const auto item = d->aliasedItemForIndex(d->view.activeIndex);
-        d->view.active->setDraftsVisible(item->drafts().count() > 0);
+        //
+        // Aula 122: misma condición que showView — el botón "+" reaparece al
+        // salir de pantalla completa en documentos de texto editables
+        //
+        const bool canCreateDraft = item != nullptr && isTextItem(item)
+            && d->documentEditingMode(item) == DocumentEditingMode::Edit;
+        d->view.active->setDraftsVisible((item != nullptr && item->drafts().count() > 0)
+                                         || canCreateDraft);
     }
 }
 
@@ -3680,6 +3933,21 @@ void ProjectManager::loadCurrentProject(BusinessLayer::ProjectsModelProjectItem*
     // Обновляем режим редактирования для всех вьюх
     //
     d->updateViewsEditingMode();
+
+    //
+    // Aula 122 / A4: al abrir un proyecto aterrizamos en la INFORMACIÓN del proyecto — la pestaña
+    // donde se edita el TÍTULO, el PÓSTER (portada) y la SINOPSIS corta (logline) — igual para
+    // todos los proyectos (decisión del usuario: "que abra esa pestaña, igual que con EDLP").
+    // Sobrescribe el último documento restaurado.
+    //
+    showDocument(Domain::DocumentObjectType::Project);
+
+    //
+    // Aula 122 / A3: el botón "+" (Añadir documento) del navegador, visible y habilitado desde la
+    // carga (sin esperar a la 1ª selección). setButtonEnabled respeta internamente el modo read-only.
+    //
+    d->navigator->showButton(Ui::ProjectNavigator::ActionButton::AddDocument);
+    d->navigator->setButtonEnabled(true);
 }
 
 void ProjectManager::updateCurrentProject(BusinessLayer::ProjectsModelProjectItem* _project)
@@ -3714,6 +3982,145 @@ void ProjectManager::updateCurrentProject(BusinessLayer::ProjectsModelProjectIte
     // Раз получили обновлённую информацию о проекте, проверим режим редактирования для всех вьюх
     //
     d->updateViewsEditingMode();
+}
+
+bool ProjectManager::showDocument(Domain::DocumentObjectType _type)
+{
+    //
+    // Aula 122: buscamos el primer documento del tipo pedido (Sinopsis, Tratamiento, …) en TODO el
+    // árbol de la estructura. OJO: StructureModel::itemForType() solo mira el nivel superior, pero
+    // la Sinopsis y el Tratamiento cuelgan del Guion (no son top-level) → recorremos en profundidad
+    // por la API del modelo. Al seleccionar el elemento se dispara itemSelected → showView, igual
+    // que si el usuario lo clicara en el navegador. Devuelve false si el proyecto no lo tiene.
+    //
+    auto* model = d->projectStructureModel;
+    if (model == nullptr) {
+        return false;
+    }
+    //
+    // DFS por ITEMS (no por índices construidos a mano: el índice fuente canónico se obtiene con
+    // indexForItem, que es lo que setCurrentItem usa y lo único que el proxy sabe mapear).
+    //
+    BusinessLayer::StructureModelItem* found = nullptr;
+    QVector<BusinessLayer::StructureModelItem*> stack;
+    for (int row = model->rowCount() - 1; row >= 0; --row) {
+        if (auto* item = model->itemForIndex(model->index(row, 0))) {
+            stack.append(item);
+        }
+    }
+    while (!stack.isEmpty()) {
+        auto* item = stack.takeLast();
+        if (item->type() == _type) {
+            found = item;
+            break;
+        }
+        for (int i = item->childCount() - 1; i >= 0; --i) {
+            if (auto* child = item->childAt(i)) {
+                stack.append(child);
+            }
+        }
+    }
+    if (found == nullptr) {
+        return false;
+    }
+    //
+    // La Sinopsis/Tratamiento son SUBdocumentos del Guion, ocultos del árbol del navegador (su
+    // índice no mapea en el proxy). Si está oculto, activamos la visibilidad de subelementos para
+    // que su índice exista en el proxy; luego mostramos su editor DIRECTAMENTE con showView (no
+    // dependemos de la señal itemSelected del navegador, que de forma programática no siempre se
+    // dispara). También lo resaltamos en el árbol.
+    //
+    auto proxyIndex = d->projectStructureProxyModel->mapFromSource(model->indexForItem(found));
+    if (!proxyIndex.isValid()) {
+        //
+        // El documento está oculto en el navegador. El filtro del proxy es
+        // (isSubitemsVisible && item->isVisible()), así que activamos AMBOS: hacemos visible el
+        // documento (su contenido ya existe; solo estaba oculto) y mostramos los subelementos.
+        //
+        model->setItemVisible(found, true);
+        d->projectStructureProxyModel->setSubitemsVisible(true);
+        proxyIndex = d->projectStructureProxyModel->mapFromSource(model->indexForItem(found));
+    }
+    if (!proxyIndex.isValid()) {
+        return false;
+    }
+    d->navigator->setCurrentIndex(proxyIndex);
+    showView(proxyIndex);
+    return true;
+}
+
+bool ProjectManager::showDocumentByUuid(const QString& _uuid)
+{
+    //
+    // Aula 122: misma mecánica que showDocument(tipo) pero buscando por UUID. El uuid puede venir
+    // SIN llaves; QUuid::fromString las exige, así que las añadimos si faltan.
+    //
+    auto* model = d->projectStructureModel;
+    if (model == nullptr) {
+        return false;
+    }
+    const QUuid target = QUuid::fromString(_uuid.startsWith(QLatin1Char('{'))
+                                               ? _uuid
+                                               : (QLatin1Char('{') + _uuid + QLatin1Char('}')));
+    if (target.isNull()) {
+        return false;
+    }
+    //
+    // DFS por ITEMS (igual que showDocument): el índice fuente canónico se obtiene con
+    // indexForItem, que es lo único que el proxy sabe mapear.
+    //
+    BusinessLayer::StructureModelItem* found = nullptr;
+    QVector<BusinessLayer::StructureModelItem*> stack;
+    for (int row = model->rowCount() - 1; row >= 0; --row) {
+        if (auto* item = model->itemForIndex(model->index(row, 0))) {
+            stack.append(item);
+        }
+    }
+    while (!stack.isEmpty()) {
+        auto* item = stack.takeLast();
+        if (item->uuid() == target) {
+            found = item;
+            break;
+        }
+        for (int i = item->childCount() - 1; i >= 0; --i) {
+            if (auto* child = item->childAt(i)) {
+                stack.append(child);
+            }
+        }
+    }
+    if (found == nullptr) {
+        return false;
+    }
+    //
+    // Si el documento está oculto en el navegador (subdocumento del guion, item con visible=false),
+    // su índice no mapea en el proxy: activamos visibilidad de subelementos y del propio item, luego
+    // mostramos su editor con showView (igual que showDocument).
+    //
+    auto proxyIndex = d->projectStructureProxyModel->mapFromSource(model->indexForItem(found));
+    if (!proxyIndex.isValid()) {
+        model->setItemVisible(found, true);
+        d->projectStructureProxyModel->setSubitemsVisible(true);
+        proxyIndex = d->projectStructureProxyModel->mapFromSource(model->indexForItem(found));
+    }
+    if (!proxyIndex.isValid()) {
+        return false;
+    }
+    d->navigator->setCurrentIndex(proxyIndex);
+    showView(proxyIndex);
+    return true;
+}
+
+void ProjectManager::createNewDocument()
+{
+    //
+    // Aula 122: abrir el diálogo nativo "Añadir documento" (el menú de tipos).
+    // addDocument() coloca el documento RELATIVO al item seleccionado en el navegador. Para
+    // que el documento nuevo caiga SIEMPRE al NIVEL SUPERIOR (misma jerarquía que el Guion, no
+    // anidado bajo lo último que se vio), seleccionamos la RAÍZ del proyecto: su .parent() es la
+    // raíz, así que el documento queda como hermano de Guion/Personajes/Locaciones.
+    //
+    showDocument(Domain::DocumentObjectType::Project);
+    d->addDocument();
 }
 
 void ProjectManager::restoreCurrentProjectState(const QString& _path)
@@ -5587,8 +5994,13 @@ void ProjectManager::showView(const QModelIndex& _itemIndex, const QString& _vie
 
     //
     // Установим видимость панели драфтов
+    // Aula 122: la barra también se muestra (pestaña única + botón "+") en
+    // documentos de texto editables sin borradores, para poder crear el primero
     //
-    d->view.active->setDraftsVisible(aliasedItem->drafts().count() > 0);
+    const bool canCreateDraft = isTextItem(aliasedItem)
+        && d->documentEditingMode(aliasedItem) == DocumentEditingMode::Edit;
+    d->view.active->setDraftCreationEnabled(canCreateDraft);
+    d->view.active->setDraftsVisible(aliasedItem->drafts().count() > 0 || canCreateDraft);
 
     //
     // Настроим уведомления плагина

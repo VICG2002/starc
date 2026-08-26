@@ -143,6 +143,28 @@ public:
     Domain::DocumentObject* currentDocument() const;
 
     /**
+     * @brief Aula 122: mostrar (seleccionar en el navegador + abrir su editor) el PRIMER documento
+     *        del tipo dado del proyecto actual — p. ej. Sinopsis o Tratamiento. Equivale a que el
+     *        usuario lo clicara en el árbol. Devuelve false si el proyecto no tiene un documento de
+     *        ese tipo (el llamador puede hacer fallback). Requiere el proyecto ya cargado.
+     */
+    bool showDocument(Domain::DocumentObjectType _type);
+
+    /**
+     * @brief Aula 122: mostrar (seleccionar + abrir su editor) el documento cuyo uuid coincide.
+     *        Devuelve false si no existe. El navegador nativo puede estar oculto: la selección
+     *        del modelo igual conduce al editor.
+     */
+    bool showDocumentByUuid(const QString& _uuid);
+
+    /**
+     * @brief Aula 122: abrir el diálogo nativo "Añadir documento" (el menú de tipos).
+     *        Si no hay selección en el navegador, selecciona la raíz del proyecto antes
+     *        (para no desreferenciar un item nulo).
+     */
+    void createNewDocument();
+
+    /**
      * @brief Установить возможность экспортирования текущего документа
      */
     void setCurrentDocumentExportAvailable(bool _available);
@@ -243,6 +265,13 @@ signals:
      * @brief Запрос на отображение меню
      */
     void menuRequested();
+
+    /**
+     * @brief Aula 122: botones de la barra de borradores junto al "+" —
+     *        sprint de escritura y pantalla completa (re-emitidos desde ProjectView)
+     */
+    void writingSprintRequested();
+    void fullscreenRequested();
 
     /**
      * @brief Запрос на апгрейд аккаунта из одного из плагинов

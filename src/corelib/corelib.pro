@@ -13,7 +13,7 @@ DEFINES += CORE_LIBRARY
 DEFINES += QT_DEPRECATED_WARNINGS
 
 mac {
-    DESTDIR = ../_build/starcapp.app/Contents/Frameworks
+    DESTDIR = ../_build/Aula_122.app/Contents/Frameworks
 } else {
     DESTDIR = ../_build
 }
@@ -317,6 +317,7 @@ SOURCES += \
     business_layer/model/novel/text/novel_text_model_scene_item.cpp \
     business_layer/model/novel/text/novel_text_model_text_item.cpp \
     business_layer/model/presentation/presentation_model.cpp \
+    business_layer/model/production/production_storage.cpp \
     business_layer/model/project/project_information_model.cpp \
     business_layer/model/recycle_bin/recycle_bin_model.cpp \
     business_layer/model/screenplay/screenplay_dictionaries_model.cpp \
@@ -475,6 +476,7 @@ SOURCES += \
     ui/widgets/floating_tool_bar/floating_tool_bar.cpp \
     ui/widgets/floating_tool_bar/floating_toolbar_animator.cpp \
     ui/widgets/icon_button/icon_button.cpp \
+    ui/widgets/image/character_image_card.cpp \
     ui/widgets/image/image_card.cpp \
     ui/widgets/image/image_cropping_dialog.cpp \
     ui/widgets/image_cropper/image_cropper.cpp \
@@ -699,6 +701,8 @@ HEADERS += \
     business_layer/model/novel/text/novel_text_model_scene_item.h \
     business_layer/model/novel/text/novel_text_model_text_item.h \
     business_layer/model/presentation/presentation_model.h \
+    business_layer/model/production/production_models.h \
+    business_layer/model/production/production_storage.h \
     business_layer/model/project/project_information_model.h \
     business_layer/model/recycle_bin/recycle_bin_model.h \
     business_layer/model/screenplay/screenplay_dictionaries_model.h \
@@ -862,6 +866,7 @@ HEADERS += \
     ui/widgets/floating_tool_bar/floating_tool_bar.h \
     ui/widgets/floating_tool_bar/floating_toolbar_animator.h \
     ui/widgets/icon_button/icon_button.h \
+    ui/widgets/image/character_image_card.h \
     ui/widgets/image/image_card.h \
     ui/widgets/image/image_cropping_dialog.h \
     ui/widgets/image_cropper/image_cropper.h \

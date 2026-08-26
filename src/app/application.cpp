@@ -58,9 +58,9 @@ Application::Application(int& _argc, char** _argv)
     : QApplication(_argc, _argv)
     , d(new Implementation)
 {
-    setApplicationName("Story Architect");
-    setOrganizationName("Story Apps");
-    setOrganizationDomain("storyapps.dev");
+    setApplicationName("Aula 122");
+    setOrganizationName("Diez50");
+    setOrganizationDomain("diez50.local");
 
     //
     // Настроим таймеры определения простоя приложения
