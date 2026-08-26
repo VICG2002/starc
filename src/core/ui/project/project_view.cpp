@@ -49,6 +49,12 @@ public:
     IconButton* sprintButton = nullptr;
     IconButton* fullscreenButton = nullptr;
     bool isFullScreenMode = false;
+    //
+    // Aula 122: botón de cerrar la comparación lado a lado — vive junto a los
+    // otros tres, pero solo se muestra mientras el split está activo (lo
+    // controla setSplitCloseVisible, llamado desde el manager)
+    //
+    IconButton* closeSplitButton = nullptr;
     StackWidget* documentEditor = nullptr;
 
     Widget* overlay = nullptr;
@@ -71,6 +77,7 @@ ProjectView::Implementation::Implementation(QWidget* _parent)
     , createDraftButton(new IconButton(documentEditorPage))
     , sprintButton(new IconButton(documentEditorPage))
     , fullscreenButton(new IconButton(documentEditorPage))
+    , closeSplitButton(new IconButton(documentEditorPage))
     , documentEditor(new StackWidget(documentEditorPage))
     , overlay(new Widget(_parent))
 {
@@ -88,6 +95,8 @@ ProjectView::Implementation::Implementation(QWidget* _parent)
     sprintButton->hide();
     fullscreenButton->setIcon(u8"\U000F0293"); // fullscreen (MDI, mismo del ☰)
     fullscreenButton->hide();
+    closeSplitButton->setIcon(u8"\U000F0156"); // close (MDI, mismo de "Cerrar" del menú de borradores)
+    closeSplitButton->hide();
     documentEditor->setAnimationType(AnimationType::FadeThrough);
     overlay->setAttribute(Qt::WA_TransparentForMouseEvents);
     overlay->hide();
@@ -159,6 +168,7 @@ ProjectView::Implementation::Implementation(QWidget* _parent)
         draftsLayout->addWidget(createDraftButton, 0, Qt::AlignVCenter);
         draftsLayout->addWidget(sprintButton, 0, Qt::AlignVCenter);
         draftsLayout->addWidget(fullscreenButton, 0, Qt::AlignVCenter);
+        draftsLayout->addWidget(closeSplitButton, 0, Qt::AlignVCenter);
         layout->addLayout(draftsLayout);
         layout->addWidget(documentEditor, 1);
     }
@@ -192,6 +202,7 @@ ProjectView::ProjectView(QWidget* _parent)
             &ProjectView::createNewDraftPressed);
     connect(d->sprintButton, &IconButton::clicked, this, &ProjectView::sprintPressed);
     connect(d->fullscreenButton, &IconButton::clicked, this, &ProjectView::fullscreenPressed);
+    connect(d->closeSplitButton, &IconButton::clicked, this, &ProjectView::closeSplitPressed);
     connect(d->documentDrafts, &TabBar::currentIndexChanged, this, &ProjectView::showDraftPressed);
     connect(d->documentDrafts, &TabBar::customContextMenuRequested, this,
             [this](const QPoint _position) {
@@ -316,6 +327,7 @@ void ProjectView::setDocumentDrafts(const BusinessLayer::StructureModelItem* _it
         d->createDraftButton->setFixedSize(draftsBarHeight, draftsBarHeight);
         d->sprintButton->setFixedSize(draftsBarHeight, draftsBarHeight);
         d->fullscreenButton->setFixedSize(draftsBarHeight, draftsBarHeight);
+        d->closeSplitButton->setFixedSize(draftsBarHeight, draftsBarHeight);
     }
 }
 
@@ -388,6 +400,11 @@ void ProjectView::setFullScreenMode(bool _isFullScreen)
                                                   : tr("Pantalla completa"));
 }
 
+void ProjectView::setSplitCloseVisible(bool _visible)
+{
+    d->closeSplitButton->setVisible(_visible);
+}
+
 void ProjectView::resizeEvent(QResizeEvent* _event)
 {
     StackWidget::resizeEvent(_event);
@@ -415,6 +432,7 @@ void ProjectView::updateTranslations()
     d->sprintButton->setToolTip(tr("Sprint de escritura"));
     d->fullscreenButton->setToolTip(d->isFullScreenMode ? tr("Salir de pantalla completa")
                                                         : tr("Pantalla completa"));
+    d->closeSplitButton->setToolTip(tr("Cerrar comparación"));
 }
 
 void ProjectView::designSystemChangeEvent(DesignSystemChangeEvent* _event)
@@ -469,14 +487,16 @@ void ProjectView::designSystemChangeEvent(DesignSystemChangeEvent* _event)
     // Aula 122: el botón "+" comparte estilo con la barra de borradores y se
     // acota a su misma altura para que la fila no crezca
     //
-    for (auto button : { d->createDraftButton, d->sprintButton, d->fullscreenButton }) {
+    for (auto button :
+         { d->createDraftButton, d->sprintButton, d->fullscreenButton, d->closeSplitButton }) {
         button->setBackgroundColor(ColorHelper::nearby(DesignSystem::color().background()));
         button->setTextColor(DesignSystem::color().onBackground());
     }
     // (el alto real se fija en setDocumentDrafts; aquí solo si ya hay pestañas)
     const int draftsBarHeight = d->documentDrafts->sizeHint().height();
     if (draftsBarHeight > 0) {
-        for (auto button : { d->createDraftButton, d->sprintButton, d->fullscreenButton }) {
+        for (auto button :
+             { d->createDraftButton, d->sprintButton, d->fullscreenButton, d->closeSplitButton }) {
             button->setFixedSize(draftsBarHeight, draftsBarHeight);
         }
     }

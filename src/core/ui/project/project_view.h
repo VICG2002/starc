@@ -83,6 +83,13 @@ public:
      */
     void setFullScreenMode(bool _isFullScreen);
 
+    /**
+     * @brief Aula 122: mostrar/ocultar el botón de cerrar comparación lado a
+     *        lado en la barra de borradores (visible solo mientras el split
+     *        de comparación está activo)
+     */
+    void setSplitCloseVisible(bool _visible);
+
 signals:
     /**
      * @brief Пользователь нажал кнопку создания нового проекта
@@ -100,6 +107,12 @@ signals:
      */
     void sprintPressed();
     void fullscreenPressed();
+
+    /**
+     * @brief Aula 122: el usuario pulsó el botón de cerrar la comparación
+     *        lado a lado
+     */
+    void closeSplitPressed();
 
     /**
      * @brief Пользователь хочет отобразить драфт с заданным индексом

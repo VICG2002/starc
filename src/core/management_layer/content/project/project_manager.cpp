@@ -1190,6 +1190,14 @@ BusinessLayer::StructureModelItem* ProjectManager::Implementation::aliasedItemFo
     const QModelIndex& _index)
 {
     auto item = projectStructureModel->itemForIndex(_index);
+    //
+    // Aula 122 (fix de crash): itemForIndex puede devolver null (índice fuera
+    // del modelo); sin este guard, el chequeo de type() de abajo desreferenciaba
+    // un puntero nulo.
+    //
+    if (item == nullptr) {
+        return nullptr;
+    }
     if (item->type() != Domain::DocumentObjectType::ScreenplayTreatment
         && item->type() != Domain::DocumentObjectType::NovelOutline) {
         return item;
@@ -2422,6 +2430,14 @@ ProjectManager::ProjectManager(QObject* _parent, QWidget* _parentWidget,
     //
     connect(d->splitScreenAction, &QAction::toggled, this, [this](bool _checked) {
         d->updateOptionsText();
+        //
+        // Aula 122: la X de "cerrar comparación" solo existe mientras el split
+        // está activo, en los dos paneles (el usuario puede estar mirando
+        // cualquiera de los dos)
+        //
+        for (auto view : { d->view.left, d->view.right }) {
+            view->setSplitCloseVisible(_checked);
+        }
         if (_checked) {
             Log::info("Split screen turned on");
 
@@ -2931,10 +2947,23 @@ ProjectManager::ProjectManager(QObject* _parent, QWidget* _parentWidget,
                 &ProjectManager::writingSprintRequested);
         connect(view, &Ui::ProjectView::fullscreenPressed, this,
                 &ProjectManager::fullscreenRequested);
+        //
+        // Aula 122: botón de cerrar la comparación lado a lado — mismo efecto
+        // que F2 o "Remove split", con el checked ya en falso
+        //
+        connect(view, &Ui::ProjectView::closeSplitPressed, this,
+                [this] { d->splitScreenAction->setChecked(false); });
         connect(view, &Ui::ProjectView::showDraftPressed, this, [this](int _draftIndex) {
             const auto currentItemIndex
                 = d->projectStructureProxyModel->mapToSource(d->navigator->currentIndex());
             const auto currentItem = d->aliasedItemForIndex(currentItemIndex);
+            //
+            // Aula 122 (fix de crash): currentItem puede ser null (índice sin
+            // resolver) — sin este guard, cualquier rama de abajo desreferenciaba.
+            //
+            if (currentItem == nullptr) {
+                return;
+            }
 
             //
             // Показать текущий драфт
@@ -2947,7 +2976,15 @@ ProjectManager::ProjectManager(QObject* _parent, QWidget* _parentWidget,
             //
             // Показать один из установленных драфтов
             //
-            showViewForDraft(currentItem->drafts().at(_draftIndex - 1));
+            // Aula 122 (fix de crash): .value() en vez de .at() — currentItem
+            // puede tener menos borradores de los que la barra muestra (mismo
+            // desfase de alias que en showDraftContextMenuPressed más abajo).
+            //
+            auto draft = currentItem->drafts().value(_draftIndex - 1);
+            if (draft == nullptr) {
+                return;
+            }
+            showViewForDraft(draft);
         });
         connect(view, &Ui::ProjectView::showDraftContextMenuPressed, this, [this](int _draftIndex) {
             //
@@ -2963,12 +3000,27 @@ ProjectManager::ProjectManager(QObject* _parent, QWidget* _parentWidget,
             }
             const auto currentItemIndex
                 = d->projectStructureProxyModel->mapToSource(d->navigator->currentIndex());
-            const auto item = d->projectStructureModel->itemForIndex(currentItemIndex);
+            //
+            // Aula 122 (fix de crash): aliasedItemForIndex, NO itemForIndex —
+            // el mismo ítem que pobló las pestañas (setDocumentDrafts recibe el
+            // item con alias resuelto). Con itemForIndex sin resolver, un nodo
+            // de Tratamiento/Outline llega aquí con drafts() vacío mientras la
+            // barra ya muestra las pestañas del documento dueño → cualquier
+            // .at() de abajo desreferenciaba fuera de rango.
+            //
+            const auto item = d->aliasedItemForIndex(currentItemIndex);
             if (item == nullptr) {
                 return;
             }
             const auto isCurrentDraft = _draftIndex == 0;
             const auto realDraftIndex = _draftIndex - 1;
+            //
+            // Aula 122 (fix de crash): .value() en vez de .at() — incluso con el
+            // alias resuelto, un índice de pestaña desfasado (p.ej. la barra no
+            // se ha refrescado todavía) no debe reventar; simplemente no hay
+            // draft real bajo ese índice.
+            //
+            const auto realDraftItem = item->drafts().value(realDraftIndex);
             const auto hasActualDrafts
                 = std::find_if(item->drafts().begin(), item->drafts().end(),
                                [](const BusinessLayer::StructureModelItem* _draft) {
@@ -2984,7 +3036,8 @@ ProjectManager::ProjectManager(QObject* _parent, QWidget* _parentWidget,
             // Создать новый драфт можно из текущего, или другого, но не сравнения
             //
             if (isCurrentDraft
-                || (_draftIndex > 0 && !item->drafts().at(realDraftIndex)->isComparison())) {
+                || (_draftIndex > 0 && realDraftItem != nullptr
+                    && !realDraftItem->isComparison())) {
                 auto createNewDraftAction = new QAction;
                 createNewDraftAction->setIconText(u8"\U000F00FB");
                 createNewDraftAction->setText(tr("Create draft"));
@@ -2998,9 +3051,11 @@ ProjectManager::ProjectManager(QObject* _parent, QWidget* _parentWidget,
             //
             // Сравнить драфты показываем, если есть другие актуальные драфты
             //
-            if (hasActualDrafts
+            const auto canCompare = hasActualDrafts
                 && (isCurrentDraft
-                    || (_draftIndex > 0 && !item->drafts().at(realDraftIndex)->isComparison()))) {
+                    || (_draftIndex > 0 && realDraftItem != nullptr
+                        && !realDraftItem->isComparison()));
+            if (canCompare) {
                 auto compareDraftsAction = new QAction;
                 compareDraftsAction->setIconText(u8"\U000F1492");
                 compareDraftsAction->setText(tr("Compare drafts"));
@@ -3012,9 +3067,41 @@ ProjectManager::ProjectManager(QObject* _parent, QWidget* _parentWidget,
             }
 
             //
+            // Aula 122: comparar lado a lado directo desde el menú — mismo
+            // criterio de aparición que "Compare drafts", sin pasar por el
+            // diálogo intermedio (que sigue disponible para elegir un par
+            // arbitrario). Izquierda = el borrador clicado (el "viejo"); si se
+            // clicó el borrador actual, izquierda pasa a ser el borrador real
+            // más reciente. Derecha = el borrador actual, que queda activo.
+            //
+            if (canCompare) {
+                auto lhsTab = _draftIndex;
+                if (isCurrentDraft) {
+                    lhsTab = -1;
+                    for (int i = item->drafts().size() - 1; i >= 0; --i) {
+                        if (!item->drafts().at(i)->isComparison()) {
+                            lhsTab = i + 1;
+                            break;
+                        }
+                    }
+                }
+                if (lhsTab >= 0) {
+                    auto compareSideBySideAction = new QAction;
+                    compareSideBySideAction->setIconText(u8"\U000F10E7");
+                    compareSideBySideAction->setText(tr("Comparar lado a lado"));
+                    compareSideBySideAction->setEnabled(enabled);
+                    connect(compareSideBySideAction, &QAction::triggered, this,
+                            [this, currentItemIndex, lhsTab] {
+                                d->compareTextDocumentsSideBySide(currentItemIndex, lhsTab, 0);
+                            });
+                    menuActions.append(compareSideBySideAction);
+                }
+            }
+
+            //
             // Для любого драфта, кроме сравнения, показываем опции редактирования и удаления
             //
-            if (_draftIndex == 0 || !item->drafts().at(realDraftIndex)->isComparison()) {
+            if (_draftIndex == 0 || (realDraftItem != nullptr && !realDraftItem->isComparison())) {
                 auto editDraftAction = new QAction;
                 editDraftAction->setIconText(u8"\U000F090C");
                 editDraftAction->setText(tr("Edit"));
@@ -3039,7 +3126,7 @@ ProjectManager::ProjectManager(QObject* _parent, QWidget* _parentWidget,
             //
             // Для сравнений показываем только опцию закрыть
             //
-            if (_draftIndex > 0 && item->drafts().at(realDraftIndex)->isComparison()) {
+            if (_draftIndex > 0 && realDraftItem != nullptr && realDraftItem->isComparison()) {
                 auto closeAction = new QAction;
                 closeAction->setIconText(u8"\U000F0156");
                 closeAction->setText(tr("Close"));
