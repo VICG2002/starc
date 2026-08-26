@@ -267,7 +267,12 @@ const QHash<QString, QString> kMimeToPlugin
         { kScreenplayTextTimelineMime, "*screenplaytimelineplugin*" },
         { kScreenplayTextBreakdownMime, "*screenplaybreakdownplugin*" },
         { kScreenplayBreakdownNavigatorMime, "*screenplaybreakdownstructureplugin*" },
-        { kScreenplayStatisticsViewMime, "*screenplaystatisticsplugin*" },
+        //
+        // Aula 122: vista de estadísticas de guion nativa (reemplazo open
+        // source del plugin closed source screenplay_statistics, cuyo
+        // submódulo privado no está clonado — ver screenplay_statistics_native/)
+        //
+        { kScreenplayStatisticsViewMime, "*screenplaystatisticsnativeplugin*" },
         { kScreenplayStatisticsNavigatorMime, "*screenplaystatisticsstructureplugin*" },
         //
         { "application/x-starc/editor/screenplay-series/information", "*screenplayseriesinformationplugin*" },
