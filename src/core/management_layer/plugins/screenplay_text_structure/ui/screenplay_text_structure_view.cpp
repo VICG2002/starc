@@ -19,6 +19,7 @@
 #include <ui/widgets/text_edit/page/page_text_edit.h>
 #include <ui/widgets/tree/tree.h>
 #include <utils/helpers/time_helper.h>
+#include <utils/tools/debouncer.h>
 
 #include <QAction>
 #include <QSortFilterProxyModel>
@@ -52,6 +53,15 @@ public:
      *        приложении ещё не был открыт редактор текста модели, структуру которого отображаем
      */
     QScopedPointer<PageTextEdit> textEdit;
+
+    //
+    // Aula 122: las señales del modelo (dataChanged en cada tecla, entre otras)
+    // llegaban directas a updateCounters() sin freno; con el documento de
+    // texto aún sin abrir, ese recálculo reconstruye un layout tipográfico
+    // completo para contar páginas. El debounce es el mismo patrón que ya usa
+    // el scrollbar manager del editor (screenplay_text_scrollbar_manager.cpp).
+    //
+    Debouncer countersUpdateDebouncer;
 };
 
 ScreenplayTextStructureView::Implementation::Implementation(QWidget* _parent)
@@ -60,6 +70,7 @@ ScreenplayTextStructureView::Implementation::Implementation(QWidget* _parent)
     , content(new Tree(_parent))
     , contentDelegate(new ScreenplayTextStructureDelegate(content))
     , countersWidget(new CountersInfoWidget(_parent))
+    , countersUpdateDebouncer(300)
 {
     backIcon->setIcon(u8"\U000F0141");
 
@@ -159,6 +170,8 @@ ScreenplayTextStructureView::ScreenplayTextStructureView(QWidget* _parent)
     connect(d->content, &Tree::customContextMenuRequested, this, [this](const QPoint& _pos) {
         emit customContextMenuRequested(d->content->mapToParent(_pos));
     });
+    connect(&d->countersUpdateDebouncer, &Debouncer::gotWork, this,
+            [this] { d->updateCounters(); });
 }
 
 ScreenplayTextStructureView::~ScreenplayTextStructureView() = default;
@@ -211,6 +224,13 @@ void ScreenplayTextStructureView::setModel(QAbstractItemModel* _model)
 {
     if (d->model != nullptr) {
         d->model->disconnect(this);
+        //
+        // Aula 122: las conexiones de contadores van al debouncer, no a
+        // "this" — hay que desconectarlas aparte o quedan colgadas apuntando
+        // al modelo viejo cuando se llama setModel() de nuevo
+        //
+        d->model->disconnect(&d->countersUpdateDebouncer);
+        d->countersUpdateDebouncer.abortWork();
         d->textEdit.reset();
     }
 
@@ -218,15 +238,21 @@ void ScreenplayTextStructureView::setModel(QAbstractItemModel* _model)
 
     d->model = qobject_cast<QSortFilterProxyModel*>(_model);
     if (d->model != nullptr) {
-        connect(d->model, &QSortFilterProxyModel::modelReset, this,
-                [this] { d->updateCounters(); });
-        connect(d->model, &QSortFilterProxyModel::dataChanged, this,
-                [this] { d->updateCounters(); });
-        connect(d->model, &QSortFilterProxyModel::rowsInserted, this,
-                [this] { d->updateCounters(); });
-        connect(d->model, &QSortFilterProxyModel::rowsMoved, this, [this] { d->updateCounters(); });
-        connect(d->model, &QSortFilterProxyModel::rowsRemoved, this,
-                [this] { d->updateCounters(); });
+        //
+        // Aula 122: las cinco señales piden trabajo al debouncer en vez de
+        // llamar a updateCounters() directo — ver el comentario del miembro
+        // countersUpdateDebouncer más arriba
+        //
+        connect(d->model, &QSortFilterProxyModel::modelReset, &d->countersUpdateDebouncer,
+                &Debouncer::orderWork);
+        connect(d->model, &QSortFilterProxyModel::dataChanged, &d->countersUpdateDebouncer,
+                &Debouncer::orderWork);
+        connect(d->model, &QSortFilterProxyModel::rowsInserted, &d->countersUpdateDebouncer,
+                &Debouncer::orderWork);
+        connect(d->model, &QSortFilterProxyModel::rowsMoved, &d->countersUpdateDebouncer,
+                &Debouncer::orderWork);
+        connect(d->model, &QSortFilterProxyModel::rowsRemoved, &d->countersUpdateDebouncer,
+                &Debouncer::orderWork);
     }
 }
 

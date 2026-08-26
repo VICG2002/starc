@@ -200,6 +200,15 @@ std::chrono::milliseconds ScreenplayChronometer::duration(TextParagraphType _typ
         return CharactersChronometer(_options).duration(_type, _text, screenplayTemplate);
     }
 
+    //
+    // Aula 122 (fix): el enum declara Words pero este switch no lo manejaba —
+    // caia al default y devolvia duracion cero en release (Q_ASSERT en debug).
+    // El calculo ya existe (WordsChronometer, el mismo que usa audioplay).
+    //
+    case ChronometerType::Words: {
+        return WordsChronometer(_options).duration(_type, _text, screenplayTemplate);
+    }
+
     case ChronometerType::Sophocles: {
         return SophoclesChronometer(_options).duration(_type, _text, screenplayTemplate);
     }

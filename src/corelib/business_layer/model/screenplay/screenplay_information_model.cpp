@@ -773,8 +773,15 @@ void ScreenplayInformationModel::initDocument()
         }
 
         case ChronometerType::Characters: {
-            d->chronometerOptions.characters.seconds = node.attribute("characters").toInt();
-            d->chronometerOptions.characters.seconds = node.attribute("consider_spaces") == "true";
+            //
+            // Aula 122 (fix): las tres lineas de abajo asignaban al mismo
+            // campo (.seconds), asi que .characters y .considerSpaces nunca se
+            // leian del .starc y volvian al default de la struct en cada
+            // apertura de proyecto con cronometraje por caracteres + override.
+            //
+            d->chronometerOptions.characters.characters = node.attribute("characters").toInt();
+            d->chronometerOptions.characters.considerSpaces
+                = node.attribute("consider_spaces") == "true";
             d->chronometerOptions.characters.seconds = node.attribute("seconds").toInt();
             break;
         }
